@@ -174,6 +174,11 @@ class ThermalModel:
                 or value.hours < 0
                 or value.count < 0
                 or value.episodes < 0
+                or type(value.count) is not int
+                or type(value.episodes) is not int
+                or value.episodes > value.count
+                or value.rate_square < 0
+                or not 0 <= value.outdoor_hours <= value.hours
             ):
                 raise ValueError("Invalid response statistics")
             result.statistics[key] = value

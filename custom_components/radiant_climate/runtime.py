@@ -581,5 +581,7 @@ class Installation:
         # cannot deliver commands; do not claim a hardware fail-safe.
         self.async_stop()
         async with self._lock:
-            await self._save()
-            await self._apply()
+            try:
+                await self._save()
+            finally:
+                await self._apply()

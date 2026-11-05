@@ -155,7 +155,11 @@ class Program:
             raise ValueError("Invalid hold duration")
         profiles = {
             mode: {
-                p: temperature(raw["profiles"][mode].get(p, cls().profiles[mode][p]))
+                p: temperature(
+                    raw["profiles"][mode].get(p, cls().profiles[mode][p])
+                    if p == "away"
+                    else raw["profiles"][mode][p]
+                )
                 for p in PROFILES
             }
             for mode in ["heat", "cool"]

@@ -579,6 +579,9 @@ async def test_anticipation_requires_model_and_preserves_displayed_comfort_targe
     assert house.states.get(climate).attributes["control_target"] == 22
     assert house.states.get(climate).attributes["reason"] == "anticipation"
     assert house.states.get("switch.fixture_a").state == "on"
+    # Outside the base hysteresis band, disabling anticipation must close.
+    house.states.async_set("sensor.fixture_a", "20.3", {"unit_of_measurement": "°C"})
+    await settle(house)
     await service(house, "switch", "turn_off", zone_entity(house, entry, "switch", "anticipation"))
     assert house.states.get("switch.fixture_a").state == "off"
 

@@ -26,6 +26,14 @@ def main():
         if not name:
             continue
         path = ROOT / name
+        if name == "custom_components/radiant_climate/brand/icon.png":
+            payload = path.read_bytes()
+            if not payload.startswith(b"\x89PNG\r\n\x1a\n") or any(
+                marker in payload for marker in (b"eXIf", b"tEXt", b"iTXt", b"zTXt")
+            ):
+                errors.append((name, "unexpected_image_metadata"))
+            # Original generated brand mark, visually reviewed; no user image.
+            continue
         try:
             content = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Radiant Climate</title>
+  <g fill="none" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">
+    <path stroke="#c45425" d="M20 20H204Q236 20 236 52V72Q236 104 204 104H52Q20 104 20 136"/>
+    <path stroke="#167ca4" d="M20 136V152Q20 184 52 184H204Q236 184 236 216V236H20"/>
+  </g>
+</svg>

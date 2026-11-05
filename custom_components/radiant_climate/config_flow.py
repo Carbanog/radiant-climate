@@ -174,7 +174,7 @@ class RadiantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class RadiantOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         if self.config_entry.data["kind"] == "installation":
-            return await self.async_step_hardware(user_input)
+            return self.async_show_menu(step_id="init", menu_options=["hardware", "vacation"])
         return self.async_show_menu(
             step_id="init",
             menu_options=["hardware", "schedule_add", "schedule_remove", "sources", "vacation"],
@@ -233,9 +233,13 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
                     until = dt_util.as_utc(until)
                     if until <= dt_util.utcnow():
                         raise ValueError("Return must be in the future")
-                await self.hass.data[DOMAIN].async_away(
-                    self.config_entry.entry_id, user_input["enabled"], until
-                )
+                manager = self.hass.data[DOMAIN]
+                if self.config_entry.data["kind"] == "installation":
+                    await manager.async_away_all(user_input["enabled"], until)
+                else:
+                    await manager.async_away(
+                        self.config_entry.entry_id, user_input["enabled"], until
+                    )
             except ValueError:
                 errors["base"] = "invalid_configuration"
             else:

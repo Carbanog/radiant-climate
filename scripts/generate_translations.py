@@ -185,7 +185,7 @@ def complete_document(language):
     options = result["options"]
     options["step"]["hardware"] = options["step"]["init"].copy()
     options["step"]["init"] = {
-        "title": ("Thermostat settings", "Configuración del termostato")[language],
+        "title": ("Climate settings", "Configuración de climatización")[language],
         "menu_options": {
             "hardware": ("Devices and regulation", "Dispositivos y regulación")[language],
             "schedule_add": ("Add or replace schedule block", "Añadir o sustituir bloque horario")[
@@ -248,6 +248,9 @@ def complete_document(language):
     entities["switch"]["window_enabled"] = {
         "name": ("Pause for window", "Pausar por ventana")[language]
     }
+    entities["switch"]["household_away"] = {
+        "name": ("Household vacation", "Vacaciones de la vivienda")[language]
+    }
     entities["button"] = {"resume": {"name": ("Resume schedule", "Volver al horario")[language]}}
     entities["select"]["manual_policy"] = {
         "name": ("Manual hold behavior", "Comportamiento de Manual")[language],
@@ -301,8 +304,8 @@ def complete_document(language):
     options["step"]["vacation"] = {
         "title": ("Vacation", "Vacaciones")[language],
         "description": (
-            "Away does not enable an off zone. Optional return date; blank means indefinite. Subsequent manual changes take priority.",
-            "Ausente no enciende una zona apagada. Fecha de regreso opcional; vacía significa indefinido. Los cambios manuales posteriores tienen prioridad.",
+            "From General configuration this applies Away to all loaded zones; from a thermostat, only that zone. Off zones remain off. An optional return date ends the absence; blank means indefinite. Activating replaces previous manual holds; later manual changes take priority.",
+            "Desde Configuración general aplica Ausente a todas las zonas cargadas; desde un termostato, solo a esa zona. No enciende zonas apagadas. La fecha de regreso es opcional; vacía significa indefinido. Activar sustituye retenciones anteriores; los cambios manuales posteriores tienen prioridad.",
         )[language],
         "data": {
             "enabled": ("Away enabled", "Activar Ausente")[language],

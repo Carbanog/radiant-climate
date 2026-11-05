@@ -4,7 +4,7 @@ Candidata de desarrollo: consulta CI y el commit instalado. Instalar en laborato
 
 ## Alta mínima
 
-Crea primero la instalación; selecciona la válvula de entrada solo si existe. No selecciones producción o bomba como si fueran una válvula. Aparecen Climatización, Temporada de suministro declarada y Oportunidad solar compartida. La temporada se declara; no se mide disponibilidad de agua.
+Crea primero la instalación; selecciona la válvula de entrada solo si existe. No selecciones producción o bomba como si fueran una válvula. Aparecen Climatización, Vacaciones de la vivienda, Temporada de suministro declarada y Oportunidad solar compartida. La temporada se declara; no se mide disponibilidad de agua.
 
 Añade una entrada por zona con cuatro campos: sensor interior, uno o varios relés, calor/frío/ambos y consigna inicial. Empieza apagada. El nombre se propone a partir del sensor y puede renombrarse desde HA. Varios circuitos pueden compartir una zona y consigna; una futura zona independiente se añade con el mismo asistente.
 
@@ -18,6 +18,7 @@ El sensor interior debe informar grados Celsius. Una unidad ausente o incompatib
 - Usar horario por zona: activarlo aplica el programa sin vencer Apagado. Desactivarlo conserva la consigna efectiva como fija. Si hay vacaciones activas, ese control modifica el programa subyacente, sin cancelar la ausencia ni una retención posterior.
 - Volver al horario: termina Manual y recupera el programa vigente. Durante Ausente recupera Ausente; no enciende una zona apagada. Sin agenda configurada no inventa horarios.
 - Ausente: activa el perfil prolongado. Elegir away en los presets también activa ausencia indefinida. Terminar Ausente no anula una retención manual posterior.
+- Vacaciones de la vivienda: encender aplica Ausente a todas las zonas cargadas; apagar termina esas ausencias. No enciende zonas apagadas ni activa Climatización. Cada zona utiliza su propia temperatura Ausente para la temporada.
 
 Los ajustes avanzados y temperaturas aparecen agrupados en Configuración del dispositivo; no es necesario mostrarlos todos en el panel principal. Se pueden añadir individualmente a un panel nativo.
 
@@ -36,6 +37,30 @@ Durante Manual no actúan anticipación, solar ni pausa predictiva. Editar un pe
 Configurar → Añadir o sustituir bloque horario permite seleccionar días, hora y perfil. Cada bloque continúa hasta el siguiente, también entre días. Repetir día/hora sustituye el bloque. Eliminar bloque muestra los existentes. Utiliza la zona horaria de HA.
 
 En primavera una hora inexistente se desplaza al primer minuto válido; en otoño una hora repetida se ejecuta una sola vez, en la primera aparición. Manual hasta próximo bloque termina en la frontera aunque ambos perfiles tengan igual temperatura. Editar agenda recalcula esa frontera; si desaparecen todas, la retención pasa a sin vencimiento explícito. Activar horario desde cero exige un bloque.
+
+### Ejemplo paso a paso
+
+Para Normal de día y Noche al dormir en una habitación:
+
+1. Ajusta las temperaturas **Calor · Normal** y **Calor · Noche** de ese termostato; para refrigeración existen valores separados de Frío.
+2. En Configurar → Añadir o sustituir bloque horario, selecciona los días deseados, **07:00** y **Normal**. Guarda.
+3. Añade otro bloque para esos días: **23:00**, **Noche**. Guarda y activa **Usar horario** en esa zona.
+
+Normal rige desde las 07:00 hasta las 23:00; Noche desde las 23:00 hasta las 07:00 del siguiente día programado. No necesitas bloques separados de inicio y fin. Son ejemplos, no horas ni temperaturas prescritas para un suelo radiante.
+
+Puedes usar Normal/Eco en salón, otras horas en despacho y Noche solo en habitación. Para compartir un programa ya preparado utiliza **Copiar ajustes de Radiant Climate**, seleccionando únicamente Programación; después puedes modificar cada zona por separado.
+
+Si a las 22:30 subes manualmente la temperatura durante cuatro horas, la retención sigue hasta las 02:30 aunque a las 23:00 comience Noche. Después vuelve al perfil que corresponda entonces. Apagar **Usar horario** deja una consigna fija; no apaga el termostato.
+
+## Vacaciones de toda la vivienda
+
+Utiliza **Vacaciones de la vivienda** para una ausencia indefinida y para terminarla al volver antes. Para fecha de vuelta: **Configuración general → Configurar → Vacaciones y regreso**, activa la ausencia y selecciona **fecha y hora de regreso**. Se aplica a todas las zonas cargadas usando sus perfiles Ausente; no exige ayudantes, scripts ni automatizaciones.
+
+Al llegar esa fecha/hora, cada zona recupera su horario o consigna fija. Una retención Manual posterior aún vigente conserva prioridad. Las zonas apagadas siguen apagadas. La fecha indica cuándo se reanuda la regulación habitual: no promete que la vivienda ya haya alcanzado la consigna a esa hora.
+
+Activar explícitamente Vacaciones sustituye retenciones manuales anteriores; una intervención manual posterior prevalece. También puedes ajustar o terminar la ausencia de una habitación desde su propio control. El interruptor de vivienda permanece encendido mientras alguna zona esté en Ausente, para poder terminar todas de una vez. Sus atributos indican cuántas están ausentes, si es parcial y si tienen regresos diferentes.
+
+La acción global utiliza los mismos estados de cada zona, persistentes al reiniciar; no mantiene una segunda agenda de vacaciones en competencia. Una zona nueva empieza apagada: si la añades durante una ausencia, aplícale Vacaciones antes de habilitarla.
 
 ## Fuentes y módulos
 

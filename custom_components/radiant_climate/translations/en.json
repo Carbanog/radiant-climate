@@ -33,7 +33,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Thermostat settings",
+        "title": "Climate settings",
         "menu_options": {
           "hardware": "Devices and regulation",
           "schedule_add": "Add or replace schedule block",
@@ -95,7 +95,7 @@
       },
       "vacation": {
         "title": "Vacation",
-        "description": "Away does not enable an off zone. Optional return date; blank means indefinite. Subsequent manual changes take priority.",
+        "description": "From General configuration this applies Away to all loaded zones; from a thermostat, only that zone. Off zones remain off. An optional return date ends the absence; blank means indefinite. Activating replaces previous manual holds; later manual changes take priority.",
         "data": {
           "enabled": "Away enabled",
           "date": "Return date (optional)",
@@ -151,6 +151,9 @@
       },
       "window_enabled": {
         "name": "Pause for window"
+      },
+      "household_away": {
+        "name": "Household vacation"
       },
       "weather": {
         "name": "Use weather forecast"

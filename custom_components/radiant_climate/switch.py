@@ -9,7 +9,9 @@ from .entity import RadiantEntity
 
 async def async_setup_entry(hass, entry, async_add_entities):
     if entry.data["kind"] == "installation":
-        async_add_entities([InstallationEnabled(hass.data[DOMAIN], entry)])
+        async_add_entities(
+            [InstallationEnabled(hass.data[DOMAIN], entry), HouseholdAway(hass.data[DOMAIN], entry)]
+        )
     else:
         manager = hass.data[DOMAIN]
         entities = [
@@ -23,6 +25,44 @@ async def async_setup_entry(hass, entry, async_add_entities):
         if manager.zones[entry.entry_id].config.get("window"):
             entities.append(WindowEnabled(manager, entry))
         async_add_entities(entities)
+
+
+class HouseholdAway(RadiantEntity, SwitchEntity):
+    _attr_translation_key = "household_away"
+    _attr_icon = "mdi:bag-suitcase"
+
+    def __init__(self, manager, entry):
+        super().__init__(manager, entry, "household_away")
+
+    @property
+    def available(self):
+        return bool(self.manager.zones) and self.manager._ready()
+
+    @property
+    def is_on(self):
+        # Like a switch group, any active member keeps the shared off action
+        # available, even after a room has been taken out of Away individually.
+        return any(z.program.away for z in self.manager.zones.values())
+
+    @property
+    def extra_state_attributes(self):
+        zones = list(self.manager.zones.values())
+        active = [z for z in zones if z.program.away]
+        returns = {z.program.away_until for z in active}
+        until = next(iter(returns)) if len(returns) == 1 else None
+        return {
+            "zones": len(zones),
+            "away_zones": len(active),
+            "partially_active": 0 < len(active) < len(zones),
+            "mixed_return_times": len(returns) > 1,
+            "return_at": until.isoformat() if until else None,
+        }
+
+    async def async_turn_on(self, **kwargs):
+        await self.manager.async_away_all(True)
+
+    async def async_turn_off(self, **kwargs):
+        await self.manager.async_away_all(False)
 
 
 class ModuleEnabled(RadiantEntity, SwitchEntity):

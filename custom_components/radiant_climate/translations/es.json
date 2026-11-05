@@ -33,7 +33,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Configuración del termostato",
+        "title": "Configuración de climatización",
         "menu_options": {
           "hardware": "Dispositivos y regulación",
           "schedule_add": "Añadir o sustituir bloque horario",
@@ -95,7 +95,7 @@
       },
       "vacation": {
         "title": "Vacaciones",
-        "description": "Ausente no enciende una zona apagada. Fecha de regreso opcional; vacía significa indefinido. Los cambios manuales posteriores tienen prioridad.",
+        "description": "Desde Configuración general aplica Ausente a todas las zonas cargadas; desde un termostato, solo a esa zona. No enciende zonas apagadas. La fecha de regreso es opcional; vacía significa indefinido. Activar sustituye retenciones anteriores; los cambios manuales posteriores tienen prioridad.",
         "data": {
           "enabled": "Activar Ausente",
           "date": "Fecha de regreso (opcional)",
@@ -151,6 +151,9 @@
       },
       "window_enabled": {
         "name": "Pausar por ventana"
+      },
+      "household_away": {
+        "name": "Vacaciones de la vivienda"
       },
       "weather": {
         "name": "Usar previsión meteorológica"

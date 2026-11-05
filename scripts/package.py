@@ -36,7 +36,7 @@ def main():
                 {
                     "commit": commit,
                     "version": version,
-                    "stage": "beta",
+                    "stage": "prerelease" if "-" in version else "release",
                     "approved_for_production": False,
                 }
             ),

@@ -1,5 +1,25 @@
 # Cambios y actualización
 
+## v0.2.0
+
+Primera release normal, publicada fuera del canal de versiones preliminares. Incluye las correcciones de beta.2 y añade **Vacaciones de la vivienda**: un único control para aplicar Ausente a todas las zonas cargadas, con fecha/hora de regreso comunes desde Configuración general → Vacaciones y regreso.
+
+Cada zona conserva su perfil Ausente, consigna fija/agenda y estado Apagado. Las intervenciones manuales posteriores tienen prioridad. Puedes finalizar una ausencia por zona; el control de vivienda indica ausencias parciales y permite terminarlas todas. La ausencia se conserva en los estados existentes de cada zona, sin crear ayudantes externos ni duplicar persistencia. Hay pruebas específicas de aplicación global, regreso programado, prioridad Manual, apagados y reinicio completo.
+
+La [guía de programación y vacaciones](configuration.md#agenda-semanal) incorpora un ejemplo de bloques Normal/Noche y explica cómo compartir horarios y cómo actúa Manual al cruzar un cambio de perfil.
+
+### Actualizar desde una beta
+
+Conserva una copia, apaga Climatización, selecciona **v0.2.0** y reinicia según el aviso de HA. No necesitas activar versiones preliminares. Conserva las entradas, perfiles y agendas: el almacenamiento continúa en versión 1 y no requiere conversión. Configurar la instalación abre ahora un menú con Dispositivos y regulación y Vacaciones y regreso.
+
+Revisa las asignaciones y motivos antes de habilitar. La nueva entidad Vacaciones de la vivienda puede añadirse al panel directamente. Si anteriormente intentaste quitar una fuente opcional en beta.1, vuelve a vaciar ese campo y guarda; se mantiene su corrección. Para revertir conserva código y configuración juntos según la [guía de reversión](installation.md#reversión).
+
+### Validación y alcance
+
+90 pruebas del motor, 46 del adaptador en cada Core 2026.10.4/2026.11.0, ruff, privacidad, HACS y hassfest. Las 37 comprobaciones incrementales del laboratorio de las candidatas anteriores siguen documentadas por separado; el control global nuevo se verifica en las pruebas Core, incluidas persistencia y prioridad.
+
+El canal normal identifica la entrega mantenida de software. La incidencia solar, el aprendizaje y los tiempos físicos requieren ajuste en cada instalación; no certifica válvulas, caudal, anticondensación ni ahorro. La vuelta de Vacaciones reanuda el programa a la hora elegida, sin garantizar anticipación del confort para esa llegada. La espera después de ventilar continúa siendo configurable, no adaptativa. Permanecen los límites de miniatura de Marketplace y compatibilidad futura descritos a continuación.
+
 ## v0.2.0-beta.2
 
 Entrega corregida de la beta, sin cambiar el formato de almacenamiento ni añadir dependencias. Mantiene termostatos propios calor/frío, perfiles, agendas, prioridades Manual, ventanas, módulos opcionales y coordinación de suministro compartido.

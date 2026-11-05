@@ -508,11 +508,20 @@ class Installation:
         await self.async_change(lambda: setattr(z.intelligence, "features", candidate))
 
     async def async_away(self, zone_id, enabled, until=None):
+        await self.async_change(lambda: self._set_away(self.zones[zone_id], enabled, until))
+
+    @staticmethod
+    def _set_away(zone, enabled, until):
+        zone.program.away, zone.program.away_until = enabled, until if enabled else None
+        if enabled:
+            zone.intent.resume()
+
+    async def async_away_all(self, enabled, until=None):
+        # Broadcast one atomic change; each zone keeps its own profiles and off
+        # intent. Persist existing zone programs rather than a competing overlay.
         def update():
-            z = self.zones[zone_id]
-            z.program.away, z.program.away_until = enabled, until if enabled else None
-            if enabled:
-                z.intent.resume()
+            for zone in self.zones.values():
+                self._set_away(zone, enabled, until)
 
         await self.async_change(update)
 

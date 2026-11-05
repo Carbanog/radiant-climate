@@ -487,11 +487,87 @@ async def test_optional_entity_selectors_can_be_cleared(house):
         e for e in house.config_entries.async_entries(DOMAIN) if e.data["kind"] == "installation"
     )
     flow = await house.config_entries.options.async_init(hub.entry_id)
+    flow = await house.config_entries.options.async_configure(
+        flow["flow_id"], {"next_step_id": "hardware"}
+    )
     result = await house.config_entries.options.async_configure(flow["flow_id"], {})
     assert result["type"] == "create_entry", result
     await settle(house)
     assert hub.options["general"] is None
     assert house.data[DOMAIN].general is None
+
+
+async def test_household_vacation_respects_off_manual_and_partial_return(house):
+    a, ca = await add_zone(house, "a")
+    b, cb = await add_zone(house, "b")
+    await add_schedule(house, a)
+    await service(house, "switch", "turn_on", zone_entity(house, a, "switch", "schedule"))
+    await service(house, "climate", "set_hvac_mode", ca, hvac_mode="heat")
+    await service(
+        house, "number", "set_value", zone_entity(house, b, "number", "heat_away"), value=18
+    )
+    manager = house.data[DOMAIN]
+    control = er.async_get(house).async_get_entity_id(
+        "switch", DOMAIN, f"{manager.hub}_household_away"
+    )
+    await service(house, "switch", "turn_on", control)
+    assert house.states.get(ca).attributes["temperature"] == 17
+    assert house.states.get(cb).attributes["temperature"] == 18
+    assert house.states.get(cb).attributes["requested_mode"] == "off"
+    assert not manager.enabled
+    assert house.states.get(control).state == "on"
+    assert house.states.get(control).attributes["away_zones"] == 2
+    await service(house, "climate", "set_temperature", ca, temperature=22)
+    await service(house, "switch", "turn_off", zone_entity(house, b, "switch", "away"))
+    assert house.states.get(control).state == "on"
+    assert house.states.get(control).attributes["partially_active"]
+    await service(house, "switch", "turn_off", control)
+    assert not any(z.program.away for z in manager.zones.values())
+    assert house.states.get(ca).attributes["control_state"] == "manual"
+    assert house.states.get(ca).attributes["temperature"] == 22
+    assert house.states.get(cb).attributes["requested_mode"] == "off"
+    await service(house, "button", "press", zone_entity(house, a, "button", "resume"))
+    assert house.states.get(ca).attributes["temperature"] == 21
+
+
+async def test_household_vacation_return_form_and_expiry_preserve_control(house):
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+
+    a, ca = await add_zone(house, "a")
+    b, cb = await add_zone(house, "b")
+    for entry, climate in ((a, ca), (b, cb)):
+        await add_schedule(house, entry)
+        await service(house, "switch", "turn_on", zone_entity(house, entry, "switch", "schedule"))
+        await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    manager = house.data[DOMAIN]
+    until = dt_util.as_local(dt_util.utcnow() + timedelta(days=2)).replace(microsecond=0)
+    flow = await house.config_entries.options.async_init(manager.hub)
+    assert flow["type"] == "menu" and flow["menu_options"] == ["hardware", "vacation"]
+    flow = await house.config_entries.options.async_configure(
+        flow["flow_id"], {"next_step_id": "vacation"}
+    )
+    result = await house.config_entries.options.async_configure(
+        flow["flow_id"],
+        {"enabled": True, "date": until.date().isoformat(), "time": until.strftime("%H:%M:%S")},
+    )
+    assert result["type"] == "create_entry", result
+    await settle(house)
+    assert manager.enabled
+    assert all(z.program.away_until == dt_util.as_utc(until) for z in manager.zones.values())
+    control = er.async_get(house).async_get_entity_id(
+        "switch", DOMAIN, f"{manager.hub}_household_away"
+    )
+    assert house.states.get(control).attributes["return_at"] == dt_util.as_utc(until).isoformat()
+    for zone in manager.zones.values():
+        zone.program.away_until = dt_util.utcnow() - timedelta(seconds=1)
+    await settle(house)
+    assert house.states.get(control).state == "off"
+    assert all(house.states.get(c).attributes["control_state"] == "scheduled" for c in (ca, cb))
+    assert all(house.states.get(c).attributes["temperature"] == 21 for c in (ca, cb))
+    assert manager.enabled
 
 
 async def test_weather_and_outdoor_failure_degrade_to_interior_control(house):
@@ -815,7 +891,9 @@ def test_optional_temperature_conversion_rejects_invalid_data(value, unit, expec
     assert celsius(value, unit) == expected
 
 
-@pytest.mark.parametrize("scenario", ["duration", "until_resume", "expired", "individual_off"])
+@pytest.mark.parametrize(
+    "scenario", ["duration", "until_resume", "expired", "individual_off", "household_away"]
+)
 async def test_full_core_restart_restores_control_without_bypassing_off(house, scenario):
     from datetime import timedelta
 
@@ -834,6 +912,10 @@ async def test_full_core_restart_restores_control_without_bypassing_off(house, s
             option="until_resume",
         )
     await service(house, "climate", "set_temperature", climate, temperature=22)
+    if scenario == "household_away":
+        await add_zone(house, "b")
+        await house.data[DOMAIN].async_away_all(True)
+        await service(house, "climate", "set_temperature", climate, temperature=22)
     if scenario == "expired":
         house.data[DOMAIN].zones[entry.entry_id].intent.hold.until = dt_util.utcnow() - timedelta(
             seconds=1
@@ -871,6 +953,23 @@ async def test_full_core_restart_restores_control_without_bypassing_off(house, s
         assert state.state == "off"
         assert restarted.states.get("switch.fixture_a").state == "off"
         assert restarted.states.get("switch.fixture_general").state == "off"
+        if scenario == "household_away":
+            manager = restarted.data[DOMAIN]
+            assert all(z.program.away for z in manager.zones.values())
+            assert (
+                restarted.states.get(
+                    er.async_get(restarted).async_get_entity_id(
+                        "switch", DOMAIN, f"{manager.hub}_household_away"
+                    )
+                ).state
+                == "on"
+            )
+            assert (
+                next(
+                    z for key, z in manager.zones.items() if key != entry.entry_id
+                ).intent.mode.value
+                == "off"
+            )
         if scenario == "expired":
             assert state.attributes["temperature"] == 21
             assert state.attributes["control_state"] == "scheduled"

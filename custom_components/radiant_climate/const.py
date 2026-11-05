@@ -13,4 +13,4 @@ PLATFORMS = [
     Platform.BINARY_SENSOR,
 ]
 STORAGE_VERSION = 1
-VERSION = "0.2.0-beta.2"
+VERSION = "0.2.0"

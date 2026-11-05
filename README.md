@@ -6,14 +6,14 @@
 
 Crea termostatos de Home Assistant a partir de tus sensores y relés. Utiliza una consigna fija o añade perfiles, horarios, ventanas y optimización térmica según lo que necesite cada estancia. Diseñado con especial atención al suelo radiante/refrescante y a las válvulas compartidas.
 
-[Última beta](https://github.com/Carbanog/radiant-climate/releases/tag/v0.2.0-beta.2) · [Instalación](#instalación) · [Primer arranque](#primer-arranque) · [Resolver problemas](docs/troubleshooting.md) · [Cambios y actualización](docs/release-notes.md) · [Licencia MIT](LICENSE)
+[Última release](https://github.com/Carbanog/radiant-climate/releases/tag/v0.2.0) · [Instalación](#instalación) · [Primer arranque](#primer-arranque) · [Resolver problemas](docs/troubleshooting.md) · [Cambios y actualización](docs/release-notes.md) · [Licencia MIT](LICENSE)
 
 [![Pruebas de software](https://github.com/Carbanog/radiant-climate/actions/workflows/ci.yml/badge.svg)](https://github.com/Carbanog/radiant-climate/actions/workflows/ci.yml)
 [![Metadatos de integración](https://github.com/Carbanog/radiant-climate/actions/workflows/metadata.yml/badge.svg)](https://github.com/Carbanog/radiant-climate/actions/workflows/metadata.yml)
 
-> **Estado: v0.2.0-beta.2.** Proyecto personal, original y de código abierto, publicado para facilitar revisión y uso voluntario. La beta tiene pruebas automatizadas; su respuesta térmica necesita validación y ajuste en cada instalación. No se presenta como un controlador certificado ni como ahorro demostrado.
+> **Versión: v0.2.0.** Release normal de un proyecto personal, original y de código abierto. El software tiene pruebas automatizadas; su respuesta térmica necesita ajuste en cada instalación. No se presenta como un controlador certificado ni como ahorro demostrado.
 
-¿Ya lo has instalado? Consulta los [cambios y la actualización desde beta.1](docs/release-notes.md) y continúa en [Primer arranque](#primer-arranque).
+¿Ya lo has instalado? Consulta los [cambios y la actualización desde las betas](docs/release-notes.md) y continúa en [Primer arranque](#primer-arranque).
 
 ## Qué ofrece
 
@@ -26,7 +26,7 @@ Crea termostatos de Home Assistant a partir de tus sensores y relés. Utiliza un
 | Ventilar | Pausa por contacto de ventana, con retardos configurables |
 | Aprovechar el entorno | Fuentes de meteo/exterior seleccionables y solar por orientación y elevación |
 | Tener en cuenta la inercia | Observación por temporada, adelanto de horario y pausa predictiva acotados |
-| Ausentarse | Perfil prolongado y vacaciones con regreso programado |
+| Ausentarse | Vacaciones de toda la vivienda con fecha/hora de vuelta y excepciones por zona |
 | Compartir una entrada de agua | Válvula general opcional, gestionada por un único módulo de maniobras |
 | Entender qué ocurre | Motivo de regulación, estado Manual y disponibilidad de fuentes/modelo |
 
@@ -34,7 +34,7 @@ Los controles y datos pertenecen a la integración. **No exige crear input_numbe
 
 ## Compatibilidad y requisitos
 
-La beta está probada automáticamente con **Home Assistant Core 2026.10.4 y 2026.11.0**. No se deduce compatibilidad con cualquier versión posterior: revisa la release y sus comprobaciones antes de actualizar.
+La versión está probada automáticamente con **Home Assistant Core 2026.10.4 y 2026.11.0**. No se deduce compatibilidad con cualquier versión posterior: revisa la release y sus comprobaciones antes de actualizar.
 
 | Para empezar | Requisito |
 |---|---|
@@ -53,7 +53,7 @@ El control básico es local y no solicita cuentas ni credenciales. La integraci�
 
 1. Abre **Configuración → Marketplace → Añadir desde enlace**.
 2. Introduce `https://github.com/Carbanog/radiant-climate`.
-3. Habilita las versiones preliminares del repositorio y selecciona **v0.2.0-beta.2**. Añadir un repositorio personalizado puede requerir la conexión con GitHub que gestiona Marketplace.
+3. Selecciona **v0.2.0**. Añadir un repositorio personalizado puede requerir la conexión con GitHub que gestiona Marketplace; esta release no necesita mostrar versiones preliminares.
 4. Instala. Marketplace abre directamente el asistente de configuración de una integración nueva, sin reinicio intermedio.
 
 No se instala HACS por separado en 2026.11. Las actualizaciones pueden solicitar un reinicio aunque la primera instalación no lo necesite.
@@ -62,7 +62,7 @@ No se instala HACS por separado en 2026.11. Las actualizaciones pueden solicitar
 
 1. Con HACS ya configurado, abre su menú → **Repositorios personalizados**.
 2. Añade `https://github.com/Carbanog/radiant-climate`, categoría **Integración**.
-3. Descarga **v0.2.0-beta.2**, mostrando versiones preliminares si hace falta.
+3. Descarga **v0.2.0**; esta release no necesita mostrar versiones preliminares.
 4. Reinicia HA y abre **Dispositivos y servicios → Añadir integración → Radiant Climate**.
 
 El repositorio se añade mediante enlace; no se afirma su inclusión en el catálogo oficial. Para instalación mediante ZIP, comprobación de integridad y reversión, consulta la [guía de instalación](docs/installation.md). Utiliza primero un entorno de pruebas y conserva una copia recuperable.

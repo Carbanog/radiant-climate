@@ -8,7 +8,15 @@ Activar **Ausente sin fecha de regreso** con una agenda configurada provoca un e
 
 Los avisos de Core 2026.11 sobre las propiedades de temperatura antiguas anuncian su retirada en 2027.11. No explican el error anterior; su adaptación sigue pendiente antes de admitir esa futura versión.
 
+Al vaciar una selección opcional, el formulario de la primera beta puede reinsertar la entidad anterior. Afecta a fuentes ambientales y asociaciones opcionales de ventana/general. Si esa entidad desaparece, puede impedir guardar otras opciones. La corrección `c32d7e6` utiliza valores sugeridos, permite eliminar la asociación y dispone de una regresión en ambas versiones de Core. También necesita una entrega posterior a la primera beta.
+
 ## Instalación y configuración
+
+### Pide calor justo después de ventilar
+
+Con retardo de cierre cero, el termostato puede reanudar al cerrar si la temperatura ha caído. Para dejar un margen de recuperación del aire, configura **Retardo al cerrar ventana (segundos)** en las opciones de dispositivos de esa zona. La consigna se conserva: si al terminar el margen ya se satisface, no pide aporte; si sigue sin alcanzarse, vuelve a regular. El aprendizaje descarta las muestras durante la pausa y su retardo.
+
+El margen admite 0–600 segundos y requiere ajuste según la estancia. No detecta automáticamente cuánto durará el rebote ni aplica un impulso de recuperación. El motivo «Ventana abierta» también engloba ese retardo después de cerrar; consulta el contacto para distinguir ambas etapas.
 
 ### Se abre «Instalación» justo después de descargar
 

@@ -8,6 +8,7 @@ Las pruebas separan cálculo, adaptación a Home Assistant y comportamiento fís
 - Inteligencia: temperaturas no inventadas, geometría con elevación y azimut, pérdida meteorológica, calidad de aprendizaje por temporada, rechazo de saltos, conservación de consigna y límites de pausa/adelanto.
 - Core real 2026.10.4 y 2026.11.0: altas y opciones nativas, servicios climate, perfiles editables, Manual igual a preset, edición durante retención, copia de ajustes y apagados.
 - Regresión de Ausente indefinido con agenda: publica una próxima transición nula, admite una intervención Manual y recupera el programa al terminar Ausente, sin errores de actualización de entidades.
+- Regresión de campos opcionales: eliminar fuentes meteorológicas/exteriores, contacto de ventana y general, sin reinsertar selecciones antiguas ni bloquear otras opciones cuando desaparezca el proveedor anterior.
 - Fallos: pérdida interior aislable, unidad incompatible, exterior y meteorología indisponibles, proveedor sin previsión, error meteorológico con reintento acotado, salida desconocida persistente y discrepancias repetidas con enclavamiento compartido.
 - Optimización: solar Observación/Activo y prioridad Manual; anticipación y desactivación en calor/frío; pausa predictiva en refrigeración; espera estimada general.
 - Reinicio completo de instancias Core: retención temporal, retención sin vencimiento, plazo vencido y apagado individual/general. No se presenta una recarga de entrada como si fuera un reinicio.

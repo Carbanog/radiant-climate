@@ -2,6 +2,12 @@
 
 Antes de cambiar parámetros, consulta el sensor **Motivo de regulación** de la zona. En los atributos del termostato aparecen la intención solicitada, la consigna, `control_target`, la retención Manual y la disponibilidad de las funciones avanzadas. Un estado de relé es información comunicada, no una medición de posición o caudal.
 
+## Problemas conocidos de v0.2.0-beta.1
+
+Activar **Ausente sin fecha de regreso** con una agenda configurada provoca un error al publicar los atributos del termostato. Puede devolver HTTP 500 y dejar diagnósticos sin actualizar. Esa combinación no debe utilizarse en la primera beta publicada. La corrección está en el commit `ce64789`, con una regresión ejecutada en Core 2026.10.4 y 2026.11.0; actualizar desde la etiqueta original requiere una entrega posterior que incluya el arreglo. La etiqueta original se conserva para trazabilidad.
+
+Los avisos de Core 2026.11 sobre las propiedades de temperatura antiguas anuncian su retirada en 2027.11. No explican el error anterior; su adaptación sigue pendiente antes de admitir esa futura versión.
+
 ## Instalación y configuración
 
 ### Se abre «Instalación» justo después de descargar

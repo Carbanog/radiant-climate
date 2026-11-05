@@ -13,7 +13,7 @@ Crea termostatos de Home Assistant a partir de tus sensores y relés. Utiliza un
 
 > **Estado: v0.2.0-beta.1.** Proyecto personal, original y de código abierto, publicado para facilitar revisión y uso voluntario. La beta tiene pruebas automatizadas; su respuesta térmica necesita validación y ajuste en cada instalación. No se presenta como un controlador certificado ni como ahorro demostrado.
 
-¿Ya lo has instalado? Continúa en [Primer arranque](#primer-arranque). No necesitas volver a descargarlo para empezar a configurarlo.
+¿Ya lo has instalado? Consulta los [problemas conocidos de la beta](docs/troubleshooting.md#problemas-conocidos-de-v020-beta1) y continúa en [Primer arranque](#primer-arranque).
 
 ## Qué ofrece
 

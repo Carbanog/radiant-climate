@@ -1,0 +1,107 @@
+{
+  "title": "Radiant Climate",
+  "config": {
+    "step": {
+      "installation": {
+        "title": "Installation",
+        "description": "Development build. Control starts disabled. Do not share outputs with another controller.",
+        "data": {
+          "general": "Shared inlet valve (optional)"
+        }
+      },
+      "zone": {
+        "title": "Add thermostat",
+        "description": "Only basic control is implemented in this development version. The thermostat is created off.",
+        "data": {
+          "sensor": "Indoor temperature sensor",
+          "actuators": "Actuator switches",
+          "available_modes": "Available operating modes",
+          "target": "Initial target temperature"
+        }
+      }
+    },
+    "error": {
+      "invalid_actuators": "Choose at least one actuator, without duplicates.",
+      "actuator_assigned": "This actuator is already assigned to another zone or the inlet.",
+      "entity_missing": "A selected entity does not exist.",
+      "invalid_configuration": "Check the values and required fields."
+    },
+    "abort": {
+      "already_configured": "The installation already exists."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Settings",
+        "description": "Changes reload this entry. Editing the installation disables global control; explicitly enable it after reviewing outputs.",
+        "data": {
+          "general": "Shared inlet valve (optional)",
+          "sensor": "Indoor temperature sensor",
+          "actuators": "Actuator switches",
+          "available_modes": "Available operating modes",
+          "target": "Initial target temperature",
+          "window": "Window contact (optional)",
+          "hysteresis": "Control hysteresis (°C)",
+          "minimum_on": "Minimum on period (seconds)",
+          "minimum_off": "Minimum off period (seconds)",
+          "stale_after": "Maximum temperature report age (seconds)"
+        }
+      }
+    },
+    "error": {
+      "invalid_actuators": "Choose at least one actuator, without duplicates.",
+      "actuator_assigned": "This actuator is already assigned to another zone or the inlet.",
+      "entity_missing": "A selected entity does not exist.",
+      "invalid_configuration": "Check the values and required fields."
+    }
+  },
+  "selector": {
+    "available_modes": {
+      "options": {
+        "heat": "Heating",
+        "cool": "Cooling",
+        "heat_cool": "Heating and cooling"
+      }
+    }
+  },
+  "entity": {
+    "switch": {
+      "enabled": {
+        "name": "Climate enabled"
+      }
+    },
+    "select": {
+      "supply_mode": {
+        "name": "Declared supply season",
+        "state": {
+          "heat": "Heating",
+          "cool": "Cooling"
+        }
+      }
+    },
+    "sensor": {
+      "reason": {
+        "name": "Control reason",
+        "state": {
+          "not_ready": "Initialising",
+          "global_off": "Suspended by global switch",
+          "zone_off": "Zone switched off",
+          "unsupported_mode": "Unsupported mode",
+          "supply_mode_mismatch": "Declared supply season does not match",
+          "actuator_unavailable": "Actuator unavailable",
+          "window_open": "Window open",
+          "window_unavailable": "Window contact unavailable",
+          "temperature_invalid": "Indoor temperature invalid",
+          "temperature_missing": "No indoor temperature report",
+          "temperature_stale": "Indoor report expired",
+          "minimum_cycle": "Minimum cycle period",
+          "clock_changed": "Clock change under review",
+          "demand": "Temperature demand",
+          "satisfied": "Target satisfied",
+          "supply_not_ready": "Shared supply relay not ready"
+        }
+      }
+    }
+  }
+}

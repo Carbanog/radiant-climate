@@ -1,0 +1,107 @@
+{
+  "title": "Radiant Climate",
+  "config": {
+    "step": {
+      "installation": {
+        "title": "Instalación",
+        "description": "Versión de desarrollo. El control comienza desactivado. No compartas las salidas con otro controlador.",
+        "data": {
+          "general": "Válvula general (opcional)"
+        }
+      },
+      "zone": {
+        "title": "Añadir termostato",
+        "description": "Esta versión de desarrollo implementa solo el control básico. El termostato se crea apagado.",
+        "data": {
+          "sensor": "Sensor de temperatura interior",
+          "actuators": "Relé o relés",
+          "available_modes": "Modos disponibles",
+          "target": "Temperatura deseada inicial"
+        }
+      }
+    },
+    "error": {
+      "invalid_actuators": "Selecciona al menos un relé, sin duplicados.",
+      "actuator_assigned": "Este relé ya está asignado a otra zona o a la general.",
+      "entity_missing": "Una entidad seleccionada no existe.",
+      "invalid_configuration": "Comprueba los valores y campos obligatorios."
+    },
+    "abort": {
+      "already_configured": "La instalación ya existe."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configuración",
+        "description": "Los cambios recargan esta entrada. Editar la instalación desactiva el control general; reactívalo expresamente tras revisar las salidas.",
+        "data": {
+          "general": "Válvula general (opcional)",
+          "sensor": "Sensor de temperatura interior",
+          "actuators": "Relé o relés",
+          "available_modes": "Modos disponibles",
+          "target": "Temperatura deseada inicial",
+          "window": "Contacto de ventana (opcional)",
+          "hysteresis": "Histéresis de regulación (°C)",
+          "minimum_on": "Tiempo mínimo activo (segundos)",
+          "minimum_off": "Tiempo mínimo inactivo (segundos)",
+          "stale_after": "Antigüedad máxima del dato interior (segundos)"
+        }
+      }
+    },
+    "error": {
+      "invalid_actuators": "Selecciona al menos un relé, sin duplicados.",
+      "actuator_assigned": "Este relé ya está asignado a otra zona o a la general.",
+      "entity_missing": "Una entidad seleccionada no existe.",
+      "invalid_configuration": "Comprueba los valores y campos obligatorios."
+    }
+  },
+  "selector": {
+    "available_modes": {
+      "options": {
+        "heat": "Calor",
+        "cool": "Frío",
+        "heat_cool": "Calor y frío"
+      }
+    }
+  },
+  "entity": {
+    "switch": {
+      "enabled": {
+        "name": "Climatización"
+      }
+    },
+    "select": {
+      "supply_mode": {
+        "name": "Temporada de suministro declarada",
+        "state": {
+          "heat": "Calor",
+          "cool": "Frío"
+        }
+      }
+    },
+    "sensor": {
+      "reason": {
+        "name": "Motivo de regulación",
+        "state": {
+          "not_ready": "Inicializando",
+          "global_off": "Suspendido por interruptor general",
+          "zone_off": "Zona apagada",
+          "unsupported_mode": "Modo no admitido",
+          "supply_mode_mismatch": "No coincide con la temporada de suministro declarada",
+          "actuator_unavailable": "Relé no disponible",
+          "window_open": "Ventana abierta",
+          "window_unavailable": "Contacto de ventana no disponible",
+          "temperature_invalid": "Temperatura interior inválida",
+          "temperature_missing": "Sin dato de temperatura interior",
+          "temperature_stale": "Dato interior caducado",
+          "minimum_cycle": "Tiempo mínimo de maniobra",
+          "clock_changed": "Cambio de reloj pendiente de reconciliar",
+          "demand": "Demanda térmica",
+          "satisfied": "Consigna satisfecha",
+          "supply_not_ready": "Relé de suministro compartido no preparado"
+        }
+      }
+    }
+  }
+}

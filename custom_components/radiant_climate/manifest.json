@@ -1,0 +1,13 @@
+{
+  "domain": "radiant_climate",
+  "name": "Radiant Climate",
+  "version": "0.1.0.dev0",
+  "config_flow": true,
+  "documentation": "https://github.com/Carbanog/radiant-climate",
+  "issue_tracker": "https://github.com/Carbanog/radiant-climate/issues",
+  "codeowners": ["@Carbanog"],
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "requirements": []
+}
+

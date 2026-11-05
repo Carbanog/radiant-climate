@@ -33,6 +33,12 @@ El interruptor **Usar horario** habilita la programación, sin encender un termo
 
 El termostato muestra `control_state`, `manual_policy`, `manual_until` y `next_schedule_change`. Los atributos explican la intención; el sensor Motivo explica los bloqueos y la demanda. Un modo individual Apagado prevalece sobre cualquier perfil. El cambio explícito de temporada elimina la retención del modo anterior y consulta el perfil de la temporada nueva. No se afirma que cuatro horas sean el tiempo de respuesta de un suelo.
 
+Editar la agenda recalcula el vencimiento de una retención Hasta el próximo bloque. Si no quedan bloques, esa retención pasa a Hasta volver al horario y conserva su consigna sin inventar una fecha. Sin bloques, habilitar de nuevo el horario requiere configurar alguno.
+
+La acción **Radiant Climate: Copiar ajustes entre termostatos** permite elegir una zona de origen y copiar temperaturas, política/duración Manual o agenda a zonas concretas. Dejar destinos vacíos aplica al resto. No copia sensores, relés ni orientación, ni enciende zonas apagadas. Copiar la agenda incluye su interruptor; si está deshabilitada en origen, las zonas de destino pasan a consigna fija conservando el valor efectivo anterior.
+
+Si se configura un contacto, aparece **Pausar por ventana**. Al desactivarlo, un contacto abierto o indisponible no pausa la zona. Deshabilitar esta comodidad no deshabilita validaciones de temperatura ni Apagado. La pausa de esta base es inmediata; retardos configurables siguen pendientes.
+
 ## Opciones
 
 En las opciones de la zona puedes cambiar entradas, seleccionar un contacto de ventana y ajustar histéresis, tiempos mínimos y caducidad. Un contacto configurado abierto pausa; uno no disponible también pausa. Sin contacto configurado no hay dependencia de ventana.

@@ -87,3 +87,23 @@ def test_block_replace_and_reject_bad_storage():
     raw["minutes"] = 0
     with pytest.raises(ValueError):
         Program.restore(raw)
+
+
+def test_editing_schedule_recalculates_next_block_and_no_blocks_keeps_manual():
+    p, i = plan(), Intent(mode=Mode.HEAT)
+    p.policy = HoldPolicy.NEXT_CHANGE
+    p.set_manual(i, Settings(), 22, NOW, TZ)
+    p.set_blocks([0], 20 * 60, "eco")
+    p.reconcile_edit(i, NOW, TZ)
+    assert i.hold.until == NOW.replace(hour=19)
+    p.blocks.clear()
+    p.reconcile_edit(i, NOW, TZ)
+    assert i.hold.until is None
+    assert i.hold.policy == HoldPolicy.UNTIL_RESUME
+    assert p.target(i, NOW + timedelta(days=15), TZ) == 22
+
+
+@pytest.mark.parametrize("day,minute", [(1.1, 400), (True, 400), (0, 400.5)])
+def test_corrupt_calendar_rejected(day, minute):
+    with pytest.raises(ValueError):
+        Block(day, minute, "home")

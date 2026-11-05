@@ -173,10 +173,11 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
                 clock = time.fromisoformat(user_input["time"])
                 days = [int(d) for d in user_input["days"]]
                 manager = self.hass.data[DOMAIN]
-                await manager.async_change(
-                    lambda: manager.zones[self.config_entry.entry_id].program.set_blocks(
+                await manager.async_edit_schedule(
+                    self.config_entry.entry_id,
+                    lambda program: program.set_blocks(
                         days, clock.hour * 60 + clock.minute, user_input["profile"]
-                    )
+                    ),
                 )
             except ValueError:
                 errors["base"] = "invalid_configuration"
@@ -209,27 +210,23 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
         if not program.blocks:
             return self.async_abort(reason="no_schedule")
         if user_input is not None:
-            remove = int(user_input["block"])
+            day, minute = map(int, user_input["block"].split(":"))
 
-            def update():
-                program.blocks.pop(remove)
-                if not program.blocks:
-                    # Preserve the current effective target instead of silently reverting.
-                    from homeassistant.util import dt as dt_util
-
-                    z = self.hass.data[DOMAIN].zones[self.config_entry.entry_id]
-                    program.enabled = False
-                    program.selected = None
-                    z.intent.set_target(z.decision.target, dt_util.utcnow(), z.settings)
-
-            await self.hass.data[DOMAIN].async_change(update)
+            await self.hass.data[DOMAIN].async_edit_schedule(
+                self.config_entry.entry_id,
+                lambda current: setattr(
+                    current,
+                    "blocks",
+                    [b for b in current.blocks if (b.day, b.minute) != (day, minute)],
+                ),
+            )
             return self.async_create_entry(title="", data=dict(self.config_entry.options))
         options = [
             {
-                "value": str(i),
+                "value": f"{b.day}:{b.minute}",
                 "label": f"{b.day + 1} · {b.minute // 60:02d}:{b.minute % 60:02d} · {b.profile}",
             }
-            for i, b in enumerate(program.blocks)
+            for b in program.blocks
         ]
         return self.async_show_form(
             step_id="schedule_remove",

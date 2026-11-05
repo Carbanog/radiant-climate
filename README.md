@@ -29,7 +29,8 @@ La primera base implementada es deliberadamente pequeña. La tabla siguiente dis
 | Perfiles editables y programación propia | Normal/Eco/Noche por temporada, agenda semanal por zona y controles propios; CI valida el adaptador |
 | Meteorología seleccionable, solar y compensación exterior | Pendientes; no hay controles sin efecto |
 | Aprendizaje en observación, anticipación y parada predictiva | Pendientes |
-| Vacaciones y acción aplicar opciones a todas las zonas | Pendientes |
+| Copiar temperaturas, política Manual y agenda a otras zonas/todas | Implementado mediante acción nativa con selectores |
+| Vacaciones | Pendientes |
 | Precisión térmica, comportamiento físico e instalación real | No validados |
 
 Consulta [arquitectura y prioridades](docs/architecture.md), [uso y configuración](docs/configuration.md), [validación](docs/testing.md) y [plan de desarrollo](docs/roadmap.md).

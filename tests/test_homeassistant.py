@@ -296,3 +296,76 @@ async def test_general_unavailable_blocks_all_zones(house):
     house.states.async_set("switch.fixture_general", "unavailable")
     await settle(house)
     assert house.states.get("switch.fixture_a").state == "off"
+
+
+async def test_bulk_copy_is_explicit_and_preserves_off(house):
+    first, climate_a = await add_zone(house, "a")
+    second, climate_b = await add_zone(house, "b")
+    await add_schedule(house, first)
+    await service(
+        house, "number", "set_value", zone_entity(house, first, "number", "heat_home"), value=22
+    )
+    await house.services.async_call(
+        DOMAIN,
+        "copy_settings",
+        {"source": climate_a, "parts": ["schedule", "temperatures", "manual"]},
+        blocking=True,
+    )
+    await settle(house)
+    z = house.data[DOMAIN].zones[second.entry_id]
+    assert z.program.profiles["heat"]["home"] == 22
+    assert len(z.program.blocks) == 7
+    assert z.intent.mode.value == "off"
+    assert house.states.get(climate_b).state == "off"
+    assert house.states.get("switch.fixture_b").state == "off"
+
+
+async def test_combined_mode_and_temperature_service_is_respected(house):
+    _, climate = await add_zone(house)
+    await service(house, "climate", "set_temperature", climate, temperature=24, hvac_mode="cool")
+    assert house.states.get(climate).attributes["requested_mode"] == "cool"
+    assert house.states.get(climate).attributes["temperature"] == 24
+    assert house.states.get("switch.fixture_a").state == "off"
+
+
+async def test_storage_failure_does_not_enable_outputs(house):
+    from unittest.mock import AsyncMock, patch
+
+    from homeassistant.exceptions import HomeAssistantError
+
+    _, climate = await add_zone(house)
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    manager = house.data[DOMAIN]
+    with patch.object(
+        manager._store,
+        "async_save",
+        AsyncMock(side_effect=HomeAssistantError("fixture storage failure")),
+    ):
+        with pytest.raises(HomeAssistantError):
+            await manager.async_enable(True)
+    assert not manager.enabled
+    assert house.states.get("switch.fixture_a").state == "off"
+
+
+async def test_window_unavailable_blocks_only_when_feature_enabled(house):
+    entry, climate = await add_zone(house)
+    house.states.async_set("binary_sensor.fixture_window", "unavailable")
+    config = dict(house.data[DOMAIN].zones[entry.entry_id].config)
+    config.pop("kind")
+    config["available_modes"] = "heat_cool"
+    config.pop("modes")
+    config["window"] = "binary_sensor.fixture_window"
+    flow = await house.config_entries.options.async_init(entry.entry_id)
+    flow = await house.config_entries.options.async_configure(
+        flow["flow_id"], {"next_step_id": "hardware"}
+    )
+    flow = await house.config_entries.options.async_configure(flow["flow_id"], config)
+    assert flow["type"] == "create_entry", flow
+    await settle(house)
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    assert house.states.get("switch.fixture_a").state == "off"
+    await service(
+        house, "switch", "turn_off", zone_entity(house, entry, "switch", "window_enabled")
+    )
+    assert house.states.get("switch.fixture_a").state == "on"

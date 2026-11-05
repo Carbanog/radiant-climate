@@ -116,6 +116,9 @@
       },
       "schedule": {
         "name": "Use schedule"
+      },
+      "window_enabled": {
+        "name": "Pause for window"
       }
     },
     "select": {

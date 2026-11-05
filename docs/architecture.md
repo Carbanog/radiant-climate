@@ -5,10 +5,12 @@ El objetivo es una configuración cotidiana sencilla y módulos opcionales. El n
 | Módulo | Responsabilidad |
 |---|---|
 | `core/control.py` | Modos, consignas, retenciones, caducidad y decisión de demanda |
+| `core/program.py` | Perfiles, bloques semanales y límites horarios con cambio de hora |
 | `runtime.py` | Registro de zonas, estado persistente, serialización y único escritor de salidas |
 | `config_flow.py` | Alta mínima, opciones y rechazo de asignaciones duplicadas |
 | `climate.py` | Interfaz nativa de temperatura y modo |
 | `switch.py` / `select.py` | Habilitación general y temporada declarada |
+| `number.py` / `button.py` / `services.py` | Temperaturas editables, retención, retorno al horario y copia explícita entre zonas |
 | `sensor.py` / `diagnostics.py` | Causa de actuación y diagnóstico reducido |
 
 ## Prioridades de la base
@@ -25,12 +27,12 @@ Las discrepancias no generan un bucle de reintentos ilimitado. Una orden pendien
 
 ## Persistencia
 
-Se guardan habilitación general, temporada declarada e intención por zona. Las salidas no se restauran ciegamente: se recalculan con los datos disponibles. Cada zona nueva se crea en Apagado y la primera instalación deshabilitada. Opciones de instalación provocan deshabilitación conservadora durante la recarga.
+Se guardan habilitación general, temporada, intención, programa, perfiles, políticas y activación de ventana por zona. Las salidas no se restauran ciegamente: se recalculan con los datos disponibles. Cada zona nueva se crea en Apagado y la primera instalación deshabilitada. Opciones de instalación provocan deshabilitación conservadora durante la recarga. Una orden que no puede guardarse no habilita actuadores y deshabilita la instalación actual.
 
 La parada ordenada de HA intenta desenergizar salidas sin olvidar la intención guardada. Un corte eléctrico, un proceso terminado a la fuerza o un dispositivo incomunicado no puede recibir esa orden: se necesitan comportamientos físicos adecuados.
 
 ## Evolución prevista, todavía no operativa
 
-Programación y perfiles calcularán el objetivo sin escribir en relés. Las tres políticas Manual del núcleo se conectarán al módulo de agenda. Solar, exterior, previsión y aprendizaje serán módulos opcionales con condiciones de disponibilidad explícitas. Una predicción no cambiará la intención del usuario ni deshabilitará una protección.
+Programación y perfiles ya calculan el objetivo sin escribir en relés. Las tres políticas Manual se conectan a la agenda y sobreviven a recargas. Solar, exterior, previsión y aprendizaje serán módulos opcionales con condiciones de disponibilidad explícitas. Una predicción no cambiará la intención del usuario ni deshabilitará una protección.
 
 El aprendizaje tendrá estado separado por zona y temporada y comenzará en observación. La primera estrategia de confort mantendrá la consigna de la persona y optimizará el aporte; no anunciará ahorro simplemente por reducirla. No hay algoritmo predictivo implementado en esta base.

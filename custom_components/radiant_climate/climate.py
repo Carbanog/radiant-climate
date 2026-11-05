@@ -6,7 +6,7 @@ from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
-from .core.control import Mode, temperature
+from .core.control import Intent, Mode, temperature
 from .entity import RadiantEntity
 from .runtime import indoor_temperature
 
@@ -127,15 +127,24 @@ class RadiantThermostat(RadiantEntity, ClimateEntity):
 
     async def async_set_temperature(self, **kwargs):
         value = temperature(kwargs[ATTR_TEMPERATURE])
-        await self.manager.async_change(
-            lambda: self.zone.program.set_manual(
-                self.zone.intent,
-                self.zone.settings,
-                value,
-                dt_util.utcnow(),
-                self.hass.config.time_zone,
+        requested_mode = Mode(kwargs["hvac_mode"]) if "hvac_mode" in kwargs else None
+        if (
+            requested_mode is not None
+            and requested_mode != Mode.OFF
+            and requested_mode not in self.zone.settings.modes
+        ):
+            raise ValueError("Unsupported operating mode")
+
+        def update():
+            candidate = Intent.restore(self.zone.intent.dump())
+            if requested_mode is not None:
+                candidate.set_mode(requested_mode, self.zone.settings)
+            self.zone.program.set_manual(
+                candidate, self.zone.settings, value, dt_util.utcnow(), self.hass.config.time_zone
             )
-        )
+            self.zone.intent = candidate
+
+        await self.manager.async_change(update)
 
     async def async_turn_off(self):
         await self.async_set_hvac_mode(HVACMode.OFF)

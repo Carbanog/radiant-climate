@@ -1,0 +1,31 @@
+copy_settings:
+  name: Copiar ajustes entre termostatos
+  description: Copia los ajustes elegidos. Sin destinos, se aplica al resto de zonas. No copia dispositivos ni enciende zonas apagadas.
+  fields:
+    source:
+      name: Termostato de origen
+      required: true
+      selector:
+        entity:
+          domain: climate
+          integration: radiant_climate
+    targets:
+      name: Destinos (vacío para todas las demás zonas)
+      selector:
+        entity:
+          domain: climate
+          integration: radiant_climate
+          multiple: true
+    parts:
+      name: Ajustes que copiar
+      required: true
+      selector:
+        select:
+          multiple: true
+          options:
+            - value: temperatures
+              label: Temperaturas de los perfiles
+            - value: manual
+              label: Política y duración de Manual
+            - value: schedule
+              label: Bloques y activación del horario

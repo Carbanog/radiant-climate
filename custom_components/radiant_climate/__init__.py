@@ -5,9 +5,11 @@ from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, PLATFORMS
 from .runtime import Installation
+from .services import async_register_services
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    async_register_services(hass)
     manager = hass.data.get(DOMAIN)
     if manager is None:
         manager = Installation(hass)

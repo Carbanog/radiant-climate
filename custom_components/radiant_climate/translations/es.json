@@ -116,6 +116,9 @@
       },
       "schedule": {
         "name": "Usar horario"
+      },
+      "window_enabled": {
+        "name": "Pausar por ventana"
       }
     },
     "select": {

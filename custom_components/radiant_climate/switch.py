@@ -10,7 +10,33 @@ async def async_setup_entry(hass, entry, async_add_entities):
     if entry.data["kind"] == "installation":
         async_add_entities([InstallationEnabled(hass.data[DOMAIN], entry)])
     else:
-        async_add_entities([ScheduleEnabled(hass.data[DOMAIN], entry)])
+        manager = hass.data[DOMAIN]
+        entities = [ScheduleEnabled(manager, entry)]
+        if manager.zones[entry.entry_id].config.get("window"):
+            entities.append(WindowEnabled(manager, entry))
+        async_add_entities(entities)
+
+
+class WindowEnabled(RadiantEntity, SwitchEntity):
+    _attr_translation_key = "window_enabled"
+    _attr_icon = "mdi:window-open-variant"
+
+    def __init__(self, manager, entry):
+        super().__init__(manager, entry, "window_enabled")
+
+    @property
+    def is_on(self):
+        return self.manager.zones[self.entry.entry_id].window_enabled
+
+    async def async_turn_on(self, **kwargs):
+        await self.manager.async_change(
+            lambda: setattr(self.manager.zones[self.entry.entry_id], "window_enabled", True)
+        )
+
+    async def async_turn_off(self, **kwargs):
+        await self.manager.async_change(
+            lambda: setattr(self.manager.zones[self.entry.entry_id], "window_enabled", False)
+        )
 
 
 class ScheduleEnabled(RadiantEntity, SwitchEntity):

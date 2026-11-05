@@ -16,7 +16,13 @@ class Block:
     profile: str
 
     def __post_init__(self):
-        if not 0 <= self.day <= 6 or not 0 <= self.minute < 1440 or self.profile not in PROFILES:
+        if (
+            type(self.day) is not int
+            or type(self.minute) is not int
+            or not 0 <= self.day <= 6
+            or not 0 <= self.minute < 1440
+            or self.profile not in PROFILES
+        ):
             raise ValueError("Invalid weekly block")
 
 
@@ -68,6 +74,13 @@ class Program:
 
     def next_change(self, now: datetime, timezone: str) -> datetime | None:
         return next((when for when, _ in self.occurrences(now, timezone) if when > now), None)
+
+    def reconcile_edit(self, intent: Intent, now: datetime, timezone: str) -> None:
+        """A next-block hold follows an explicitly edited agenda, not a stale deadline."""
+        if intent.hold and intent.hold.active(now) and intent.hold.policy == HoldPolicy.NEXT_CHANGE:
+            intent.hold.until = self.next_change(now, timezone)
+            if intent.hold.until is None:
+                intent.hold.policy = HoldPolicy.UNTIL_RESUME
 
     def scheduled_target(self, intent: Intent, now: datetime, timezone: str) -> float | None:
         mode = intent.mode if intent.mode != Mode.OFF else intent.last_mode

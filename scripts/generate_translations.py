@@ -204,6 +204,9 @@ def complete_document(language):
     }
     entities = result["entity"]
     entities["switch"]["schedule"] = {"name": ("Use schedule", "Usar horario")[language]}
+    entities["switch"]["window_enabled"] = {
+        "name": ("Pause for window", "Pausar por ventana")[language]
+    }
     entities["button"] = {"resume": {"name": ("Resume schedule", "Volver al horario")[language]}}
     entities["select"]["manual_policy"] = {
         "name": ("Manual hold behavior", "Comportamiento de Manual")[language],

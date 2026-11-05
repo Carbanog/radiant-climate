@@ -38,6 +38,7 @@ class Zone:
     settings: Settings
     switched_at: object
     program: Program
+    window_enabled: bool = True
     actual_on: bool = False
     decision: Decision | None = None
 
@@ -120,13 +121,21 @@ class Installation:
                     program = Program()
                     _LOGGER.error("Stored zone state is invalid; zone remains off")
             self.zones[entry.entry_id] = Zone(data, intent, settings, dt_util.utcnow(), program)
+            raw_window = self._saved.get(entry.entry_id, {}).get("window_enabled", True)
+            self.zones[entry.entry_id].window_enabled = (
+                raw_window if isinstance(raw_window, bool) else True
+            )
         self.entries[entry.entry_id] = data
         await self.async_reconcile()
 
     async def async_remove(self, entry_id: str) -> None:
         async with self._lock:
             if zone := self.zones.pop(entry_id, None):
-                self._saved[entry_id] = {**zone.intent.dump(), "program": zone.program.dump()}
+                self._saved[entry_id] = {
+                    **zone.intent.dump(),
+                    "program": zone.program.dump(),
+                    "window_enabled": zone.window_enabled,
+                }
                 for entity in zone.config["actuators"]:
                     await self._command(entity, False)
             if self.hub == entry_id:
@@ -221,7 +230,7 @@ class Installation:
             window = self.hass.states.get(z.config["window"]) if z.config.get("window") else None
             opened = (
                 (window.state == "on" if window and window.state in ("on", "off") else None)
-                if z.config.get("window")
+                if z.config.get("window") and z.window_enabled
                 else False
             )
             z.decision = decide(
@@ -268,7 +277,14 @@ class Installation:
 
     async def _save(self) -> None:
         self._saved.update(
-            {k: {**z.intent.dump(), "program": z.program.dump()} for k, z in self.zones.items()}
+            {
+                k: {
+                    **z.intent.dump(),
+                    "program": z.program.dump(),
+                    "window_enabled": z.window_enabled,
+                }
+                for k, z in self.zones.items()
+            }
         )
         await self._store.async_save(
             {"enabled": self.enabled, "supply_mode": self.supply_mode.value, "zones": self._saved}
@@ -277,8 +293,14 @@ class Installation:
     async def async_change(self, change: Callable) -> None:
         async with self._lock:
             change()
+            try:
+                await self._save()
+            except (HomeAssistantError, OSError):
+                self.enabled = False
+                await self._apply()
+                self._notify()
+                raise
             await self._apply()
-            await self._save()
             self._notify()
 
     async def async_enable(self, value: bool) -> None:
@@ -304,6 +326,16 @@ class Installation:
             z.intent.resume()
             if not enabled:
                 z.program.set_manual(z.intent, z.settings, current, now, self.hass.config.time_zone)
+
+        await self.async_change(update)
+
+    async def async_edit_schedule(self, zone_id: str, edit: Callable) -> None:
+        def update():
+            z = self.zones[zone_id]
+            now = dt_util.utcnow()
+            z.program.target(z.intent, now, self.hass.config.time_zone)
+            edit(z.program)
+            z.program.reconcile_edit(z.intent, now, self.hass.config.time_zone)
 
         await self.async_change(update)
 

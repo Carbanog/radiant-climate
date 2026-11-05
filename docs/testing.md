@@ -3,6 +3,7 @@
 ## Capas
 
 - `tests/test_control.py`: lógica pura con temperaturas y tiempos sintéticos. No importa HA ni toca dispositivos.
+- `tests/test_program.py`: agenda semanal, medianoche, cambios de hora, perfiles por temporada, edición de bloques y retenciones.
 - `tests/test_homeassistant.py`: instancia real de Core y servicios nativos con sensores ficticios y switches de plantilla respaldados por booleanos de prueba. Los tiempos mínimos se aceleran explícitamente a cero solo en esta fixture.
 - Ensayo físico: todavía no realizado. CI no valida tensión, corriente, apertura de válvula, caudal, disponibilidad de suministro ni respuesta térmica de un edificio.
 
@@ -18,7 +19,7 @@ Alta por formulario; creación apagada sin exterior ni meteo; habilitación gene
 
 ## Lo que no acreditan estas pruebas
 
-No validan todas las prestaciones de la especificación futura. Las retenciones todavía no se ofrecen al usuario porque no existe agenda operativa. Falta probar el adaptador con fallos prolongados de comunicación, detención durante servicios pendientes, ventanas con retardos, conflictos externos, migraciones de almacenamiento y ensayo de dispositivos reales. El código debe permanecer en desarrollo hasta ampliar estas pruebas.
+No validan todas las prestaciones de la especificación futura. La agenda y las retenciones ya están conectadas a entidades y formularios. Las pruebas incluyen cambios manuales iguales al perfil, recarga de entrada con retención, edición de temperaturas durante Manual, deshabilitar agenda, copia entre zonas, orden conjunta de modo/consigna, fallo de almacenamiento, ventana opcional y general indisponible. Falta probar fallos prolongados de comunicación, detención durante servicios pendientes, ventanas con retardos, conflictos externos, migraciones de almacenamiento y dispositivos reales. El código debe permanecer en desarrollo hasta ampliar estas pruebas.
 
 ## Artefactos
 

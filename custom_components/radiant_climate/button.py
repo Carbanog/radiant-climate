@@ -1,6 +1,7 @@
 """Explicitly resume the program without enabling a stopped thermostat."""
 
 from homeassistant.components.button import ButtonEntity
+from homeassistant.const import EntityCategory
 
 from .const import DOMAIN
 from .core.intelligence import ThermalModel
@@ -15,6 +16,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class ResetLearning(RadiantEntity, ButtonEntity):
+    _attr_entity_category = EntityCategory.CONFIG
     _attr_translation_key = "reset_learning"
     _attr_icon = "mdi:brain"
 

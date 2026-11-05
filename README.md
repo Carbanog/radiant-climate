@@ -10,7 +10,7 @@ Integración local de Home Assistant para crear termostatos de calefacción y re
 
 Añadir un termostato seleccionando sensor interior, relé o relés, modos disponibles y temperatura deseada. Después, habilitar únicamente las funciones avanzadas necesarias desde la interfaz. Sin numerosos ayudantes externos, sin depender de Dual Smart Thermostat ni Versatile Thermostat.
 
-La primera base implementada es deliberadamente pequeña. La tabla siguiente distingue el código operativo, las pruebas y lo que todavía falta. No se ofrecen interruptores de módulos vacíos para aparentar que existen.
+La candidata incluye regulación, programación y módulos opcionales. La tabla distingue las funciones de software de la calibración y validación físicas. Los módulos avanzados empiezan desactivados y no incluyen modelos preentrenados.
 
 ## Estado de las funciones
 
@@ -26,10 +26,10 @@ La primera base implementada es deliberadamente pequeña. La tabla siguiente dis
 | Relé asignado dos veces o como general y zona | Rechazado al configurar |
 | Diagnóstico del motivo de actuación y opciones en español/inglés | Implementados |
 | Tres políticas Manual | Conectadas a programación y controles nativos; CI valida el adaptador |
-| Perfiles editables y programación propia | Normal/Eco/Noche por temporada, agenda semanal por zona y controles propios; CI valida el adaptador |
+| Perfiles editables y programación propia | Normal/Eco/Noche/Ausente por temporada y agenda semanal por zona |
 | Meteorología seleccionable, exterior y solar por zona | Implementados en la candidata; validación ampliada en CI |
 | Observación, anticipación y pausa por inercia | Implementados con calidad mínima y límites; necesitan datos reales y piloto |
-| Copiar temperaturas, política Manual y agenda a otras zonas/todas | Implementado mediante acción nativa con selectores |
+| Aplicar ajustes a otras zonas/todas | Temperaturas, política Manual, agenda, activación de módulos y vacaciones |
 | Ausente/vacaciones | Perfil por temporada, ausencia indefinida o regreso programado |
 | Precisión térmica, comportamiento físico e instalación real | No validados |
 
@@ -39,9 +39,9 @@ Los [módulos avanzados y sus límites](docs/intelligence.md) distinguen la impl
 
 ## Compatibilidad y alcance
 
-- Objetivo inicial: **Home Assistant Core 2026.10.4**. Su entorno requiere Python **3.14.2 o posterior**. El núcleo aislado también se prueba con Python 3.12.
+- Matriz de compatibilidad: **Home Assistant Core 2026.10.4 y 2026.11.0**, Python 3.14. El núcleo aislado también se prueba con Python 3.12. Consulta el resultado del commit que vayas a utilizar.
 - Dispositivos expuestos como entidades `sensor` de temperatura, `switch` de actuador y opcionalmente `binary_sensor` de ventana.
-- El control es local. No se piden credenciales, no se añade telemetría y no se llama a servicios externos desde esta base.
+- El control básico es local y no pide credenciales ni añade telemetría. La previsión utiliza la integración meteorológica elegida en HA, que puede depender de un proveedor externo.
 - La temporada de suministro se declara con un selector. No mide la temperatura del agua ni controla producción, bomba, caldera o enfriadora.
 - No se usan persianas como dependencias ni como actuadores.
 - No hay protección anticondensación implementada. Un suelo refrescante necesita sus protecciones físicas y de instalación adecuadas. El software no debe sustituirlas.
@@ -58,11 +58,11 @@ No se ha publicado una release. Los ZIP de CI son **artefactos temporales del co
 6. Añade otra entrada de Radiant Climate para cada termostato: sensor, relés, modos disponibles y consigna inicial. Cada zona comienza apagada.
 7. Revisa las opciones de regulación, la temporada declarada y las salidas antes de habilitar el interruptor general y encender una zona de prueba.
 
-No se modifica `configuration.yaml` ni se crean automatizaciones para utilizar la base. Todavía no se ha validado la instalación a través de HACS; `hacs.json` y la estructura se preparan para ese canal. El repositorio público puede añadirse como repositorio personalizado cuando se verifique ese procedimiento. No se afirma inclusión en el catálogo HACS.
+No se modifica `configuration.yaml` ni se crean automatizaciones externas. Las validaciones oficiales de HACS y hassfest comprueban estructura y metadatos. Para un piloto, añade este repositorio a HACS como Integración y descarga la rama principal. Sigue siendo desarrollo; conserva copia y commit para revertir. No se afirma inclusión en el catálogo ni aprobación para una vivienda. [Instalación y reversión](docs/installation.md).
 
 ## Uso de la base actual
 
-- **Apagado individual:** la zona deja de demandar. Horarios pendientes de implementar no podrán reactivarla.
+- **Apagado individual:** la zona deja de demandar. Horarios, vacaciones y optimizaciones no la reactivan.
 - **Climatización general apagada:** cierra las salidas por orden software y conserva qué zonas estaban encendidas. Cambiar una consigna no vence el bloqueo.
 - **Reactivar la general:** reconcilia estados y sensores; una zona individualmente apagada sigue apagada.
 - **Calor/frío:** la consigna se guarda por modo. Un modo incompatible con la temporada de suministro declarada no produce demanda.
@@ -87,7 +87,7 @@ Un sensor que solo cambia de valor ocasionalmente o un sensor derivado puede nec
 python -m venv .venv
 # Activa el entorno según tu sistema operativo.
 python -m pip install pytest==8.4.2 pytest-asyncio==1.2.0 ruff==0.14.4 tzdata==2025.2
-python -m pytest tests/test_control.py tests/test_program.py -q
+python -m pytest tests/test_control.py tests/test_program.py tests/test_intelligence.py -q
 ruff check .
 ruff format --check .
 python scripts/check_public_content.py

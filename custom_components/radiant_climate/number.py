@@ -1,7 +1,7 @@
 """Native editable profile values: the stored program is the only source."""
 
 from homeassistant.components.number import NumberEntity, NumberMode
-from homeassistant.const import UnitOfTemperature
+from homeassistant.const import EntityCategory, UnitOfTemperature
 
 from .const import DOMAIN
 from .core.control import temperature
@@ -25,6 +25,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class ProfileTemperature(RadiantEntity, NumberEntity):
+    _attr_entity_category = EntityCategory.CONFIG
     _attr_native_min_value = 5
     _attr_native_max_value = 40
     _attr_native_step = 0.1
@@ -52,6 +53,7 @@ class ProfileTemperature(RadiantEntity, NumberEntity):
 
 
 class HoldMinutes(RadiantEntity, NumberEntity):
+    _attr_entity_category = EntityCategory.CONFIG
     _attr_translation_key = "hold_minutes"
     _attr_native_min_value = 1
     _attr_native_max_value = 1440

@@ -779,6 +779,7 @@ async def test_full_core_restart_restores_control_without_bypassing_off(house, s
             assert await async_setup_component(restarted, domain, config)
         for key in ("a", "b"):
             restarted.states.async_set(f"sensor.fixture_{key}", "19", {"unit_of_measurement": "°C"})
+        await restarted.async_block_till_done()
         for stored in restarted.config_entries.async_entries(DOMAIN):
             if stored.state.value != "loaded":
                 assert await restarted.config_entries.async_setup(stored.entry_id)

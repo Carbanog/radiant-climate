@@ -1,6 +1,7 @@
 """Declared supply season, not a measurement of water temperature or flow."""
 
 from homeassistant.components.select import SelectEntity
+from homeassistant.const import EntityCategory
 
 from .const import DOMAIN
 from .core.control import HoldPolicy
@@ -17,6 +18,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class SolarMode(RadiantEntity, SelectEntity):
+    _attr_entity_category = EntityCategory.CONFIG
     _attr_translation_key = "solar"
     _attr_options = ["off", "observe", "active"]
 
@@ -32,6 +34,7 @@ class SolarMode(RadiantEntity, SelectEntity):
 
 
 class ManualPolicy(RadiantEntity, SelectEntity):
+    _attr_entity_category = EntityCategory.CONFIG
     _attr_translation_key = "manual_policy"
     _attr_options = [p.value for p in HoldPolicy]
 

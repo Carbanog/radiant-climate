@@ -109,6 +109,8 @@ class Intelligence:
             future_target = z.program.profiles[mode.value][profile]
             future_weather = environment.future(weather, next_time, now) if f.weather else None
             exterior = future_weather.get("temperature") if future_weather else outdoor
+            if exterior is None:
+                exterior = outdoor
             lead = lead_minutes(
                 response, mode, measured, future_target, config.get("max_advance", 120), exterior
             )

@@ -124,6 +124,7 @@ class Environment:
             if not (
                 state.attributes.get("supported_features", 0) & 2
             ) or not self.hass.services.has_service("weather", "get_forecasts"):
+                self.forecasts.pop(entity, None)
                 self.status[entity] = "hourly_not_supported"
                 continue
             try:

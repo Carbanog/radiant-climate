@@ -1,60 +1,84 @@
 # Configuración y uso
 
-Esta guía describe únicamente la base de desarrollo implementada. Consulta siempre el estado de CI del commit que estás utilizando. No hay una versión aprobada para producción.
+Candidata de desarrollo: consulta CI y el commit instalado. Instalar en laboratorio no aprueba una migración doméstica. Todas las operaciones habituales se realizan desde Home Assistant, sin editar configuration.yaml ni crear ayudantes externos.
 
-## Instalación
+## Alta mínima
 
-La primera entrada de la integración representa el control general. La válvula de entrada es opcional: déjala sin seleccionar si los actuadores no comparten una válvula controlada por HA. No selecciones una bomba o producción como si fuera una válvula.
+Crea primero la instalación; selecciona la válvula de entrada solo si existe. No selecciones producción o bomba como si fueran una válvula. Aparecen Climatización, Temporada de suministro declarada y Oportunidad solar compartida. La temporada se declara; no se mide disponibilidad de agua.
 
-Se crean dos controles propios: **Climatización** y **Temporada de suministro declarada**. La temporada es una decisión/configuración, no una medición de agua disponible.
+Añade una entrada por zona con cuatro campos: sensor interior, uno o varios relés, calor/frío/ambos y consigna inicial. Empieza apagada. El nombre se propone a partir del sensor y puede renombrarse desde HA. Varios circuitos pueden compartir una zona y consigna; una futura zona independiente se añade con el mismo asistente.
 
-## Añadir una zona
+El sensor interior debe informar grados Celsius. Una unidad ausente o incompatible bloquea esa zona. Las fuentes exteriores opcionales admiten Celsius, Fahrenheit o Kelvin convertidos. Revisa la cadencia de cada dispositivo antes de fijar su caducidad; last_reported no demuestra por sí solo comunicación física.
 
-Al añadir otra entrada eliges:
+## Mandos cotidianos
 
-1. Sensor interior con temperatura en grados Celsius.
-2. Uno o varios interruptores correspondientes a sus actuadores.
-3. Calor, frío o ambos.
-4. Consigna inicial.
+- Tarjeta termostato: modo y temperatura. Cambiar temperatura estando apagado no lo enciende; una llamada que solicita expresamente modo y temperatura respeta ambos.
+- Climatización: parada general persistente, sin perder intenciones. Al reactivar no enciende zonas individualmente apagadas.
+- Temporada: solo cuando cambie el suministro declarado. Un cambio real cierra antes de permitir el otro modo y termina la retención anterior. Repetir la misma temporada no cancela Manual.
+- Usar horario por zona: activarlo aplica el programa sin vencer Apagado. Desactivarlo conserva la consigna efectiva como fija. Si hay vacaciones activas, ese control modifica el programa subyacente, sin cancelar la ausencia ni una retención posterior.
+- Volver al horario: termina Manual y recupera el programa vigente. Durante Ausente recupera Ausente; no enciende una zona apagada. Sin agenda configurada no inventa horarios.
+- Ausente: activa el perfil prolongado. Elegir away en los presets también activa ausencia indefinida. Terminar Ausente no anula una retención manual posterior.
 
-La zona aparece apagada. El nombre inicial se obtiene del sensor y puede editarse desde HA. Una zona puede agrupar varios circuitos, pero deben compartir un objetivo de temperatura. No se exige un termostato independiente para cada circuito físico.
+Los ajustes avanzados y temperaturas aparecen agrupados en Configuración del dispositivo; no es necesario mostrarlos todos en el panel principal. Se pueden añadir individualmente a un panel nativo.
 
-Los sensores deben exponer temperatura en °C. Un valor sin unidad o con otra unidad se rechaza y detiene la zona. Esta versión no convierte sensores Fahrenheit. La cadencia y fiabilidad de sensores derivados requieren comprobación antes de producción.
+## Perfiles y Manual
 
-## Perfiles y programación semanal
+Normal, Eco, Noche y Ausente tienen temperaturas independientes para calor y frío, almacenadas una sola vez. Sus controles number los crea la integración; no son input_number externos. Los valores iniciales son orientativos. Ajusta Noche por estancia e inercia; no se obliga a aplicar la misma reducción a todas.
 
-Cada zona crea sus propios controles de temperatura Normal, Eco y Noche para cada modo disponible. Son entidades `number` mantenidas por la integración, sin `input_number` externos ni valores duplicados. Los valores iniciales son orientativos y editables desde el dispositivo o un panel nativo. Noche no obliga a reducir la temperatura de todos los dormitorios: ajústala según el uso y la inercia.
+En Comportamiento de Manual elige duración, próximo bloque o hasta volver expresamente al programa. La duración inicial es 240 minutos, editable entre 1 y 1440; no representa un tiempo térmico aprendido. Cambiar la preferencia no modifica una retención ya iniciada.
 
-En **Configurar → Añadir o sustituir bloque horario**, selecciona días, hora y perfil. Un bloque continúa hasta el siguiente, incluso entre días; repetir día y hora lo sustituye. El botón de eliminar muestra los bloques existentes. El horario pertenece a cada termostato y utiliza la zona horaria de HA. En el salto de primavera, una hora inexistente se ejecuta al primer minuto válido; la hora repetida de otoño se ejecuta una vez, en su primera aparición.
+Con programación o vacaciones activas, cualquier orden climate de temperatura inicia Manual, incluida una consigna igual al perfil. Repetirla renueva la duración. La integración no utiliza context.user_id ni deducciones por preset_mode: la entidad propia recibe la orden y la lógica interna no se llama a sí misma a través de servicios climate.
 
-El interruptor **Usar horario** habilita la programación, sin encender un termostato apagado. Requiere al menos un bloque. Apagarlo conserva la consigna efectiva actual como fija, sin vencimiento. **Volver al horario** elimina Manual y habilita el horario; tampoco vence Apagado individual/general.
+Durante Manual no actúan anticipación, solar ni pausa predictiva. Editar un perfil no cancela la retención. Al terminar, se consulta el programa vigente, sin recuperar un perfil antiguo. En Fijo la consigna no caduca; los módulos que se activen pueden regular aporte dentro de sus límites sin cambiar ese objetivo.
 
-**Comportamiento de Manual** permite elegir duración (240 minutos inicialmente, editable), próximo bloque o hasta volver expresamente al horario. Cambiar esta preferencia solo afecta a futuras intervenciones. Cambiar temperatura o seleccionar un perfil desde cualquier servicio `climate` crea Manual cuando hay horario activo, incluso si coincide con el perfil. Una intervención repetida renueva su duración. Cambiar temperaturas de los perfiles no cancela Manual. Sin horario, seleccionar un perfil sigue su valor editable; girar la consigna pasa a fija.
+## Agenda semanal
 
-El termostato muestra `control_state`, `manual_policy`, `manual_until` y `next_schedule_change`. Los atributos explican la intención; el sensor Motivo explica los bloqueos y la demanda. Un modo individual Apagado prevalece sobre cualquier perfil. El cambio explícito de temporada elimina la retención del modo anterior y consulta el perfil de la temporada nueva. No se afirma que cuatro horas sean el tiempo de respuesta de un suelo.
+Configurar → Añadir o sustituir bloque horario permite seleccionar días, hora y perfil. Cada bloque continúa hasta el siguiente, también entre días. Repetir día/hora sustituye el bloque. Eliminar bloque muestra los existentes. Utiliza la zona horaria de HA.
 
-Editar la agenda recalcula el vencimiento de una retención Hasta el próximo bloque. Si no quedan bloques, esa retención pasa a Hasta volver al horario y conserva su consigna sin inventar una fecha. Sin bloques, habilitar de nuevo el horario requiere configurar alguno.
+En primavera una hora inexistente se desplaza al primer minuto válido; en otoño una hora repetida se ejecuta una sola vez, en la primera aparición. Manual hasta próximo bloque termina en la frontera aunque ambos perfiles tengan igual temperatura. Editar agenda recalcula esa frontera; si desaparecen todas, la retención pasa a sin vencimiento explícito. Activar horario desde cero exige un bloque.
 
-La acción **Radiant Climate: Copiar ajustes entre termostatos** permite elegir una zona de origen y copiar temperaturas, política/duración Manual o agenda a zonas concretas. Dejar destinos vacíos aplica al resto. No copia sensores, relés ni orientación, ni enciende zonas apagadas. Copiar la agenda incluye su interruptor; si está deshabilitada en origen, las zonas de destino pasan a consigna fija conservando el valor efectivo anterior.
+## Fuentes y módulos
 
-Si se configura un contacto, aparece **Pausar por ventana**. Al desactivarlo, un contacto abierto o indisponible no pausa la zona. Deshabilitar esta comodidad no deshabilita validaciones de temperatura ni Apagado. La pausa de esta base es inmediata; retardos configurables siguen pendientes.
+La instalación admite exterior y entidad weather compartidos en Configurar. Entorno, sol y anticipación permite sustituirlos por zona; dejar vacíos hereda. No hace falta editar identificadores en código ni crear otra fuente de temperaturas.
 
-## Opciones
+| Control por zona | Resultado al activarlo | Sin datos/desactivado |
+|---|---|---|
+| Usar previsión meteorológica | Contexto solar y temperatura prevista para anticipación | Continúa la regulación interior |
+| Usar temperatura exterior | Contexto de pérdidas para modelo/adelanto cuando sea utilizable | Modelo interior o agenda normal |
+| Aprender respuesta térmica | Estadísticas separadas por temporada, sin actuar por aprender | Conserva el modelo y deja de entrenarlo |
+| Anticipar horario | Adelanto acotado del próximo perfil más exigente | Sin agenda/modelo válido, no anticipa |
+| Aprovechar inercia térmica | Pausa acotada cerca del objetivo y con modelo/tendencia válidos | Regulación normal |
+| Aporte solar | Desactivado, Observación u Optimizar por zona | Observación no altera relés; datos perdidos degradan el módulo |
+| Pausar por ventana | Suspende según contacto y retardos | Sin dependencia del contacto |
 
-En las opciones de la zona puedes cambiar entradas, seleccionar un contacto de ventana y ajustar histéresis, tiempos mínimos y caducidad. Un contacto configurado abierto pausa; uno no disponible también pausa. Sin contacto configurado no hay dependencia de ventana.
+Solar Optimizar requiere confirmar orientación, elevación y sombras observadas. No confundir oportunidad compartida, geometría y sol directo. No se usan persianas. La regla solar inicial no se aplica a refrigeración. Consulta [algoritmos y límites](intelligence.md).
 
-Los retardos de apertura/cierre de ventana, el perfil de emisor y la configuración por módulos previstos no están todavía implementados. La interfaz de esta base no debe confundirse con el producto final.
+## Regulación y válvulas
 
-Para eliminar un contacto o una general, limpia su campo en las opciones. La eliminación debe quedar guardada como valor vacío, no recuperar una referencia anterior por mezclar opciones y datos originales.
+En Dispositivos y regulación se ajustan histéresis, mínimos, caducidad, contacto, retardos y tiempo estimado de cierre. En instalación se configura el tiempo estimado de apertura general. Cero indica desconocido, nunca apertura instantánea demostrada.
 
-## Apagado y reactivación
+| Ajuste | Inicial | Rango del asistente |
+|---|---:|---:|
+| Histéresis | 0,2 °C | 0,05–2 °C |
+| Mínimos activo/inactivo | 180 s | 0–3600 s |
+| Caducidad interior | 3600 s | 60–86400 s |
+| Retardos ventana | 0 s | 0–600 s |
+| Maniobra estimada de válvula | 0 s (desconocida) | 0–900 s |
+| Adelanto máximo | 120 min | 0–360 min |
+| Proyección residual | 15 min | 5–60 min |
 
-La orden de Apagado individual permanece. El interruptor general suspende todas las zonas, conserva sus intenciones y ordena apagar zonas y general. Una consigna editada durante esa parada se guarda sin abrir salidas.
+Son puntos de partida, no parámetros calibrados para una vivienda. Un fallo o Apagado no espera el mínimo activo. Un contacto desconocido pausa inmediatamente si la función está habilitada. Una zona no aislable puede impedir suministro compartido.
 
-Al habilitar de nuevo, solo demandan las zonas que estaban encendidas, tienen datos válidos y son compatibles con la temporada declarada. Cambiar la temporada actualiza el modo de zonas activas compatibles y conserva las apagadas.
+Limpiar un contacto o una fuente elimina su referencia; una fuente vacía vuelve a heredar si existe una compartida. Cambiar dispositivos recarga la zona y cierra sus salidas durante la operación. Editar la instalación deshabilita conservadoramente la general y requiere reactivación explícita tras revisar.
 
-No utilices directamente los relés como mandos cotidianos. Si otro controlador está escribiendo en ellos, detén el ensayo y resuelve la asignación. El estado comunicado no es posición de válvula.
+## Vacaciones y aplicar a todas
 
-## Pendiente de documentar como función operativa
+Configurar → Vacaciones permite ausencia indefinida o regreso con fecha y hora locales. Activar vacaciones sustituye una retención previa; las intervenciones posteriores tienen prioridad Manual. No activa zonas apagadas. Al regreso recupera el programa o ajuste fijo subyacente.
 
-Las siguientes opciones pertenecen al diseño, no a este menú: agenda propia, perfiles editables, retención Manual desde el panel, meteo, solar, influencia exterior, anticipación, vacaciones y aprendizaje. No hay que crear ayudantes para simularlas mientras se desarrollan.
+La acción Radiant Climate: Copiar ajustes entre termostatos elige origen, destinos y grupos: temperaturas, política/duración, agenda, módulos y vacaciones. Destinos vacíos significa las demás zonas. No copia sensores, orientación, relés ni modelos aprendidos. Los requisitos se validan antes de copiar. Copiar una agenda deshabilitada deja consigna fija, conservando el objetivo efectivo.
+
+## Diagnóstico
+
+Motivo de regulación explica Apagado, fallo, ventana, mínimos, maniobra estimada, anticipación o pausa. El climate expone intención solicitada, control_state, manual_policy, manual_until, next_schedule_change, control_target, disponibilidad de fuentes y calidad del modelo. El objetivo anticipado se distingue de la consigna del bloque actual.
+
+El diagnóstico exportable omite nombres, entidades fuente, identificadores y agenda. Restablecer aprendizaje elimina solo el modelo de esa zona. Si un relé presenta discrepancias repetidas, revisa escritores, comunicaciones y comportamiento al encender; apagar la general permite un nuevo intento acotado. No uses los relés como mandos cotidianos ni atribuyas el cambio a una persona sin evidencia.

@@ -78,6 +78,9 @@ class RadiantThermostat(RadiantEntity, ClimateEntity):
     async def async_set_preset_mode(self, preset_mode):
         if preset_mode not in self.preset_modes:
             raise ValueError("Unsupported profile")
+        if preset_mode == "away":
+            await self.manager.async_away(self.entry.entry_id, True)
+            return
 
         def update():
             z = self.zone

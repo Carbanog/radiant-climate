@@ -1,6 +1,7 @@
 """Global enable switch: off is persisted and cannot be bypassed by a zone."""
 
 from homeassistant.components.switch import SwitchEntity
+from homeassistant.const import EntityCategory
 
 from .const import DOMAIN
 from .entity import RadiantEntity
@@ -25,6 +26,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class ModuleEnabled(RadiantEntity, SwitchEntity):
+    _attr_entity_category = EntityCategory.CONFIG
+
     def __init__(self, manager, entry, key):
         super().__init__(manager, entry, key)
         self.key = key

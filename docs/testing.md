@@ -35,7 +35,7 @@ El piloto doméstico y la calibración necesitan copia recuperable, circuitos co
 Los ZIP de CI incluyen commit, BUILD.json y SHA-256, sin fixtures ni datos domésticos. Los artefactos temporales no son por sí mismos una publicación. Las releases adjuntan una candidata ya validada y mantienen identificador para recuperación. HACS obtiene el código de la etiqueta correspondiente; las betas deben elegirse expresamente.
 
 
-## Regresiones de la revisión posterior a v0.2.1
+## Regresiones de v0.2.2
 
 - Zona de dos canales: primer canal abierto y fallo del segundo por excepción, timeout o confirmación vencida. Se comprueban las órdenes compensatorias de cierre sin permitir eventos ni ticks posteriores.
 - Retirada de zona, general y sustitución mediante opciones: interrupción simulada en la primera orden de cierre; el registro ya debe existir en almacenamiento y recuperarse en un gestor nuevo.

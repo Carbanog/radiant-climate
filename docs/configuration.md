@@ -94,7 +94,7 @@ En Dispositivos y regulación se ajustan histéresis, mínimos, caducidad, conta
 
 Para separar un circuito antes agrupado, conserva el termostato original asignado a su nueva salida y añade otro para el circuito separado, con su propio sensor, consigna y horario. Cada uno puede usar calor/frío, aprendizaje e inercia, con solar desactivado. Un contacto de puerta puede seleccionarse igual que uno de ventana para pausar esa zona. El control no depende del número de canales que tenga cada módulo, sino de que HA exponga sus salidas independientes y no estén asignadas a más de un controlador.
 
-Un fallo de actuador mantiene bloqueadas las aperturas. El cierre admite hasta dos intentos de recuperación separados al menos 30 segundos, con presupuesto persistente; no se reintenta indefinidamente. En la candidata posterior a v0.2.1, el apagado cotidiano conserva el bloqueo y el presupuesto de cierre; el reconocimiento se realiza por separado. Una orden ya enviada puede terminar antes de que se procese la siguiente; nuevas aperturas se inhiben mientras haya cambios pendientes. Cada llamada de maniobra está acotada a cinco segundos, sin acreditar tiempos físicos.
+Un fallo de actuador mantiene bloqueadas las aperturas. El cierre admite hasta dos intentos de recuperación separados al menos 30 segundos, con presupuesto persistente; no se reintenta indefinidamente. Desde v0.2.2, el apagado cotidiano conserva el bloqueo y el presupuesto de cierre; el reconocimiento se realiza por separado. Una orden ya enviada puede terminar antes de que se procese la siguiente; nuevas aperturas se inhiben mientras haya cambios pendientes. Cada llamada de maniobra está acotada a cinco segundos, sin acreditar tiempos físicos.
 
 | Ajuste | Inicial | Rango del asistente |
 |---|---:|---:|
@@ -123,7 +123,7 @@ Motivo de regulación explica Apagado, fallo, ventana, mínimos, maniobra estima
 El diagnóstico exportable omite nombres, entidades fuente, identificadores y agenda. Restablecer aprendizaje elimina solo el modelo de esa zona. Si un relé presenta discrepancias repetidas, revisa escritores, comunicaciones y comportamiento al encender; apagar la general conserva el bloqueo; utiliza el reconocimiento explícito descrito a continuación después de revisar la causa. No uses los relés como mandos cotidianos ni atribuyas el cambio a una persona sin evidencia.
 
 
-## Revisión de fiabilidad posterior a v0.2.1 (sin release publicada)
+## Fiabilidad y recuperación desde v0.2.2
 
 Los cambios de orientación, fuentes y parámetros se aplican sin descargar entidades, retirar salidas ni reiniciar el aprendizaje. Una variación efectiva de la demanda puede cambiar naturalmente la actuación. Cambiar sensores, relés, modos disponibles o el contacto sí conserva el procedimiento seguro de recarga. La sustitución de un relé por otro sobre el mismo circuito no exige restablecer aprendizaje.
 

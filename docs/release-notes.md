@@ -1,5 +1,26 @@
 # Cambios y actualización
 
+## v0.2.2
+
+Mejora de fiabilidad sin cambiar regulación térmica, perfiles ni optimizaciones, y sin añadir ayudantes o automatizaciones externas.
+
+- Apertura parcial: si falla un canal, se invalidan nuevas aperturas y se solicita cerrar los canales de esa zona y la general en la misma revisión, sin esperar al siguiente tick.
+- Sustitución y retirada: el registro de salidas antiguas se persiste antes de maniobrar y antes de confirmar asignaciones nuevas. Una interrupción conserva la información para recuperar el bloqueo. Si falla el guardado, no se confirma la nueva asignación.
+- Los ajustes lógicos de fuentes, orientación y regulación se aplican sin descargar entidades, retirar salidas ni sustituir el aprendizaje. Los cambios reales de dispositivos conservan la recarga segura.
+- Apagar Climatización ya no borra averías. La acción administrativa **Reconocer fallos de relés tras revisión** (`radiant_climate.reset_actuator_faults`) exige instalación apagada, revisión confirmada y salidas comunicando Off, sin retiradas pendientes. No enciende la instalación. Confirmar retirada física también requiere administrador.
+
+### Actualización y reversión
+
+Conserva copia, apaga Climatización, instala **v0.2.2** y reinicia Home Assistant. No requiere recrear termostatos, perfiles, horarios ni ayudantes: se conserva el almacenamiento versión 1. Cambiar solo el relé sobre el mismo circuito y sensor conserva el aprendizaje; al dividir circuitos o cambiar sensor conviene restablecerlo.
+
+El reconocimiento de fallos queda separado del apagado habitual: no lo automatices ni utilices Off/On para intentar borrar una avería. Consulta [el procedimiento](configuration.md#fiabilidad-y-recuperación-desde-v022). Conservamos v0.2.1 para recuperación, pero no reviertas con retiradas o fallos pendientes sin resolver; mantén Off y conserva código y configuración de respaldo juntos. Una restauración de estado debe hacerse con HA detenido.
+
+### Validación
+
+90 pruebas del motor y 77 del adaptador en cada Core 2026.10.4/2026.11.0, ruff, formato, privacidad y HACS/hassfest. La candidata funcional 32a86cc completó además 41 casos en Core 2026.11.0 con sensores y salidas ficticios, incluidos dos reinicios completos, Manual con reloj real, vacaciones, opciones sin cierres, fallos y ventilación. Las maniobras aceleradas del banco no son parámetros domésticos.
+
+Los cierres son órdenes y estados comunicados, no una medición de posición ni caudal. Las comprobaciones eléctricas, tiempos físicos y protección anticondensación corresponden a cada instalación. Permanecen los avisos de API de temperatura cuya retirada anuncia HA 2027.11; esta entrega no declara compatibilidad con esa versión futura.
+
 ## v0.2.1
 
 Correcciones de seguridad de salidas y configuración encontradas en la revisión de v0.2.0. Conserva la versión 1 del almacenamiento con campos aditivos para salidas retiradas y recuperación de cierre. No añade ayudantes externos.

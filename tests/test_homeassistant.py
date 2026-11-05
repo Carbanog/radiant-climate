@@ -1351,6 +1351,7 @@ async def test_retirement_is_durable_before_first_close_even_if_interrupted(hous
     import asyncio
     from unittest.mock import patch
 
+    from custom_components.radiant_climate.const import PLATFORMS
     from custom_components.radiant_climate.runtime import Installation
 
     entry, climate = await add_zone(house)
@@ -1360,6 +1361,10 @@ async def test_retirement_is_durable_before_first_close_even_if_interrupted(hous
     await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
     await service(house, "switch", "turn_on", global_entity(house))
     old = "switch.fixture_general" if operation == "general" else "switch.fixture_a"
+    if operation == "zone":
+        # Match HA's actual lifecycle: entity listeners are unloaded before the
+        # manager removes a zone. This test interrupts the following I/O step.
+        assert await house.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     async def interrupted(entity, wanted):
         assert not wanted
@@ -1557,6 +1562,7 @@ async def test_fault_acknowledgment_is_admin_only(house):
     await add_zone(house)
     manager = house.data[DOMAIN]
     await manager.async_change(lambda: manager._command_faults.add("switch.fixture_a"))
+    await house.auth.async_create_user("Fixture owner")
     user = await house.auth.async_create_user("Fixture non-admin")
     assert not user.is_admin
     with pytest.raises(Unauthorized):

@@ -13,8 +13,10 @@ import pytest_asyncio
 
 pytest.importorskip("homeassistant")
 
-from homeassistant.bootstrap import async_from_config_dict
+from homeassistant.bootstrap import async_load_base_functionality
+from homeassistant.config_entries import ConfigEntries
 from homeassistant.core import HomeAssistant
+from homeassistant.core_config import async_process_ha_core_config
 from homeassistant.helpers import entity_registry as er
 from homeassistant.loader import async_setup as async_setup_loader
 from homeassistant.setup import async_setup_component
@@ -55,7 +57,13 @@ async def house(tmp_path, caplog):
             "input_boolean": {f"fixture_{x}": {} for x in ["a", "b", "general"]},
             "template": [{"switch": switches}],
         }
-        assert await async_from_config_dict(config, hass) is hass
+        # Use Core's real storage, registries, auth and setup. Its full bootstrap
+        # also loads the default UI/voice/media stack, unrelated to these tests.
+        hass.config_entries = ConfigEntries(hass, config)
+        assert await async_load_base_functionality(hass)
+        await async_process_ha_core_config(hass, {})
+        for domain in ("homeassistant", "persistent_notification", "input_boolean", "template"):
+            assert await async_setup_component(hass, domain, config)
         for key in ["a", "b"]:
             hass.states.async_set(
                 f"sensor.fixture_{key}",
@@ -393,14 +401,14 @@ async def test_sensor_failure_while_general_opens_never_opens_zone(house):
     )
     original = type(house.services).async_call
 
-    async def interrupted(registry, domain, action, data=None, *args, **kwargs):
+    async def interrupted(registry, domain, service, service_data=None, *args, **kwargs):
         if (
             domain == "switch"
-            and action == "turn_on"
-            and data.get("entity_id") == "switch.fixture_general"
+            and service == "turn_on"
+            and service_data.get("entity_id") == "switch.fixture_general"
         ):
             house.states.async_set("sensor.fixture_a", "unavailable")
-        return await original(registry, domain, action, data, *args, **kwargs)
+        return await original(registry, domain, service, service_data, *args, **kwargs)
 
     try:
         with patch.object(type(house.services), "async_call", new=interrupted):

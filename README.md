@@ -1,121 +1,202 @@
+<p><img src="https://raw.githubusercontent.com/Carbanog/radiant-climate/main/custom_components/radiant_climate/brand/icon.png" alt="Icono de Radiant Climate: un circuito radiante en colores cálido y frío" width="72" height="72"></p>
+
 # Radiant Climate
 
-Integración local de Home Assistant para crear termostatos de calefacción y refrigeración a partir de sensores de temperatura y relés.
+**Termostatos de calor y frío. Configuración nativa. Inteligencia opcional por zona.**
 
-[![Verify development candidate](https://github.com/Carbanog/radiant-climate/actions/workflows/ci.yml/badge.svg)](https://github.com/Carbanog/radiant-climate/actions/workflows/ci.yml)
+Crea termostatos de Home Assistant a partir de tus sensores y relés. Utiliza una consigna fija o añade perfiles, horarios, ventanas y optimización térmica según lo que necesite cada estancia. Diseñado con especial atención al suelo radiante/refrescante y a las válvulas compartidas.
 
-**Proyecto personal en desarrollo. No es una versión aprobada para producción ni un controlador certificado.** El repositorio público permite revisar el trabajo y reproducir pruebas; publicar código no acredita funcionamiento físico ni ahorro energético. No se incluyen datos de ninguna vivienda ni configuraciones de dispositivos reales.
+[Primera beta](https://github.com/Carbanog/radiant-climate/releases/tag/v0.2.0-beta.1) · [Instalación](#instalación) · [Primer arranque](#primer-arranque) · [Resolver problemas](docs/troubleshooting.md) · [Licencia MIT](LICENSE)
 
-## Objetivo
+[![Pruebas de software](https://github.com/Carbanog/radiant-climate/actions/workflows/ci.yml/badge.svg)](https://github.com/Carbanog/radiant-climate/actions/workflows/ci.yml)
+[![Metadatos de integración](https://github.com/Carbanog/radiant-climate/actions/workflows/metadata.yml/badge.svg)](https://github.com/Carbanog/radiant-climate/actions/workflows/metadata.yml)
 
-Añadir un termostato seleccionando sensor interior, relé o relés, modos disponibles y temperatura deseada. Después, habilitar únicamente las funciones avanzadas necesarias desde la interfaz. Sin numerosos ayudantes externos, sin depender de Dual Smart Thermostat ni Versatile Thermostat.
+> **Estado: v0.2.0-beta.1.** Proyecto personal, original y de código abierto, publicado para facilitar revisión y uso voluntario. La beta tiene pruebas automatizadas; su respuesta térmica necesita validación y ajuste en cada instalación. No se presenta como un controlador certificado ni como ahorro demostrado.
 
-La candidata incluye regulación, programación y módulos opcionales. La tabla distingue las funciones de software de la calibración y validación físicas. Los módulos avanzados empiezan desactivados y no incluyen modelos preentrenados.
+¿Ya lo has instalado? Continúa en [Primer arranque](#primer-arranque). No necesitas volver a descargarlo para empezar a configurarlo.
 
-## Estado de las funciones
+## Qué ofrece
 
-| Función | Estado de esta candidata |
+| Necesidad | Función |
 |---|---|
-| Alta de instalación y zonas mediante formularios nativos | Implementada y probada en Core 2026.10.4 |
-| Termostato fijo con calor, frío y apagado | Implementado con histéresis y tiempos mínimos |
-| Interruptor general con intención individual conservada | Implementado |
-| Fuente exterior o meteorología obligatorias | No: el control básico no depende de ellas |
-| Válvula de entrada compartida opcional | Coordinación por estado comunicado del relé; no confirma apertura física |
-| Sensor interior inválido/caducado y ventana configurada | Detienen la zona; aislamiento no confirmado puede bloquear el suministro compartido |
-| Consignas por calor/frío y restauración de intención | Implementadas; pruebas de almacenamiento en Core en CI |
-| Relé asignado dos veces o como general y zona | Rechazado al configurar |
-| Diagnóstico del motivo de actuación y opciones en español/inglés | Implementados |
-| Tres políticas Manual | Conectadas a programación y controles nativos; CI valida el adaptador |
-| Perfiles editables y programación propia | Normal/Eco/Noche/Ausente por temporada y agenda semanal por zona |
-| Meteorología seleccionable, exterior y solar por zona | Implementados en la candidata; validación ampliada en CI |
-| Observación, anticipación y pausa por inercia | Implementados con calidad mínima y límites; necesitan datos reales y piloto |
-| Aplicar ajustes a otras zonas/todas | Temperaturas, política Manual, agenda, activación de módulos y vacaciones |
-| Ausente/vacaciones | Perfil por temporada, ausencia indefinida o regreso programado |
-| Precisión térmica, comportamiento físico e instalación real | No validados |
+| Un termostato normal | Calefacción, refrigeración, consigna fija y Apagado |
+| Temperaturas según el uso | Normal, Eco, Noche y Ausente, editables y separados por temporada |
+| Programar cada estancia | Agenda semanal por zona; copia de ajustes a otras zonas |
+| Cambiar de opinión | Manual por duración, hasta el siguiente bloque o hasta volver al programa |
+| Ventilar | Pausa por contacto de ventana, con retardos configurables |
+| Aprovechar el entorno | Fuentes de meteo/exterior seleccionables y solar por orientación y elevación |
+| Tener en cuenta la inercia | Observación por temporada, adelanto de horario y pausa predictiva acotados |
+| Ausentarse | Perfil prolongado y vacaciones con regreso programado |
+| Compartir una entrada de agua | Válvula general opcional, gestionada por un único módulo de maniobras |
+| Entender qué ocurre | Motivo de regulación, estado Manual y disponibilidad de fuentes/modelo |
 
-Consulta [arquitectura y prioridades](docs/architecture.md), [uso y configuración](docs/configuration.md), [validación](docs/testing.md) y [plan de desarrollo](docs/roadmap.md).
+Los controles y datos pertenecen a la integración. **No exige crear input_number, scripts ni automatizaciones externos**, ni depende de Dual Smart Thermostat o Versatile Thermostat. Añadir una zona reutiliza el mismo motor.
 
-Los [módulos avanzados y sus límites](docs/intelligence.md) distinguen la implementación del ajuste físico. No hay un modelo preentrenado de una vivienda ni promesa de ahorro o precisión comercial.
+## Compatibilidad y requisitos
 
-## Compatibilidad y alcance
+La beta está probada automáticamente con **Home Assistant Core 2026.10.4 y 2026.11.0**. No se deduce compatibilidad con cualquier versión posterior: revisa la release y sus comprobaciones antes de actualizar.
 
-- Matriz de compatibilidad: **Home Assistant Core 2026.10.4 y 2026.11.0**, Python 3.14. El núcleo aislado también se prueba con Python 3.12. Consulta el resultado del commit que vayas a utilizar.
-- Dispositivos expuestos como entidades `sensor` de temperatura, `switch` de actuador y opcionalmente `binary_sensor` de ventana.
-- El control básico es local y no pide credenciales ni añade telemetría. La previsión utiliza la integración meteorológica elegida en HA, que puede depender de un proveedor externo.
-- La temporada de suministro se declara con un selector. No mide la temperatura del agua ni controla producción, bomba, caldera o enfriadora.
-- No se usan persianas como dependencias ni como actuadores.
-- No hay protección anticondensación implementada. Un suelo refrescante necesita sus protecciones físicas y de instalación adecuadas. El software no debe sustituirlas.
+| Para empezar | Requisito |
+|---|---|
+| Temperatura interior | Una entidad `sensor` con valor válido en °C |
+| Actuación | Una o varias entidades `switch`, sin otro controlador activo sobre ellas |
+| Funcionamiento | Calor, frío o ambos; consigna inicial |
+| Opcional | General compartida, contacto `binary_sensor`, exterior, entidad `weather` y posición solar de HA |
 
-## Instalación de desarrollo
+Un termostato básico funciona sin meteo, exterior, ventanas ni horario. Las fuentes exteriores opcionales admiten conversión desde °C, °F y K; el sensor interior de esta beta debe exponer °C. Una zona puede agrupar varios circuitos que compartan objetivo de temperatura.
 
-**HA 2026.11+:** HACS está integrado en Configuración → Marketplace. Instalar abre directamente la configuración de la integración; no hace falta reinstalar HACS ni reiniciar antes de ese primer asistente. En 2026.10 y anteriores se utiliza el flujo clásico de HACS. Consulta el [procedimiento por versión](docs/installation.md).
+El control básico es local y no solicita cuentas ni credenciales. La integración meteorológica que elijas puede depender de un proveedor externo. No se añade telemetría propia.
 
-La primera entrega es **v0.2.0-beta.1**, para ensayo voluntario y calibración. Utiliza [Releases](https://github.com/Carbanog/radiant-climate/releases) para elegir una versión identificable. Los ZIP de CI son artefactos temporales y no acreditan aprobación doméstica.
+## Instalación
 
-1. Utiliza una instancia de pruebas aislada y salidas simuladas o desconectadas de equipos reales. Conserva copia recuperable de su configuración.
-2. Abre [Actions](https://github.com/Carbanog/radiant-climate/actions), selecciona una ejecución correcta y descarga el artefacto identificado por su SHA. Comprueba `BUILD.json` y el SHA-256 cuando se facilite.
-3. Copia únicamente `custom_components/radiant_climate` dentro de `custom_components` de esa instancia. No copies pruebas, scripts de desarrollo ni documentos como configuración HA.
-4. Reinicia HA y entra en **Ajustes → Dispositivos y servicios → Añadir integración → Radiant Climate**.
-5. Crea primero la instalación, seleccionando la general solo si existe. El interruptor general empieza apagado.
-6. Añade otra entrada de Radiant Climate para cada termostato: sensor, relés, modos disponibles y consigna inicial. Cada zona comienza apagada.
-7. Revisa las opciones de regulación, la temporada declarada y las salidas antes de habilitar el interruptor general y encender una zona de prueba.
+### Home Assistant 2026.11 o posterior: Marketplace
 
-No se modifica `configuration.yaml` ni se crean automatizaciones externas. HACS y hassfest comprueban estructura y metadatos. Añade el repositorio a HACS como Integración y selecciona expresamente la beta identificada; activa la visualización de versiones beta si hace falta. Conserva copia y versión para revertir. No se afirma inclusión en el catálogo ni aprobación para una vivienda. [Instalación y reversión](docs/installation.md).
+1. Abre **Configuración → Marketplace → Añadir desde enlace**.
+2. Introduce `https://github.com/Carbanog/radiant-climate`.
+3. Habilita las versiones preliminares del repositorio y selecciona **v0.2.0-beta.1**. Añadir un repositorio personalizado puede requerir la conexión con GitHub que gestiona Marketplace.
+4. Instala. Marketplace abre directamente el asistente de configuración de una integración nueva, sin reinicio intermedio.
 
-## Uso de la base actual
+No se instala HACS por separado en 2026.11. Las actualizaciones pueden solicitar un reinicio aunque la primera instalación no lo necesite.
 
-- **Apagado individual:** la zona deja de demandar. Horarios, vacaciones y optimizaciones no la reactivan.
-- **Climatización general apagada:** cierra las salidas por orden software y conserva qué zonas estaban encendidas. Cambiar una consigna no vence el bloqueo.
-- **Reactivar la general:** reconcilia estados y sensores; una zona individualmente apagada sigue apagada.
-- **Calor/frío:** la consigna se guarda por modo. Un modo incompatible con la temporada de suministro declarada no produce demanda.
-- **Motivo de regulación:** el sensor de diagnóstico explica bloqueo general, apagado, falta de datos, ventana, tiempo mínimo, demanda o consigna satisfecha.
+### Home Assistant 2026.10.4: HACS
 
-El estado `on` de un relé no prueba apertura, circulación o disponibilidad de energía. El coordinador espera el estado comunicado de la general antes de permitir aperturas de zona, pero aún no incorpora un modelo de tiempos físicos de válvulas. No se debe inferir consumo térmico de la potencia eléctrica de un actuador.
+1. Con HACS ya configurado, abre su menú → **Repositorios personalizados**.
+2. Añade `https://github.com/Carbanog/radiant-climate`, categoría **Integración**.
+3. Descarga **v0.2.0-beta.1**, mostrando versiones preliminares si hace falta.
+4. Reinicia HA y abre **Dispositivos y servicios → Añadir integración → Radiant Climate**.
 
-## Ajustes iniciales
+El repositorio se añade mediante enlace; no se afirma su inclusión en el catálogo oficial. Para instalación mediante ZIP, comprobación de integridad y reversión, consulta la [guía de instalación](docs/installation.md). Utiliza primero un entorno de pruebas y conserva una copia recuperable.
 
-| Ajuste | Valor inicial | Alcance |
-|---|---:|---|
-| Histéresis | 0,2 °C | Punto de partida, no calibración de una instalación |
-| Tiempo mínimo activo | 180 s | La seguridad y Apagado pueden interrumpirlo |
-| Tiempo mínimo inactivo | 180 s | Evita ciclos rápidos; revisar actuadores reales |
-| Caducidad interior | 3600 s | Basada en `last_reported` de HA; no certifica comunicación física del sensor |
+## Primer arranque
 
-Un sensor que solo cambia de valor ocasionalmente o un sensor derivado puede necesitar una política de caducidad diferente. Las propiedades del dispositivo y su cadencia se revisan antes de producción. Los tiempos acelerados de las pruebas no son valores domésticos.
+### 1. Configura el sistema compartido
 
-## Desarrollo y pruebas
+La primera pantalla se llama **«Instalación»** en esta beta. Se refiere a la configuración general de la climatización, no a descargar archivos.
 
-```sh
-python -m venv .venv
-# Activa el entorno según tu sistema operativo.
-python -m pip install pytest==8.4.2 pytest-asyncio==1.2.0 ruff==0.14.4 tzdata==2025.2
-python -m pytest tests/test_control.py tests/test_program.py tests/test_intelligence.py -q
-ruff check .
-ruff format --check .
-python scripts/check_public_content.py
-```
+La **válvula general es opcional**: déjala vacía si no existe o si prefieres configurarla después. Esta entrada crea el interruptor **Climatización**, el selector **Temporada de suministro declarada** y el diagnóstico **Oportunidad solar compartida**. El control comienza apagado.
 
-La suite `tests/test_homeassistant.py` utiliza Core real con sensores y relés **simulados**. En un entorno Linux compatible:
+### 2. Añade el primer termostato
 
-```sh
-python -m pip install homeassistant==2026.10.4 pytest==8.4.2 pytest-asyncio==1.2.0
-python -m pytest tests/test_homeassistant.py -q
-```
+Añade otra entrada de Radiant Climate y selecciona:
 
-CI ejecuta ambas suites separadas. Una suite omitida por falta de HA local no cuenta como una prueba de compatibilidad. No se contacta con dispositivos domésticos en CI.
+- Sensor de temperatura interior.
+- Relé o relés de la zona.
+- Calor, frío o ambos.
+- Consigna inicial.
 
-## Actualización y reversión
+El nombre se propone a partir del sensor y puede renombrarse desde HA. La zona se crea apagada. Repite este paso para añadir más habitaciones, sin duplicar automatizaciones.
 
-Conserva el commit/ZIP anterior y una copia recuperable de HA. Desactiva el interruptor general y comprueba las órdenes de apagado antes de reemplazar archivos. Reinicia y revisa compatibilidad, estados y diagnósticos antes de reactivar.
+### 3. Comprueba la regulación básica
 
-Para volver a un controlador anterior, detén y deshabilita primero las entradas de Radiant Climate y después rehabilita el anterior. Nunca mantengas dos controladores sobre las mismas salidas. No borres la configuración previa hasta aceptar el cambio.
+Revisa sensores, asignaciones, temporada y tiempos de maniobra. En un ensayo, utiliza salidas simuladas. Después selecciona un modo en la zona y habilita **Climatización**.
 
-La integración usa almacenamiento de HA versionado; no edites `.storage` en caliente. Aún no existe una política de migración entre releases porque no hay una primera release publicada.
+El sensor **Motivo de regulación** explica si demanda, espera un mínimo, encuentra un bloqueo o tiene satisfecha la consigna. Un cambio de temperatura no vence un Apagado general o individual.
 
-## Privacidad y contribuciones
+### 4. Ajusta perfiles y agenda
 
-Los ejemplos son genéricos y las pruebas identifican sus fixtures. No subas exportaciones de HA, copias de seguridad, direcciones privadas, nombres de personas, ubicaciones, contraseñas o tokens. El comprobador automático ayuda, pero no sustituye la revisión del diff. Los diagnósticos omiten nombres, entidades fuente e identificadores; revisa también las temperaturas y estados antes de compartirlos.
+Edita las temperaturas Normal/Eco/Noche/Ausente en **Configuración del dispositivo**. Los valores iniciales son orientativos, no una recomendación de confort para todas las viviendas.
 
-El código de esta base es original. Las referencias comerciales de diseño no implican copiar sus algoritmos ni incorporar código de otras integraciones. Licencia [MIT](LICENSE).
+En las opciones de la zona, utiliza **Añadir o sustituir bloque horario**: elige días, hora y perfil. Cada bloque continúa hasta el siguiente, también entre días. Activa **Usar horario** cuando quieras seguir la agenda.
+
+### 5. Activa solo los módulos que necesites
+
+Empieza por el funcionamiento básico. Después configura las fuentes y activa módulos por separado. Solar dispone de **Observación**, que muestra oportunidades sin actuar. El aprendizaje comienza recopilando datos; no incluye un modelo precargado de tu vivienda.
+
+Si prefieres un termostato de consigna fija, deja el horario y las optimizaciones desactivados.
+
+## Uso diario y prioridad Manual
+
+| Control | Comportamiento |
+|---|---|
+| Consigna fija | Mantiene el objetivo elegido, sin vencimiento por horario |
+| Usar horario | Sigue el bloque vigente; no enciende una zona apagada |
+| Cambiar temperatura con agenda o Ausente activos | Inicia una retención Manual, incluso si coincide con el valor de un perfil |
+| Volver al horario | Termina Manual y retoma el programa vigente; durante Ausente, retoma Ausente |
+| Apagado individual | Detiene esa zona; horarios y optimizaciones no la reactivan |
+| Climatización apagada | Suspende todas las zonas y conserva sus intenciones |
+| Reactivar Climatización | Reevalúa condiciones y respeta las zonas individualmente apagadas |
+
+Puedes elegir la política predeterminada de Manual: **duración configurable**, **próximo bloque** o **hasta volver al programa**. Repetir una intervención renueva su duración. Cambiar la preferencia no altera una retención que ya estaba en curso.
+
+Por ejemplo, si eliges cuatro horas y subes a las 21:30, el comienzo de Noche a las 22:00 no cancela esa retención. Los plazos siguen transcurriendo durante una parada; al terminar se consulta el programa vigente.
+
+Manual prevalece sobre las optimizaciones. Un fallo de sensor, Apagado o una ventana habilitada puede suspender el aporte sin borrar la intención. La [guía de configuración](docs/configuration.md) detalla estas interacciones, el cambio de hora y las vacaciones.
+
+## Configurar sin modificar código
+
+| Quiero cambiar… | Dónde |
+|---|---|
+| Temperaturas de perfiles | Controles `number` propios en Configuración del dispositivo |
+| Días, horas y perfiles | Opciones de zona → añadir/sustituir/eliminar bloque |
+| Duración y política Manual | Controles propios de la zona |
+| Fuentes compartidas | Opciones de la entrada general |
+| Fuente particular, orientación y umbrales solares | Opciones de zona → Entorno, sol y anticipación |
+| Activación de funciones | Interruptores de módulos y selector solar de cada zona |
+| Ventanas, mínimos, histéresis y caducidad | Opciones de zona → Dispositivos y regulación |
+| Ausencia con regreso | Opciones de zona → Vacaciones |
+| Aplicar ajustes a varias zonas | Acción **Copiar ajustes entre termostatos** |
+
+La copia no traslada sensores, relés, orientación ni modelos aprendidos. Destinos vacíos significa las demás zonas; se validan los requisitos antes de aplicar.
+
+### Qué necesitan las optimizaciones
+
+| Módulo | Condición para actuar | Si faltan datos |
+|---|---|---|
+| Meteo/exterior | Fuente seleccionada, habilitada y utilizable | Se omite esa aportación; continúa el control interior |
+| Solar | Geometría por zona y tendencia interior; Optimizar exige incidencia/sombras confirmadas | Degrada al control base; Observación no cambia relés |
+| Anticipación | Agenda, próximo perfil más exigente y modelo válido | Aplica la agenda sin adelanto |
+| Pausa por inercia | Modelo válido, tendencia y proximidad al objetivo | Continúa la regulación normal |
+
+Las optimizaciones conservan el objetivo de confort y ajustan el aporte dentro de límites. La regla solar inicial actúa únicamente en calefacción. El modelo separa temporadas y exige calidad mínima; no se promete aprendizaje válido tras un plazo fijo. Consulta [algoritmos y límites](docs/intelligence.md) y [observación y ajuste](docs/tuning.md).
+
+## Si algo no funciona
+
+Empieza por **Motivo de regulación** y por el estado comunicado de sensores y actuadores.
+
+| Síntoma | Primera comprobación |
+|---|---|
+| No abre una zona | General y zona habilitadas, temporada compatible, sensor válido y mínimos de maniobra |
+| Se detienen otras zonas tras un fallo | Una salida no aislable puede bloquear el suministro compartido |
+| No anticipa | Horario activo, modelo listo y próximo perfil más exigente |
+| No actúa Solar | Distingue Observación de Optimizar; revisa umbrales, incidencia y tendencia |
+| Falta meteo o exterior | El control interior debe continuar; revisa fuente y diagnóstico del módulo |
+| Manual termina antes de lo esperado | Comprueba política, plazo, cambio real de temporada y acciones explícitas |
+| Aparece «7056482» al instalar | Es el commit de la primera beta; selecciona su etiqueta para fijar la versión |
+| No hay miniatura en Marketplace | El icono local existe; la miniatura depende del índice externo del catálogo |
+
+La [guía de problemas y soluciones](docs/troubleshooting.md) explica cada caso, las comprobaciones y qué información compartir si persiste. No hace falta editar archivos internos para el diagnóstico habitual.
+
+## Actualizar y volver atrás
+
+Conserva una copia recuperable y la versión anterior. Lee las notas de la nueva release, apaga **Climatización**, actualiza y sigue el aviso de reinicio de HA. Revisa entradas, modos y diagnósticos antes de reactivar.
+
+Para recuperar otro controlador, apaga y deshabilita primero Radiant Climate y después restaura el anterior. Evita dos controladores activos sobre el mismo relé. Una desinstalación no equivale a restaurar la configuración: consulta [reversión](docs/installation.md#reversión). No edites `.storage` con HA activo ni borres los componentes anteriores antes de aceptar la migración.
+
+## Validación y límites
+
+La primera beta superó **90 pruebas del núcleo y 41 pruebas en cada versión de Core: 2026.10.4 y 2026.11.0**, además de HACS y hassfest. Los adaptadores utilizan Core real con sensores, relés, previsiones y modelos de prueba explícitos. Se prueban, entre otros, reinicios completos, Manual coincidente con perfiles, apagados, pérdidas de fuentes y conflictos de salidas. [Alcance de las pruebas](docs/testing.md).
+
+El estado de un relé y el transcurso de un tiempo estimado **no confirman posición de válvula ni caudal**. Las esperas de apertura general/cierre de zona se configuran según los actuadores. No se controla producción ni bombas comunitarias ni se utilizan persianas. Esta beta no implementa protección anticondensación: se mantienen las protecciones físicas de la instalación.
+
+Las pruebas de software no acreditan precisión, ahorro ni respuesta térmica de un edificio. La validación física y la calibración son parte de la puesta en servicio.
+
+## Documentación
+
+| Guía | Contenido |
+|---|---|
+| [Instalación y reversión](docs/installation.md) | Marketplace, HACS, ZIP, piloto y recuperación |
+| [Configuración y uso](docs/configuration.md) | Parámetros, perfiles, horarios, Manual y vacaciones |
+| [Problemas y soluciones](docs/troubleshooting.md) | Diagnóstico por síntoma y motivos visibles |
+| [Módulos avanzados](docs/intelligence.md) | Fuentes, algoritmos, requisitos y degradación |
+| [Observación y ajuste](docs/tuning.md) | Qué medir y plantilla de diagnóstico local |
+| [Pruebas](docs/testing.md) | Casos cubiertos y límites de la validación |
+| [Desarrollo](docs/development.md) | Entorno, comprobaciones y contribuciones |
+| [Arquitectura](docs/architecture.md) · [Alcance](docs/roadmap.md) | Responsabilidades y condiciones de aceptación |
+
+## Proyecto, soporte y licencia
+
+Radiant Climate es un proyecto personal, publicado bajo [licencia MIT](LICENSE). Las referencias a otras soluciones no implican afiliación ni reutilización de sus algoritmos. La compatibilidad se mantiene mediante versiones y pruebas; no se garantiza mantenimiento nulo ante cambios de HA.
+
+Para comunicar un defecto, abre una [incidencia](https://github.com/Carbanog/radiant-climate/issues) indicando versión de HA, versión de la integración, pasos y comportamiento observado. Revisa y anonimiza los diagnósticos: no publiques credenciales, copias de seguridad ni exportaciones domésticas completas.
 
 Si te resulta útil, puedes [apoyar voluntariamente el proyecto](https://buymeacoffee.com/Carbanog). El apoyo no concede funciones ni ventajas.

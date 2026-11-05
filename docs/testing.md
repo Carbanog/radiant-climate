@@ -16,7 +16,7 @@ Los sensores, actuadores, previsiones y modelos preparados son fixtures explíci
 
 ## Reproducción
 
-Consulta los comandos del README y `.github/workflows/ci.yml`. El núcleo funciona con Python 3.12; las dos versiones de Core se prueban en Linux/Python 3.14. Una suite omitida por falta de HA no cuenta como compatibilidad. El estado exacto y los registros corresponden al commit de Actions, no al futuro contenido de main.
+Consulta los comandos de la [guía de desarrollo](development.md) y `.github/workflows/ci.yml`. El núcleo funciona con Python 3.12; las dos versiones de Core se prueban en Linux/Python 3.14. Una suite omitida por falta de HA no cuenta como compatibilidad. El estado exacto y los registros corresponden al commit de Actions, no al futuro contenido de main.
 
 ## Alcance físico pendiente
 

@@ -14,7 +14,7 @@ La candidata está destinada primero a pruebas aisladas. Aprobar código no apru
 
 No necesitas Studio Code Server, YAML interno ni automatizaciones para usar la integración. Los ejemplos YAML de paneles o acciones pueden pegarse en los editores de interfaz si se desean. No copies fixtures de CI a producción.
 
-Si se usa el ZIP temporal de CI, comprueba el SHA-256 y BUILD.json y copia solo la carpeta de la integración. El ZIP es un artefacto del commit, no una release aprobada. La alternativa HACS evita copiar archivos manualmente.
+Si se usa el ZIP temporal de CI, comprueba el SHA-256 y BUILD.json y copia solo la carpeta de la integración. El ZIP es un artefacto del commit, no una release aprobada. Marketplace/HACS evita copiar archivos manualmente.
 
 ## Pruebas del piloto
 

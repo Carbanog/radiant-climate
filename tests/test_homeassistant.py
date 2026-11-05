@@ -12,8 +12,10 @@ import pytest_asyncio
 
 pytest.importorskip("homeassistant")
 
+from homeassistant.bootstrap import async_from_config_dict
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.loader import async_setup as async_setup_loader
 from homeassistant.setup import async_setup_component
 
 DOMAIN = "radiant_climate"
@@ -24,8 +26,9 @@ SOURCE = Path(__file__).resolve().parents[1] / "custom_components/radiant_climat
 async def house(tmp_path):
     shutil.copytree(SOURCE, tmp_path / "custom_components/radiant_climate")
     hass = HomeAssistant(str(tmp_path))
+    async_setup_loader(hass)
     try:
-        assert await async_setup_component(hass, "homeassistant", {})
+        assert await async_from_config_dict({"homeassistant": {}}, hass) is hass
         assert await async_setup_component(
             hass,
             "input_boolean",

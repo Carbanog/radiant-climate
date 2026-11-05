@@ -1,5 +1,23 @@
 # Cambios y actualización
 
+## v0.2.4
+
+Corrección del manejo de eventos y revisión propia de concurrencia, sin nuevos ayudantes, automatizaciones ni dependencias.
+
+- Las mediciones interiores válidas, cambios de atributos y contactos deshabilitados no cancelan una confirmación en curso. Invalidan el plan y provocan su reevaluación antes de nuevas aperturas. Si la temperatura alcanza la consigna durante la espera, se confirma o vence la orden ya enviada y después se aplica el estado vigente.
+- La interrupción inmediata se reserva para lecturas interiores inválidas o una pausa efectiva de ventana de una zona demandada, respetando habilitación y retardos. Una zona ya parada no cancela la apertura de otra por perder su termómetro. Off, configuración y parada de HA conservan prioridad; los informes no amplían el plazo de cinco segundos.
+- Probadas las secuencias off → unknown/unavailable/ausente → on. Se conserva el aborto conservador sin convertir automáticamente cada pérdida transitoria en avería enclavada. La recuperación solo continúa si sigue autorizada la demanda; un On tardío no vence Off.
+- Los cambios de módulos se componen y validan bajo el mismo bloqueo que los aplica: dos órdenes en cola ya no sobrescriben funciones independientes ni reutilizan una confirmación solar invalidada mientras esperaban.
+- Programación y reanudación actúan sobre la instancia y estado actuales de la zona. La última selección manual de temporada en cola se respeta, y encender una zona utiliza la temporada vigente al aplicar la orden. Repetir una temporada sin cambios pendientes continúa siendo una operación sin efecto.
+
+### Validación y actualización
+
+Se han añadido reproducciones antes de corregir: siete fallos por eventos inocuos y cuatro carreras de estado en ambos Core. La batería final incluye secuencias mixtas reproducibles que comprueban apagado, temporada, sensores, ventanas, vacaciones y perfiles después de cada acción. Consulta los resultados del commit de entrega.
+
+Copia de seguridad, Climatización apagada, actualizar a **v0.2.4** y reiniciar. Se mantienen entidades, perfiles, horarios, modelos y almacenamiento versión 1. No se automatiza el rearme de averías. Se conserva la release anterior para recuperación; no restaures estado en caliente ni reviertas con retiradas o averías pendientes sin resolver.
+
+La temporada sigue siendo declarada manualmente. Los estados de relé no certifican válvulas, caudal ni seguridad eléctrica. Esta revisión no sustituye pruebas físicas ni declara compatibilidad con HA 2027.11.
+
 ## v0.2.3
 
 Correcciones tras contrastar la auditoría de v0.2.2 con el comportamiento previsto. No añade ayudantes ni automatizaciones externas.

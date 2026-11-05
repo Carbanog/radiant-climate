@@ -143,3 +143,12 @@ Un preset elegido durante la agenda permanece visible como Normal/Eco/Noche y la
 Editar orientación, elevación mínima o amplitud obliga a revisar de nuevo la exposición: Solar pasa a Observación. Guarda primero la nueva geometría; después confirma sus valores sin modificarlos y activa Optimizar expresamente. No uses horarios solares supuestos como si se hubieran medido sombras.
 
 El aprendizaje conserva sus estadísticas al cambiar únicamente el relé. Cambiar la entidad de sensor interior reinicia solo el modelo, no las preferencias ni funciones activadas. La división física de circuitos no siempre cambia esa entidad y no se puede inferir automáticamente: utiliza el botón existente para las zonas afectadas; una zona nueva empieza con modelo vacío.
+
+
+## Eventos y órdenes en cola desde v0.2.4
+
+Una medición interior válida puede actualizar la demanda sin cancelar la confirmación de la orden ya enviada. Se conserva el plazo total de cinco segundos y se reevalúa el plan antes de nuevas aperturas. Las entradas inválidas y pausas efectivas de ventana de zonas demandadas sí interrumpen inmediatamente; se respetan la habilitación y los retardos. Los eventos de una zona ya parada no provocan por sí solos el aborto de otra.
+
+La pérdida transitoria del estado de un relé provoca un aborto conservador. Volver a comunicar On no equivale a reconocer una avería ni a solicitar encendido: solo se puede recuperar si continúa autorizada la demanda; si existe Off o un bloqueo, se solicita cerrar. No se promete que una orden tardía pueda deshacerse físicamente.
+
+Los módulos, programación, reanudación y encendido leen el estado actual cuando se aplica la orden. Las selecciones manuales de temporada en cola respetan su orden; no se introduce ninguna selección automática del agua comunitaria. No hay controles ni ayudantes nuevos para estas correcciones.

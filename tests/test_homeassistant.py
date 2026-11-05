@@ -1790,6 +1790,7 @@ async def test_model_follows_sensor_but_not_relay_identity(house, change):
         "temperature",
         "attributes",
         "other_zone",
+        "other_zone_invalid",
         "window_disabled",
         "window_attributes",
         "window_delay",
@@ -1850,6 +1851,8 @@ async def test_ordinary_reports_do_not_cancel_acknowledgment(house, event_kind):
                 )
             elif event_kind == "same_season":
                 await manager.async_supply("heat")
+            elif event_kind == "other_zone_invalid":
+                house.states.async_set("sensor.fixture_b", "unavailable", {"sample": index})
             elif event_kind == "other_zone":
                 house.states.async_set(
                     "sensor.fixture_b", str(19.1 + index / 10), {"unit_of_measurement": "°C"}
@@ -2070,3 +2073,73 @@ async def test_queued_resume_rechecks_away_before_enabling_schedule(house):
     assert z.program.away
     assert z.intent.hold is None
     assert not z.program.enabled
+
+
+@pytest.mark.parametrize("seed", [7, 42])
+async def test_control_invariants_across_mixed_user_and_sensor_sequences(house, seed):
+    import random
+
+    a, ca = await add_zone(house)
+    b, cb = await add_zone(house, "b")
+    manager = house.data[DOMAIN]
+    house.states.async_set("binary_sensor.fixture_window", "off")
+    manager.zones[a.entry_id].config["window"] = "binary_sensor.fixture_window"
+    for entry in (a, b):
+        await add_schedule(house, entry)
+        await manager.async_schedule(entry.entry_id, True)
+    generator = random.Random(seed)
+    for step in range(50):
+        action = generator.randrange(9)
+        if action == 0:
+            await manager.async_enable(generator.choice([True, False]))
+        elif action == 1:
+            await manager.async_supply(generator.choice(["heat", "cool"]))
+        elif action in (2, 3):
+            await service(
+                house,
+                "climate",
+                generator.choice(["turn_on", "turn_off"]),
+                ca if action == 2 else cb,
+            )
+        elif action == 4:
+            house.states.async_set(
+                "sensor.fixture_a", generator.choice(["19", "28"]), {"unit_of_measurement": "°C"}
+            )
+        elif action == 5:
+            house.states.async_set(
+                "sensor.fixture_b",
+                generator.choice(["19", "28", "unavailable"]),
+                {"unit_of_measurement": "°C"},
+            )
+        elif action == 6:
+            house.states.async_set("binary_sensor.fixture_window", generator.choice(["on", "off"]))
+        elif action == 7:
+            await manager.async_away_all(generator.choice([True, False]))
+        else:
+            await service(
+                house,
+                "climate",
+                "set_preset_mode",
+                ca,
+                preset_mode=generator.choice(["home", "eco", "sleep"]),
+            )
+        await settle(house)
+        for entry, key in ((a, "a"), (b, "b")):
+            on = house.states.get("switch.fixture_" + key).state == "on"
+            zone = manager.zones[entry.entry_id]
+            if on:
+                assert manager.enabled, (seed, step, action)
+                assert zone.intent.mode.value == manager.supply_mode.value
+                assert house.states.get("switch.fixture_general").state == "on"
+                assert house.states.get(zone.config["sensor"]).state not in (
+                    "unknown",
+                    "unavailable",
+                )
+                if key == "a":
+                    assert house.states.get("binary_sensor.fixture_window").state == "off"
+            if not manager.enabled or zone.intent.mode.value == "off":
+                assert not on, (seed, step, action)
+        if not manager.enabled:
+            assert house.states.get("switch.fixture_general").state == "off"
+        assert not manager._command_faults
+    await manager.async_enable(False)

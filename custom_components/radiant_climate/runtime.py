@@ -366,24 +366,28 @@ class Installation:
         state = event.data.get("new_state")
         now = dt_util.utcnow()
         unsafe = any(
-            (entity == z.config["sensor"] and indoor_temperature(state) is None)
-            or (
-                entity == z.config.get("window")
-                and z.window_enabled
-                and window_pause(
-                    state.state if state else None,
-                    state.last_changed if state else None,
-                    now,
-                    z.config.get("window_open_delay", 0),
-                    z.config.get("window_close_delay", 0),
+            z.decision is not None
+            and z.decision.demand
+            and (
+                (entity == z.config["sensor"] and indoor_temperature(state) is None)
+                or (
+                    entity == z.config.get("window")
+                    and z.window_enabled
+                    and window_pause(
+                        state.state if state else None,
+                        state.last_changed if state else None,
+                        now,
+                        z.config.get("window_open_delay", 0),
+                        z.config.get("window_close_delay", 0),
+                    )
+                    is not False
                 )
-                is not False
             )
             for z in self.zones.values()
         )
         # Valid samples still invalidate the plan below, but do not cancel an
         # in-flight acknowledgment. Re-evaluate before any additional opening.
-        # Only invalid feedback or an effective enabled window pause interrupts.
+        # Only unsafe feedback for a demanded zone interrupts the shared plan.
         if unsafe:
             self._change_signal.set()
             self._change_signal = asyncio.Event()

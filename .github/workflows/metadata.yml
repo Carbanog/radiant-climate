@@ -1,6 +1,7 @@
 name: Validate integration metadata
 on:
   push:
+    branches: [main]
   pull_request:
 permissions:
   contents: read

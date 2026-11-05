@@ -1,6 +1,7 @@
 name: Verify development candidate
 on:
   push:
+    branches: [main]
   pull_request:
 permissions:
   contents: read

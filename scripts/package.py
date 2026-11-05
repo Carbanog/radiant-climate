@@ -20,8 +20,12 @@ def main():
     files = [
         ROOT / "LICENSE",
         ROOT / "README.md",
+        *sorted((ROOT / "docs").glob("*.md")),
         *sorted((ROOT / "custom_components/radiant_climate").rglob("*")),
     ]
+    version = json.loads(
+        (ROOT / "custom_components/radiant_climate/manifest.json").read_text(encoding="utf-8")
+    )["version"]
     with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
         for path in files:
             if path.is_file() and "__pycache__" not in path.parts:
@@ -29,7 +33,12 @@ def main():
         archive.writestr(
             "BUILD.json",
             json.dumps(
-                {"commit": commit, "stage": "development", "approved_for_production": False}
+                {
+                    "commit": commit,
+                    "version": version,
+                    "stage": "beta",
+                    "approved_for_production": False,
+                }
             ),
         )
     digest = hashlib.sha256(output.read_bytes()).hexdigest()

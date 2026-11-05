@@ -4,11 +4,13 @@ Antes de cambiar parámetros, consulta el sensor **Motivo de regulación** de la
 
 ## Problemas conocidos de v0.2.0-beta.1
 
-Activar **Ausente sin fecha de regreso** con una agenda configurada provoca un error al publicar los atributos del termostato. Puede devolver HTTP 500 y dejar diagnósticos sin actualizar. Esa combinación no debe utilizarse en la primera beta publicada. La corrección está en el commit `ce64789`, con una regresión ejecutada en Core 2026.10.4 y 2026.11.0; actualizar desde la etiqueta original requiere una entrega posterior que incluya el arreglo. La etiqueta original se conserva para trazabilidad.
+**Los dos defectos siguientes están resueltos en v0.2.0-beta.2.** Si utilizas beta.1, sigue los [pasos de actualización](release-notes.md). La etiqueta original se conserva para trazabilidad.
+
+Activar **Ausente sin fecha de regreso** con una agenda configurada provocaba un error al publicar los atributos del termostato. Podía devolver HTTP 500 y dejar diagnósticos sin actualizar. La corrección `ce64789` tiene una regresión ejecutada en Core 2026.10.4 y 2026.11.0.
 
 Los avisos de Core 2026.11 sobre las propiedades de temperatura antiguas anuncian su retirada en 2027.11. No explican el error anterior; su adaptación sigue pendiente antes de admitir esa futura versión.
 
-Al vaciar una selección opcional, el formulario de la primera beta puede reinsertar la entidad anterior. Afecta a fuentes ambientales y asociaciones opcionales de ventana/general. Si esa entidad desaparece, puede impedir guardar otras opciones. La corrección `c32d7e6` utiliza valores sugeridos, permite eliminar la asociación y dispone de una regresión en ambas versiones de Core. También necesita una entrega posterior a la primera beta.
+Al vaciar una selección opcional, el formulario de la primera beta podía reinsertar la entidad anterior. Afectaba a fuentes ambientales y asociaciones opcionales de ventana/general. Si esa entidad desaparecía, podía impedir guardar otras opciones. La corrección `c32d7e6` utiliza valores sugeridos, permite eliminar la asociación y dispone de una regresión en ambas versiones de Core.
 
 ## Instalación y configuración
 
@@ -16,11 +18,11 @@ Al vaciar una selección opcional, el formulario de la primera beta puede reinse
 
 Con retardo de cierre cero, el termostato puede reanudar al cerrar si la temperatura ha caído. Para dejar un margen de recuperación del aire, configura **Retardo al cerrar ventana (segundos)** en las opciones de dispositivos de esa zona. La consigna se conserva: si al terminar el margen ya se satisface, no pide aporte; si sigue sin alcanzarse, vuelve a regular. El aprendizaje descarta las muestras durante la pausa y su retardo.
 
-El margen admite 0–600 segundos y requiere ajuste según la estancia. No detecta automáticamente cuánto durará el rebote ni aplica un impulso de recuperación. El motivo «Ventana abierta» también engloba ese retardo después de cerrar; consulta el contacto para distinguir ambas etapas.
+El margen admite 0–600 segundos y requiere ajuste según la estancia. No detecta automáticamente cuánto durará el rebote ni aplica un impulso de recuperación. El motivo «Pausa por ventana» engloba la apertura y ese retardo después de cerrar; consulta el contacto para distinguir ambas etapas. En beta.1 el mismo motivo se mostraba como «Ventana abierta».
 
-### Se abre «Instalación» justo después de descargar
+### Se abre el asistente justo después de descargar
 
-En HA 2026.11, Marketplace instala una integración nueva y abre directamente su asistente. Es el comportamiento esperado. En esta beta, «Instalación» significa configuración del sistema compartido. La válvula general es opcional: déjala vacía si no existe o vas a asociarla después.
+En HA 2026.11, Marketplace instala una integración nueva y abre directamente su asistente. Es el comportamiento esperado. «Configuración general» configura el sistema compartido; en beta.1 esa pantalla se llamaba «Instalación». La válvula general es opcional: déjala vacía si no existe o vas a asociarla después.
 
 Tras crear esa entrada, añade otra por cada termostato. Todavía no se habilita el control por el mero hecho de instalar o crear una zona. [Procedimiento según versión](installation.md).
 

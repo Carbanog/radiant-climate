@@ -6,14 +6,14 @@
 
 Crea termostatos de Home Assistant a partir de tus sensores y relés. Utiliza una consigna fija o añade perfiles, horarios, ventanas y optimización térmica según lo que necesite cada estancia. Diseñado con especial atención al suelo radiante/refrescante y a las válvulas compartidas.
 
-[Primera beta](https://github.com/Carbanog/radiant-climate/releases/tag/v0.2.0-beta.1) · [Instalación](#instalación) · [Primer arranque](#primer-arranque) · [Resolver problemas](docs/troubleshooting.md) · [Licencia MIT](LICENSE)
+[Última beta](https://github.com/Carbanog/radiant-climate/releases/tag/v0.2.0-beta.2) · [Instalación](#instalación) · [Primer arranque](#primer-arranque) · [Resolver problemas](docs/troubleshooting.md) · [Cambios y actualización](docs/release-notes.md) · [Licencia MIT](LICENSE)
 
 [![Pruebas de software](https://github.com/Carbanog/radiant-climate/actions/workflows/ci.yml/badge.svg)](https://github.com/Carbanog/radiant-climate/actions/workflows/ci.yml)
 [![Metadatos de integración](https://github.com/Carbanog/radiant-climate/actions/workflows/metadata.yml/badge.svg)](https://github.com/Carbanog/radiant-climate/actions/workflows/metadata.yml)
 
-> **Estado: v0.2.0-beta.1.** Proyecto personal, original y de código abierto, publicado para facilitar revisión y uso voluntario. La beta tiene pruebas automatizadas; su respuesta térmica necesita validación y ajuste en cada instalación. No se presenta como un controlador certificado ni como ahorro demostrado.
+> **Estado: v0.2.0-beta.2.** Proyecto personal, original y de código abierto, publicado para facilitar revisión y uso voluntario. La beta tiene pruebas automatizadas; su respuesta térmica necesita validación y ajuste en cada instalación. No se presenta como un controlador certificado ni como ahorro demostrado.
 
-¿Ya lo has instalado? Consulta los [problemas conocidos de la beta](docs/troubleshooting.md#problemas-conocidos-de-v020-beta1) y continúa en [Primer arranque](#primer-arranque).
+¿Ya lo has instalado? Consulta los [cambios y la actualización desde beta.1](docs/release-notes.md) y continúa en [Primer arranque](#primer-arranque).
 
 ## Qué ofrece
 
@@ -53,7 +53,7 @@ El control básico es local y no solicita cuentas ni credenciales. La integraci�
 
 1. Abre **Configuración → Marketplace → Añadir desde enlace**.
 2. Introduce `https://github.com/Carbanog/radiant-climate`.
-3. Habilita las versiones preliminares del repositorio y selecciona **v0.2.0-beta.1**. Añadir un repositorio personalizado puede requerir la conexión con GitHub que gestiona Marketplace.
+3. Habilita las versiones preliminares del repositorio y selecciona **v0.2.0-beta.2**. Añadir un repositorio personalizado puede requerir la conexión con GitHub que gestiona Marketplace.
 4. Instala. Marketplace abre directamente el asistente de configuración de una integración nueva, sin reinicio intermedio.
 
 No se instala HACS por separado en 2026.11. Las actualizaciones pueden solicitar un reinicio aunque la primera instalación no lo necesite.
@@ -62,7 +62,7 @@ No se instala HACS por separado en 2026.11. Las actualizaciones pueden solicitar
 
 1. Con HACS ya configurado, abre su menú → **Repositorios personalizados**.
 2. Añade `https://github.com/Carbanog/radiant-climate`, categoría **Integración**.
-3. Descarga **v0.2.0-beta.1**, mostrando versiones preliminares si hace falta.
+3. Descarga **v0.2.0-beta.2**, mostrando versiones preliminares si hace falta.
 4. Reinicia HA y abre **Dispositivos y servicios → Añadir integración → Radiant Climate**.
 
 El repositorio se añade mediante enlace; no se afirma su inclusión en el catálogo oficial. Para instalación mediante ZIP, comprobación de integridad y reversión, consulta la [guía de instalación](docs/installation.md). Utiliza primero un entorno de pruebas y conserva una copia recuperable.
@@ -71,7 +71,7 @@ El repositorio se añade mediante enlace; no se afirma su inclusión en el catá
 
 ### 1. Configura el sistema compartido
 
-La primera pantalla se llama **«Instalación»** en esta beta. Se refiere a la configuración general de la climatización, no a descargar archivos.
+La primera pantalla se llama **«Configuración general»**. Configura el sistema compartido antes de añadir las zonas; no es una pantalla de descarga de archivos.
 
 La **válvula general es opcional**: déjala vacía si no existe o si prefieres configurarla después. Esta entrada crea el interruptor **Climatización**, el selector **Temporada de suministro declarada** y el diagnóstico **Oportunidad solar compartida**. El control comienza apagado.
 

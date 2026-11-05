@@ -3,15 +3,15 @@
   "config": {
     "step": {
       "installation": {
-        "title": "Instalación",
-        "description": "Versión de desarrollo. El control comienza desactivado. No compartas las salidas con otro controlador.",
+        "title": "Configuración general",
+        "description": "Configura el sistema compartido. El control comienza desactivado. No compartas las salidas con otro controlador.",
         "data": {
           "general": "Válvula general (opcional)"
         }
       },
       "zone": {
         "title": "Añadir termostato",
-        "description": "Selecciona los dispositivos. El termostato se crea apagado. Los perfiles y horarios se configuran después.",
+        "description": "Selecciona los dispositivos y la temperatura inicial. El termostato se crea apagado. Los perfiles, horarios y funciones opcionales están disponibles en su configuración y controles.",
         "data": {
           "sensor": "Sensor de temperatura interior",
           "actuators": "Relé o relés",
@@ -213,7 +213,7 @@
           "unsupported_mode": "Modo no admitido",
           "supply_mode_mismatch": "No coincide con la temporada de suministro declarada",
           "actuator_unavailable": "Relé no disponible",
-          "window_open": "Ventana abierta",
+          "window_open": "Pausa por ventana",
           "window_unavailable": "Contacto de ventana no disponible",
           "temperature_invalid": "Temperatura interior inválida",
           "temperature_missing": "Sin dato de temperatura interior",

@@ -6,9 +6,9 @@ La candidata está destinada primero a pruebas aisladas. Aprobar código no apru
 
 1. En el HA de pruebas, crea una copia completa y comprueba que aparece con contenido de Home Assistant y opción de restauración. No envíes esa copia a un repositorio público.
 2. En HA 2026.11 o posterior, abre Configuración → Marketplace → Añadir desde enlace e introduce `https://github.com/Carbanog/radiant-climate`. En 2026.10 y anteriores, utiliza HACS → Repositorios personalizados, categoría Integración. No reinstales HACS en 2026.11: Marketplace lo sustituye.
-3. Busca Radiant Climate y selecciona `v0.2.0-beta.1` como versión; muestra versiones beta si hace falta. Registra versión y commit. Main es una rama mutable: no uses su estado futuro como sustituto de una versión identificada.
+3. Busca Radiant Climate y selecciona `v0.2.0-beta.2` como versión; muestra versiones beta si hace falta. Registra versión y commit. Main es una rama mutable: no uses su estado futuro como sustituto de una versión identificada.
 4. En Marketplace 2026.11 una instalación nueva abre directamente el asistente de configuración, sin reinicio intermedio. Las actualizaciones todavía pueden requerir reiniciar según el aviso de HA. Con HACS antiguo, reinicia ese HA y utiliza Dispositivos y servicios → Añadir integración. No actualices Core como parte de este procedimiento.
-5. La primera pantalla configura el sistema compartido. El título «Instalación» de esta beta se refiere al sistema de climatización, no a instalar archivos. La válvula general es opcional; puede dejarse vacía y configurarse después. Para el ensayo selecciona únicamente una salida simulada.
+5. La primera pantalla, «Configuración general», configura el sistema compartido. En beta.1 se llamaba «Instalación». La válvula general es opcional; puede dejarse vacía y configurarse después. Para el ensayo selecciona únicamente una salida simulada.
 6. Añade otra entrada por termostato. Elige sensor interior, relés, modos y consigna; conserva Climatización y las zonas apagadas hasta revisar las asignaciones.
 7. Revisa perfiles, temperatura real, disponibilidad de salidas y suministro declarado. Después habilita una zona de prueba y la general.
 

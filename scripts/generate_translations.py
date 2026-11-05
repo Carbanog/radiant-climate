@@ -85,7 +85,7 @@ REASONS = {
         "No coincide con la temporada de suministro declarada",
     ),
     "actuator_unavailable": ("Actuator unavailable", "Relé no disponible"),
-    "window_open": ("Window open", "Ventana abierta"),
+    "window_open": ("Window pause (open or settling)", "Pausa por ventana"),
     "window_unavailable": ("Window contact unavailable", "Contacto de ventana no disponible"),
     "temperature_invalid": ("Indoor temperature invalid", "Temperatura interior inválida"),
     "temperature_missing": ("No indoor temperature report", "Sin dato de temperatura interior"),
@@ -109,18 +109,18 @@ def document(language: int) -> dict:
         "config": {
             "step": {
                 "installation": {
-                    "title": ("Installation", "Instalación")[language],
+                    "title": ("General configuration", "Configuración general")[language],
                     "description": (
-                        "Development build. Control starts disabled. Do not share outputs with another controller.",
-                        "Versión de desarrollo. El control comienza desactivado. No compartas las salidas con otro controlador.",
+                        "Configure the shared system. Control starts disabled. Do not share outputs with another controller.",
+                        "Configura el sistema compartido. El control comienza desactivado. No compartas las salidas con otro controlador.",
                     )[language],
                     "data": {"general": labels["general"]},
                 },
                 "zone": {
                     "title": ("Add thermostat", "Añadir termostato")[language],
                     "description": (
-                        "Only basic control is implemented in this development version. The thermostat is created off.",
-                        "Esta versión de desarrollo implementa solo el control básico. El termostato se crea apagado.",
+                        "Select the devices and initial temperature. The thermostat is created off. Profiles, schedules and optional features are available in its settings and controls.",
+                        "Selecciona los dispositivos y la temperatura inicial. El termostato se crea apagado. Los perfiles, horarios y funciones opcionales están disponibles en su configuración y controles.",
                     )[language],
                     "data": {
                         k: labels[k] for k in ["sensor", "actuators", "available_modes", "target"]
@@ -219,10 +219,6 @@ def complete_document(language):
             language
         ]
     }
-    result["config"]["step"]["zone"]["description"] = (
-        "Select devices. The thermostat starts off. Profiles and scheduling can be configured afterwards.",
-        "Selecciona los dispositivos. El termostato se crea apagado. Los perfiles y horarios se configuran después.",
-    )[language]
     result["selector"]["days"] = {
         "options": {
             str(n): names[language]

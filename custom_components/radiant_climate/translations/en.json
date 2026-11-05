@@ -3,15 +3,15 @@
   "config": {
     "step": {
       "installation": {
-        "title": "Installation",
-        "description": "Development build. Control starts disabled. Do not share outputs with another controller.",
+        "title": "General configuration",
+        "description": "Configure the shared system. Control starts disabled. Do not share outputs with another controller.",
         "data": {
           "general": "Shared inlet valve (optional)"
         }
       },
       "zone": {
         "title": "Add thermostat",
-        "description": "Select devices. The thermostat starts off. Profiles and scheduling can be configured afterwards.",
+        "description": "Select the devices and initial temperature. The thermostat is created off. Profiles, schedules and optional features are available in its settings and controls.",
         "data": {
           "sensor": "Indoor temperature sensor",
           "actuators": "Actuator switches",
@@ -213,7 +213,7 @@
           "unsupported_mode": "Unsupported mode",
           "supply_mode_mismatch": "Declared supply season does not match",
           "actuator_unavailable": "Actuator unavailable",
-          "window_open": "Window open",
+          "window_open": "Window pause (open or settling)",
           "window_unavailable": "Window contact unavailable",
           "temperature_invalid": "Indoor temperature invalid",
           "temperature_missing": "No indoor temperature report",

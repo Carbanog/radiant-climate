@@ -391,19 +391,19 @@ async def test_sensor_failure_while_general_opens_never_opens_zone(house):
         if event.data["entity_id"] == "input_boolean.fixture_a" and event.data["new_state"]
         else None,
     )
-    original = house.services.async_call
+    original = type(house.services).async_call
 
-    async def interrupted(domain, action, data=None, *args, **kwargs):
+    async def interrupted(registry, domain, action, data=None, *args, **kwargs):
         if (
             domain == "switch"
             and action == "turn_on"
             and data.get("entity_id") == "switch.fixture_general"
         ):
             house.states.async_set("sensor.fixture_a", "unavailable")
-        return await original(domain, action, data, *args, **kwargs)
+        return await original(registry, domain, action, data, *args, **kwargs)
 
     try:
-        with patch.object(house.services, "async_call", side_effect=interrupted):
+        with patch.object(type(house.services), "async_call", new=interrupted):
             await house.data[DOMAIN].async_enable(True)
             await settle(house)
         assert "on" not in opened

@@ -1909,3 +1909,79 @@ async def test_transient_output_loss_aborts_safely_and_recovers_only_if_requeste
     assert house.states.get("switch.fixture_general").state == ("off" if stop else "on")
     assert not manager._command_faults
     await manager.async_enable(False)
+
+
+async def test_queued_module_updates_do_not_overwrite_each_other(house):
+    import asyncio
+
+    entry, _ = await add_zone(house)
+    manager = house.data[DOMAIN]
+    await manager._lock.acquire()
+    try:
+        first = house.async_create_task(manager.async_feature(entry.entry_id, "learning", True))
+        second = house.async_create_task(manager.async_feature(entry.entry_id, "predictive", True))
+        await asyncio.sleep(0)
+    finally:
+        manager._lock.release()
+    await asyncio.gather(first, second)
+    features = manager.zones[entry.entry_id].intelligence.features
+    assert features.learning and features.predictive
+
+
+async def test_queued_solar_activation_rechecks_current_confirmation(house):
+    import asyncio
+
+    entry, _ = await add_zone(house)
+    manager = house.data[DOMAIN]
+    await configure_sources(house, entry, solar_confirmed=True)
+    await manager._lock.acquire()
+    try:
+        activation = house.async_create_task(
+            manager.async_feature(entry.entry_id, "solar", "active")
+        )
+        await asyncio.sleep(0)
+        manager.zones[entry.entry_id].config["solar_confirmed"] = False
+    finally:
+        manager._lock.release()
+    with pytest.raises(ValueError, match="exposure"):
+        await activation
+    assert manager.zones[entry.entry_id].intelligence.features.solar != "active"
+
+
+@pytest.mark.parametrize("action", ["schedule", "resume"])
+async def test_queued_zone_action_uses_the_current_zone_instance(house, action):
+    import asyncio
+    from copy import deepcopy
+
+    from custom_components.radiant_climate.core.control import Hold, HoldPolicy
+
+    entry, _ = await add_zone(house)
+    manager = house.data[DOMAIN]
+    if action == "schedule":
+        await add_schedule(house, entry)
+    else:
+        await manager.async_change(
+            lambda: setattr(
+                manager.zones[entry.entry_id].intent,
+                "hold",
+                Hold(22, HoldPolicy.UNTIL_RESUME, None),
+            )
+        )
+    await manager._lock.acquire()
+    try:
+        command = house.async_create_task(
+            manager.async_schedule(entry.entry_id, True)
+            if action == "schedule"
+            else manager.async_resume(entry.entry_id)
+        )
+        await asyncio.sleep(0)
+        # Same logical zone, reloaded while the command was queued.
+        manager.zones[entry.entry_id] = deepcopy(manager.zones[entry.entry_id])
+    finally:
+        manager._lock.release()
+    await command
+    current = manager.zones[entry.entry_id]
+    if action == "schedule":
+        assert current.program.enabled
+    else:
+        assert current.intent.hold is None

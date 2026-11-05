@@ -42,6 +42,12 @@ def async_register_services(hass):
         def update():
             source = manager.zones[source_id].program
             now = dt_util.utcnow()
+            if "modules" in parts:
+                for key in set(targets) - {source_id}:
+                    for module, enabled in (
+                        manager.zones[source_id].intelligence.dump()["features"].items()
+                    ):
+                        manager.validate_feature(manager.zones[key], module, enabled)
             for key in set(targets) - {source_id}:
                 z = manager.zones[key]
                 current = z.program.target(z.intent, now, hass.config.time_zone)
@@ -49,6 +55,14 @@ def async_register_services(hass):
                     z.program.profiles = deepcopy(source.profiles)
                 if "manual" in parts:
                     z.program.minutes, z.program.policy = source.minutes, source.policy
+                if "modules" in parts:
+                    z.intelligence.features = deepcopy(
+                        manager.zones[source_id].intelligence.features
+                    )
+                    z.window_enabled = manager.zones[source_id].window_enabled
+                if "vacation" in parts:
+                    z.program.away, z.program.away_until = source.away, source.away_until
+                    z.intent.resume()
                 if "schedule" in parts:
                     z.program.blocks = list(source.blocks)
                     z.program.enabled = source.enabled
@@ -71,7 +85,7 @@ def async_register_services(hass):
                 vol.Optional("targets", default=[]): cv.entity_ids,
                 vol.Required("parts"): vol.All(
                     cv.ensure_list,
-                    [vol.In(["temperatures", "manual", "schedule"])],
+                    [vol.In(["temperatures", "manual", "schedule", "modules", "vacation"])],
                     vol.Length(min=1),
                 ),
             }

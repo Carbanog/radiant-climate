@@ -7,6 +7,13 @@ from .const import DOMAIN
 from .entity import RadiantEntity
 
 REASONS = [
+    "zone_closing_estimated",
+    "general_opening_estimated",
+    "solar_pause",
+    "predictive_pause",
+    "anticipation",
+    "setup_not_ready",
+    "season_transition",
     "not_ready",
     "global_off",
     "zone_off",

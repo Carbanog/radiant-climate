@@ -1,0 +1,143 @@
+"""Optional zone policy, isolated from hardware writes and weather requests."""
+
+from dataclasses import asdict, dataclass, field
+from datetime import timedelta
+
+from .core.control import Decision, Mode, decide
+from .core.intelligence import (
+    Features,
+    ThermalModel,
+    lead_minutes,
+    should_pause,
+    solar_geometry,
+    solar_weather,
+)
+
+
+@dataclass
+class Intelligence:
+    features: Features = field(default_factory=Features)
+    model: ThermalModel = field(default_factory=ThermalModel)
+    diagnostics: dict = field(default_factory=dict)
+
+    def dump(self):
+        return {"features": asdict(self.features), "model": self.model.dump()}
+
+    @classmethod
+    def restore(cls, raw):
+        return cls(
+            Features.restore(raw.get("features", {})), ThermalModel.restore(raw.get("model", {}))
+        )
+
+    def evaluate(self, z, manager, now, sensor, measured, on, opened, enabled, available):
+        def regulation(target):
+            return decide(
+                z.settings,
+                z.intent,
+                now,
+                measured=measured,
+                measured_at=sensor.last_reported if sensor else None,
+                actual_on=on,
+                switched_at=z.switched_at,
+                enabled=enabled,
+                supply_mode=manager.supply_mode,
+                window_open=opened,
+                actuator_available=available,
+                scheduled_target=target,
+            )
+
+        timezone = manager.hass.config.time_zone
+        target = z.program.scheduled_target(z.intent, now, timezone)
+        base = regulation(target)
+        allowed = base.reason in ("demand", "satisfied", "minimum_cycle")
+        f = self.features
+        mode = z.intent.mode
+        config = z.config
+        environment = manager.environment
+        weather = manager.source(z, "weather")
+        outdoor = environment.outdoor(manager.source(z, "outdoor"), now) if f.outside else None
+        if outdoor is None and f.weather:
+            outdoor = environment.weather_temperature(weather, now)
+        azimuth, elevation = environment.sun
+        geometry = f.solar != "off" and solar_geometry(
+            azimuth,
+            elevation,
+            config.get("orientation", 180),
+            config.get("solar_elevation", 15),
+            config.get("solar_width", 75),
+        )
+        condition, clouds = environment.weather(weather, now) if f.weather else (None, None)
+        weather_solar = solar_weather(condition, clouds)
+        solar = geometry and weather_solar is not False
+        if measured is not None and sensor is not None:
+            self.model.observe(
+                sensor.last_reported,
+                measured,
+                mode,
+                on,
+                eligible=allowed,
+                learning=f.learning and not geometry,
+                outside=outdoor,
+            )
+        elif not allowed:
+            self.model.reset_period()
+        trend = self.model.trend(now)
+        response = self.model.response(mode)
+        manual = z.intent.hold is not None and z.intent.hold.active(now)
+        self.diagnostics = {
+            "outside_available": outdoor is not None,
+            "weather_status": environment.availability(weather, now) if f.weather else "disabled",
+            "solar_candidate": bool(solar),
+            "solar_basis": "weather_and_geometry" if condition else "geometry_only",
+            "solar_mode": f.solar,
+            "trend_c_per_hour": round(trend, 3) if trend is not None else None,
+            "model_ready": response.ready,
+            "model_hours": round(response.hours, 2),
+            "model_episodes": response.episodes,
+            "model_rejected": self.model.rejected,
+            "advance_minutes": None,
+        }
+        if not allowed or measured is None or manual:
+            return base
+        next_time = (
+            z.program.next_change(now, timezone)
+            if z.program.enabled and not z.program.away
+            else None
+        )
+        if f.anticipation and next_time:
+            profile = z.program.active(next_time + timedelta(seconds=1), timezone)
+            future_target = z.program.profiles[mode.value][profile]
+            future_weather = environment.future(weather, next_time, now) if f.weather else None
+            exterior = future_weather.get("temperature") if future_weather else outdoor
+            lead = lead_minutes(
+                response, mode, measured, future_target, config.get("max_advance", 120), exterior
+            )
+            self.diagnostics["advance_minutes"] = round(lead, 1) if lead is not None else None
+            direction = 1 if mode == Mode.HEAT else -1
+            if (
+                lead is not None
+                and (next_time - now).total_seconds() <= lead * 60
+                and (future_target - base.target) * direction > 0
+            ):
+                advanced = regulation(future_target)
+                return Decision(
+                    advanced.demand,
+                    "anticipation"
+                    if advanced.demand and advanced.reason == "demand"
+                    else advanced.reason,
+                    advanced.target,
+                )
+        pause = should_pause(
+            mode,
+            measured,
+            base.target,
+            trend,
+            config.get("residual_minutes", 15),
+            solar=solar and f.solar == "active",
+            predictive=f.predictive,
+            ready=response.ready,
+            manual=manual,
+        )
+        if pause and base.reason != "minimum_cycle":
+            return Decision(False, pause, base.target)
+        return base

@@ -7,6 +7,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .core.control import Intent, Mode, temperature
+from .core.program import PROFILES
 from .entity import RadiantEntity
 from .runtime import indoor_temperature
 
@@ -65,18 +66,14 @@ class RadiantThermostat(RadiantEntity, ClimateEntity):
 
     @property
     def preset_modes(self):
-        return ["none", "home", "eco", "sleep"]
+        return ["none", *PROFILES]
 
     @property
     def preset_mode(self):
         z = self.zone
         if z.intent.hold:
             return "none"
-        return (
-            z.program.active(dt_util.utcnow(), self.hass.config.time_zone)
-            if z.program.enabled
-            else (z.program.selected or "none")
-        )
+        return z.program.profile(dt_util.utcnow(), self.hass.config.time_zone) or "none"
 
     async def async_set_preset_mode(self, preset_mode):
         if preset_mode not in self.preset_modes:
@@ -92,7 +89,7 @@ class RadiantThermostat(RadiantEntity, ClimateEntity):
                 else z.program.profiles[mode.value][preset_mode]
             )
             z.program.set_manual(z.intent, z.settings, value, now, self.hass.config.time_zone)
-            if not z.program.enabled:
+            if not z.program.enabled and not z.program.away:
                 z.program.selected = None if preset_mode == "none" else preset_mode
 
         await self.manager.async_change(update)
@@ -106,7 +103,11 @@ class RadiantThermostat(RadiantEntity, ClimateEntity):
             else (
                 "manual"
                 if self.zone.intent.hold
-                else ("scheduled" if self.zone.program.enabled else "fixed")
+                else (
+                    "away"
+                    if self.zone.program.away
+                    else ("scheduled" if self.zone.program.enabled else "fixed")
+                )
             ),
             "manual_until": self.zone.intent.hold.until.isoformat()
             if self.zone.intent.hold and self.zone.intent.hold.until
@@ -118,6 +119,13 @@ class RadiantThermostat(RadiantEntity, ClimateEntity):
             if self.zone.program.blocks
             else None,
             "reason": self.zone.decision.reason if self.zone.decision else "not_ready",
+            "control_target": self.zone.decision.target
+            if self.zone.decision
+            else self.target_temperature,
+            "vacation_until": self.zone.program.away_until.isoformat()
+            if self.zone.program.away_until
+            else None,
+            **self.zone.intelligence.diagnostics,
             "valve_position": "not_measured",
         }
 

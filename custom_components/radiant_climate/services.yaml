@@ -29,3 +29,7 @@ copy_settings:
               label: Política y duración de Manual
             - value: schedule
               label: Bloques y activación del horario
+            - value: modules
+              label: Activación de módulos (sin fuentes, orientación ni aprendizaje)
+            - value: vacation
+              label: Ausencia y fecha de vuelta

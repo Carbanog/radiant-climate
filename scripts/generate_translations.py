@@ -6,6 +6,21 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 FIELDS = {
+    "weather": ("Weather source (optional)", "Fuente meteorológica (opcional)"),
+    "outdoor": ("Outdoor sensor (optional)", "Sensor exterior (opcional)"),
+    "general_travel": (
+        "Estimated inlet opening time (seconds; 0 = unknown)",
+        "Apertura estimada de general (segundos; 0 = desconocido)",
+    ),
+    "valve_travel": (
+        "Estimated zone closing time (seconds; 0 = unknown)",
+        "Cierre estimado de zona (segundos; 0 = desconocido)",
+    ),
+    "window_open_delay": ("Window opening delay (seconds)", "Retardo al abrir ventana (segundos)"),
+    "window_close_delay": (
+        "Window closing delay (seconds)",
+        "Retardo al cerrar ventana (segundos)",
+    ),
     "general": ("Shared inlet valve (optional)", "Válvula general (opcional)"),
     "sensor": ("Indoor temperature sensor", "Sensor de temperatura interior"),
     "actuators": ("Actuator switches", "Relé o relés"),
@@ -36,6 +51,31 @@ ERRORS = {
     ),
 }
 REASONS = {
+    "solar_pause": (
+        "Solar opportunity with warming near target",
+        "Oportunidad solar con calentamiento cerca de consigna",
+    ),
+    "predictive_pause": (
+        "Residual thermal response near target",
+        "Respuesta térmica residual cerca de consigna",
+    ),
+    "anticipation": (
+        "Preparing the next scheduled profile",
+        "Anticipando el próximo perfil horario",
+    ),
+    "setup_not_ready": (
+        "Waiting for registered zones and outputs",
+        "Esperando zonas y salidas registradas",
+    ),
+    "season_transition": ("Closing before changing season", "Cierre previo al cambio de temporada"),
+    "zone_closing_estimated": (
+        "Waiting for estimated zone closure",
+        "Esperando cierre estimado de zona",
+    ),
+    "general_opening_estimated": (
+        "Waiting for estimated inlet opening",
+        "Esperando apertura estimada de general",
+    ),
     "not_ready": ("Initialising", "Inicializando"),
     "global_off": ("Suspended by global switch", "Suspendido por interruptor general"),
     "zone_off": ("Zone switched off", "Zona apagada"),
@@ -152,6 +192,10 @@ def complete_document(language):
                 language
             ],
             "schedule_remove": ("Remove schedule block", "Eliminar bloque horario")[language],
+            "sources": ("Environment, solar and anticipation", "Entorno, sol y anticipación")[
+                language
+            ],
+            "vacation": ("Vacation and return", "Vacaciones y regreso")[language],
         },
     }
     options["step"]["schedule_add"] = {
@@ -200,6 +244,7 @@ def complete_document(language):
             "home": ("Normal", "Normal")[language],
             "eco": "Eco",
             "sleep": ("Sleep", "Noche")[language],
+            "away": ("Away", "Ausente")[language],
         }
     }
     entities = result["entity"]
@@ -224,6 +269,76 @@ def complete_document(language):
     for mode, names in [("heat", ("Heating", "Calor")), ("cool", ("Cooling", "Frío"))]:
         for profile, title in result["selector"]["profile"]["options"].items():
             entities["number"][f"{mode}_{profile}"] = {"name": f"{names[language]} · {title}"}
+    options["step"]["sources"] = {
+        "title": ("Optional sources and optimisation", "Fuentes opcionales y optimización")[
+            language
+        ],
+        "description": (
+            "Blank sources inherit installation defaults. Enable modules separately on the device. Confirm actual exposure before Solar Active; geometry does not prove direct sun.",
+            "Fuentes vacías heredan las de instalación. Activa los módulos por separado en el dispositivo. Comprueba la incidencia antes de Solar Activo; la geometría no demuestra sol directo.",
+        )[language],
+        "data": {
+            **{k: v[language] for k, v in FIELDS.items() if k in ("weather", "outdoor")},
+            "orientation": (
+                "Window azimuth (degrees from north)",
+                "Azimut de ventanas (grados desde norte)",
+            )[language],
+            "solar_elevation": (
+                "Minimum observed solar elevation",
+                "Elevación mínima de incidencia observada",
+            )[language],
+            "solar_width": (
+                "Allowed azimuth deviation from facade",
+                "Desviación máxima de azimut respecto a fachada",
+            )[language],
+            "solar_confirmed": (
+                "Window exposure and shadows verified",
+                "Incidencia y umbrales de sombra comprobados",
+            )[language],
+            "max_advance": ("Maximum advance (minutes)", "Adelanto máximo (minutos)")[language],
+            "residual_minutes": (
+                "Residual projection horizon (minutes)",
+                "Horizonte de proyección residual (minutos)",
+            )[language],
+        },
+    }
+    options["step"]["vacation"] = {
+        "title": ("Vacation", "Vacaciones")[language],
+        "description": (
+            "Away does not enable an off zone. Optional return date; blank means indefinite. Subsequent manual changes take priority.",
+            "Ausente no enciende una zona apagada. Fecha de regreso opcional; vacía significa indefinido. Los cambios manuales posteriores tienen prioridad.",
+        )[language],
+        "data": {
+            "enabled": ("Away enabled", "Activar Ausente")[language],
+            "date": ("Return date (optional)", "Fecha de regreso (opcional)")[language],
+            "time": ("Return time", "Hora de regreso")[language],
+        },
+    }
+    for key, labels in {
+        "weather": ("Use weather forecast", "Usar previsión meteorológica"),
+        "outside": ("Use outdoor temperature", "Usar temperatura exterior"),
+        "learning": ("Learn thermal response", "Aprender respuesta térmica"),
+        "anticipation": ("Anticipate schedule", "Anticipar horario"),
+        "predictive": ("Use residual response", "Aprovechar inercia térmica"),
+        "away": ("Away", "Ausente"),
+    }.items():
+        entities["switch"][key] = {"name": labels[language]}
+    entities["select"]["solar"] = {
+        "name": ("Solar contribution", "Aporte solar")[language],
+        "state": {
+            "off": ("Disabled", "Desactivado")[language],
+            "observe": ("Observation", "Observación")[language],
+            "active": ("Optimise", "Optimizar")[language],
+        },
+    }
+    entities["binary_sensor"] = {
+        "solar_opportunity": {
+            "name": ("Shared solar opportunity", "Oportunidad solar compartida")[language]
+        }
+    }
+    entities["button"]["reset_learning"] = {
+        "name": ("Reset thermal learning", "Restablecer aprendizaje térmico")[language]
+    }
     return result
 
 

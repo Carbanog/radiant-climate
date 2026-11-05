@@ -16,7 +16,7 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: python scripts/check_public_content.py
-      - run: python -m pytest tests/test_control.py tests/test_program.py -q
+      - run: python -m pytest tests/test_control.py tests/test_program.py tests/test_intelligence.py -q
   homeassistant:
     needs: core
     runs-on: ubuntu-latest

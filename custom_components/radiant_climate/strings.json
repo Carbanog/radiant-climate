@@ -37,13 +37,21 @@
         "menu_options": {
           "hardware": "Devices and regulation",
           "schedule_add": "Add or replace schedule block",
-          "schedule_remove": "Remove schedule block"
+          "schedule_remove": "Remove schedule block",
+          "sources": "Environment, solar and anticipation",
+          "vacation": "Vacation and return"
         }
       },
       "hardware": {
         "title": "Settings",
         "description": "Changes reload this entry. Editing the installation disables global control; explicitly enable it after reviewing outputs.",
         "data": {
+          "weather": "Weather source (optional)",
+          "outdoor": "Outdoor sensor (optional)",
+          "general_travel": "Estimated inlet opening time (seconds; 0 = unknown)",
+          "valve_travel": "Estimated zone closing time (seconds; 0 = unknown)",
+          "window_open_delay": "Window opening delay (seconds)",
+          "window_close_delay": "Window closing delay (seconds)",
           "general": "Shared inlet valve (optional)",
           "sensor": "Indoor temperature sensor",
           "actuators": "Actuator switches",
@@ -69,6 +77,29 @@
         "title": "Remove a block",
         "data": {
           "block": "Block (1 = Monday)"
+        }
+      },
+      "sources": {
+        "title": "Optional sources and optimisation",
+        "description": "Blank sources inherit installation defaults. Enable modules separately on the device. Confirm actual exposure before Solar Active; geometry does not prove direct sun.",
+        "data": {
+          "weather": "Weather source (optional)",
+          "outdoor": "Outdoor sensor (optional)",
+          "orientation": "Window azimuth (degrees from north)",
+          "solar_elevation": "Minimum observed solar elevation",
+          "solar_width": "Allowed azimuth deviation from facade",
+          "solar_confirmed": "Window exposure and shadows verified",
+          "max_advance": "Maximum advance (minutes)",
+          "residual_minutes": "Residual projection horizon (minutes)"
+        }
+      },
+      "vacation": {
+        "title": "Vacation",
+        "description": "Away does not enable an off zone. Optional return date; blank means indefinite. Subsequent manual changes take priority.",
+        "data": {
+          "enabled": "Away enabled",
+          "date": "Return date (optional)",
+          "time": "Return time"
         }
       }
     },
@@ -105,7 +136,8 @@
       "options": {
         "home": "Normal",
         "eco": "Eco",
-        "sleep": "Sleep"
+        "sleep": "Sleep",
+        "away": "Away"
       }
     }
   },
@@ -119,6 +151,24 @@
       },
       "window_enabled": {
         "name": "Pause for window"
+      },
+      "weather": {
+        "name": "Use weather forecast"
+      },
+      "outside": {
+        "name": "Use outdoor temperature"
+      },
+      "learning": {
+        "name": "Learn thermal response"
+      },
+      "anticipation": {
+        "name": "Anticipate schedule"
+      },
+      "predictive": {
+        "name": "Use residual response"
+      },
+      "away": {
+        "name": "Away"
       }
     },
     "select": {
@@ -136,12 +186,27 @@
           "next_change": "Until the next schedule block",
           "until_resume": "Until resume schedule"
         }
+      },
+      "solar": {
+        "name": "Solar contribution",
+        "state": {
+          "off": "Disabled",
+          "observe": "Observation",
+          "active": "Optimise"
+        }
       }
     },
     "sensor": {
       "reason": {
         "name": "Control reason",
         "state": {
+          "solar_pause": "Solar opportunity with warming near target",
+          "predictive_pause": "Residual thermal response near target",
+          "anticipation": "Preparing the next scheduled profile",
+          "setup_not_ready": "Waiting for registered zones and outputs",
+          "season_transition": "Closing before changing season",
+          "zone_closing_estimated": "Waiting for estimated zone closure",
+          "general_opening_estimated": "Waiting for estimated inlet opening",
           "not_ready": "Initialising",
           "global_off": "Suspended by global switch",
           "zone_off": "Zone switched off",
@@ -164,6 +229,9 @@
     "button": {
       "resume": {
         "name": "Resume schedule"
+      },
+      "reset_learning": {
+        "name": "Reset thermal learning"
       }
     },
     "number": {
@@ -179,6 +247,9 @@
       "heat_sleep": {
         "name": "Heating · Sleep"
       },
+      "heat_away": {
+        "name": "Heating · Away"
+      },
       "cool_home": {
         "name": "Cooling · Normal"
       },
@@ -187,6 +258,14 @@
       },
       "cool_sleep": {
         "name": "Cooling · Sleep"
+      },
+      "cool_away": {
+        "name": "Cooling · Away"
+      }
+    },
+    "binary_sensor": {
+      "solar_opportunity": {
+        "name": "Shared solar opportunity"
       }
     }
   }

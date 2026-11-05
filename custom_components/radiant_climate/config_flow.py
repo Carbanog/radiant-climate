@@ -10,6 +10,7 @@ from homeassistant.helpers import selector
 
 from .const import DOMAIN
 from .core.control import Settings, temperature
+from .core.program import PROFILES
 
 
 def _entity(domain: str, multiple: bool = False):
@@ -31,7 +32,16 @@ def _schema(data: Mapping, *, installation=False, advanced=False) -> vol.Schema:
             if data.get("general")
             else vol.Optional("general")
         )
-        return vol.Schema({key: _entity("switch")})
+        fields = {key: _entity("switch")}
+        if advanced:
+            for source, domain in [("outdoor", "sensor"), ("weather", "weather")]:
+                fields[
+                    vol.Optional(source, **({"default": data[source]} if data.get(source) else {}))
+                ] = _entity(domain)
+            fields[vol.Required("general_travel", default=data.get("general_travel", 0))] = _number(
+                0, 900
+            )
+        return vol.Schema(fields)
     modes = data.get("modes", ["heat", "cool"])
     selected = "heat_cool" if len(modes) == 2 else modes[0]
     fields = {
@@ -63,6 +73,13 @@ def _schema(data: Mapping, *, installation=False, advanced=False) -> vol.Schema:
                 vol.Required("stale_after", default=data.get("stale_after", 3600)): _number(
                     60, 86400
                 ),
+                vol.Required(
+                    "window_open_delay", default=data.get("window_open_delay", 0)
+                ): _number(0, 600),
+                vol.Required(
+                    "window_close_delay", default=data.get("window_close_delay", 0)
+                ): _number(0, 600),
+                vol.Required("valve_travel", default=data.get("valve_travel", 0)): _number(0, 900),
             }
         )
     return vol.Schema(fields)
@@ -101,7 +118,9 @@ def _validate(hass, data: dict, exclude: str | None = None) -> None:
         )
         if outputs & assigned:
             raise ValueError("actuator_assigned")
-    for entity in outputs | {data[k] for k in ["sensor", "window"] if data.get(k)}:
+    for entity in outputs | {
+        data[k] for k in ["sensor", "window", "outdoor", "weather"] if data.get(k)
+    }:
         if hass.states.get(entity) is None:
             raise ValueError("entity_missing")
 
@@ -161,7 +180,84 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
         if self.config_entry.data["kind"] == "installation":
             return await self.async_step_hardware(user_input)
         return self.async_show_menu(
-            step_id="init", menu_options=["hardware", "schedule_add", "schedule_remove"]
+            step_id="init",
+            menu_options=["hardware", "schedule_add", "schedule_remove", "sources", "vacation"],
+        )
+
+    async def async_step_sources(self, user_input=None):
+        previous = {**self.config_entry.data, **self.config_entry.options}
+        errors = {}
+        if user_input is not None:
+            data = {
+                **previous,
+                **user_input,
+                "weather": user_input.get("weather"),
+                "outdoor": user_input.get("outdoor"),
+            }
+            try:
+                _validate(self.hass, data, self.config_entry.entry_id)
+            except ValueError:
+                errors["base"] = "entity_missing"
+            else:
+                return self.async_create_entry(title="", data=data)
+        fields = {}
+        for source, domain in [("outdoor", "sensor"), ("weather", "weather")]:
+            fields[
+                vol.Optional(
+                    source, **({"default": previous[source]} if previous.get(source) else {})
+                )
+            ] = _entity(domain)
+        for key, default, minimum, maximum in [
+            ("orientation", 180, 0, 360),
+            ("solar_elevation", 15, 0, 90),
+            ("solar_width", 75, 1, 90),
+            ("max_advance", 120, 0, 360),
+            ("residual_minutes", 15, 5, 60),
+        ]:
+            fields[vol.Required(key, default=previous.get(key, default))] = _number(
+                minimum, maximum
+            )
+        fields[vol.Required("solar_confirmed", default=previous.get("solar_confirmed", False))] = (
+            selector.BooleanSelector()
+        )
+        return self.async_show_form(
+            step_id="sources", data_schema=vol.Schema(fields), errors=errors
+        )
+
+    async def async_step_vacation(self, user_input=None):
+        errors = {}
+        if user_input is not None:
+            try:
+                from datetime import datetime
+                from zoneinfo import ZoneInfo
+
+                from homeassistant.util import dt as dt_util
+
+                until = None
+                if user_input.get("date"):
+                    until = datetime.fromisoformat(
+                        user_input["date"] + "T" + user_input["time"]
+                    ).replace(tzinfo=ZoneInfo(self.hass.config.time_zone))
+                    until = dt_util.as_utc(until)
+                    if until <= dt_util.utcnow():
+                        raise ValueError("Return must be in the future")
+                await self.hass.data[DOMAIN].async_away(
+                    self.config_entry.entry_id, user_input["enabled"], until
+                )
+            except ValueError:
+                errors["base"] = "invalid_configuration"
+            else:
+                return self.async_create_entry(title="", data=dict(self.config_entry.options))
+        return self.async_show_form(
+            step_id="vacation",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("enabled", default=True): selector.BooleanSelector(),
+                    vol.Optional("date"): selector.DateSelector(),
+                    vol.Required("time", default="12:00:00"): selector.TimeSelector(),
+                }
+            ),
+            errors=errors,
         )
 
     async def async_step_schedule_add(self, user_input=None):
@@ -197,7 +293,7 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
                     vol.Required("time"): selector.TimeSelector(),
                     vol.Required("profile", default="home"): selector.SelectSelector(
                         selector.SelectSelectorConfig(
-                            options=["home", "eco", "sleep"], translation_key="profile"
+                            options=list(PROFILES), translation_key="profile"
                         )
                     ),
                 }
@@ -245,7 +341,14 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
         errors = {}
         if user_input is not None:
             try:
-                data = _normalise(user_input, installation=installation)
+                merged = {**previous, **user_input}
+                merged["general" if installation else "window"] = user_input.get(
+                    "general" if installation else "window"
+                )
+                if installation:
+                    for source in ("outdoor", "weather"):
+                        merged[source] = user_input.get(source)
+                data = _normalise(merged, installation=installation)
                 _validate(self.hass, data, self.config_entry.entry_id)
             except ValueError as exc:
                 errors["base"] = (

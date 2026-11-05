@@ -37,13 +37,21 @@
         "menu_options": {
           "hardware": "Dispositivos y regulación",
           "schedule_add": "Añadir o sustituir bloque horario",
-          "schedule_remove": "Eliminar bloque horario"
+          "schedule_remove": "Eliminar bloque horario",
+          "sources": "Entorno, sol y anticipación",
+          "vacation": "Vacaciones y regreso"
         }
       },
       "hardware": {
         "title": "Configuración",
         "description": "Los cambios recargan esta entrada. Editar la instalación desactiva el control general; reactívalo expresamente tras revisar las salidas.",
         "data": {
+          "weather": "Fuente meteorológica (opcional)",
+          "outdoor": "Sensor exterior (opcional)",
+          "general_travel": "Apertura estimada de general (segundos; 0 = desconocido)",
+          "valve_travel": "Cierre estimado de zona (segundos; 0 = desconocido)",
+          "window_open_delay": "Retardo al abrir ventana (segundos)",
+          "window_close_delay": "Retardo al cerrar ventana (segundos)",
           "general": "Válvula general (opcional)",
           "sensor": "Sensor de temperatura interior",
           "actuators": "Relé o relés",
@@ -69,6 +77,29 @@
         "title": "Eliminar un bloque",
         "data": {
           "block": "Bloque (1 = lunes)"
+        }
+      },
+      "sources": {
+        "title": "Fuentes opcionales y optimización",
+        "description": "Fuentes vacías heredan las de instalación. Activa los módulos por separado en el dispositivo. Comprueba la incidencia antes de Solar Activo; la geometría no demuestra sol directo.",
+        "data": {
+          "weather": "Fuente meteorológica (opcional)",
+          "outdoor": "Sensor exterior (opcional)",
+          "orientation": "Azimut de ventanas (grados desde norte)",
+          "solar_elevation": "Elevación mínima de incidencia observada",
+          "solar_width": "Desviación máxima de azimut respecto a fachada",
+          "solar_confirmed": "Incidencia y umbrales de sombra comprobados",
+          "max_advance": "Adelanto máximo (minutos)",
+          "residual_minutes": "Horizonte de proyección residual (minutos)"
+        }
+      },
+      "vacation": {
+        "title": "Vacaciones",
+        "description": "Ausente no enciende una zona apagada. Fecha de regreso opcional; vacía significa indefinido. Los cambios manuales posteriores tienen prioridad.",
+        "data": {
+          "enabled": "Activar Ausente",
+          "date": "Fecha de regreso (opcional)",
+          "time": "Hora de regreso"
         }
       }
     },
@@ -105,7 +136,8 @@
       "options": {
         "home": "Normal",
         "eco": "Eco",
-        "sleep": "Noche"
+        "sleep": "Noche",
+        "away": "Ausente"
       }
     }
   },
@@ -119,6 +151,24 @@
       },
       "window_enabled": {
         "name": "Pausar por ventana"
+      },
+      "weather": {
+        "name": "Usar previsión meteorológica"
+      },
+      "outside": {
+        "name": "Usar temperatura exterior"
+      },
+      "learning": {
+        "name": "Aprender respuesta térmica"
+      },
+      "anticipation": {
+        "name": "Anticipar horario"
+      },
+      "predictive": {
+        "name": "Aprovechar inercia térmica"
+      },
+      "away": {
+        "name": "Ausente"
       }
     },
     "select": {
@@ -136,12 +186,27 @@
           "next_change": "Hasta el próximo bloque horario",
           "until_resume": "Hasta volver al horario"
         }
+      },
+      "solar": {
+        "name": "Aporte solar",
+        "state": {
+          "off": "Desactivado",
+          "observe": "Observación",
+          "active": "Optimizar"
+        }
       }
     },
     "sensor": {
       "reason": {
         "name": "Motivo de regulación",
         "state": {
+          "solar_pause": "Oportunidad solar con calentamiento cerca de consigna",
+          "predictive_pause": "Respuesta térmica residual cerca de consigna",
+          "anticipation": "Anticipando el próximo perfil horario",
+          "setup_not_ready": "Esperando zonas y salidas registradas",
+          "season_transition": "Cierre previo al cambio de temporada",
+          "zone_closing_estimated": "Esperando cierre estimado de zona",
+          "general_opening_estimated": "Esperando apertura estimada de general",
           "not_ready": "Inicializando",
           "global_off": "Suspendido por interruptor general",
           "zone_off": "Zona apagada",
@@ -164,6 +229,9 @@
     "button": {
       "resume": {
         "name": "Volver al horario"
+      },
+      "reset_learning": {
+        "name": "Restablecer aprendizaje térmico"
       }
     },
     "number": {
@@ -179,6 +247,9 @@
       "heat_sleep": {
         "name": "Calor · Noche"
       },
+      "heat_away": {
+        "name": "Calor · Ausente"
+      },
       "cool_home": {
         "name": "Frío · Normal"
       },
@@ -187,6 +258,14 @@
       },
       "cool_sleep": {
         "name": "Frío · Noche"
+      },
+      "cool_away": {
+        "name": "Frío · Ausente"
+      }
+    },
+    "binary_sensor": {
+      "solar_opportunity": {
+        "name": "Oportunidad solar compartida"
       }
     }
   }

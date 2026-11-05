@@ -11,7 +11,24 @@ async def async_setup_entry(hass, entry, async_add_entities):
     if entry.data["kind"] == "installation":
         async_add_entities([SupplyMode(hass.data[DOMAIN], entry)])
     else:
-        async_add_entities([ManualPolicy(hass.data[DOMAIN], entry)])
+        async_add_entities(
+            [ManualPolicy(hass.data[DOMAIN], entry), SolarMode(hass.data[DOMAIN], entry)]
+        )
+
+
+class SolarMode(RadiantEntity, SelectEntity):
+    _attr_translation_key = "solar"
+    _attr_options = ["off", "observe", "active"]
+
+    def __init__(self, manager, entry):
+        super().__init__(manager, entry, "solar")
+
+    @property
+    def current_option(self):
+        return self.manager.zones[self.entry.entry_id].intelligence.features.solar
+
+    async def async_select_option(self, option):
+        await self.manager.async_feature(self.entry.entry_id, "solar", option)
 
 
 class ManualPolicy(RadiantEntity, SelectEntity):

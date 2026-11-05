@@ -11,10 +11,64 @@ async def async_setup_entry(hass, entry, async_add_entities):
         async_add_entities([InstallationEnabled(hass.data[DOMAIN], entry)])
     else:
         manager = hass.data[DOMAIN]
-        entities = [ScheduleEnabled(manager, entry)]
+        entities = [
+            ScheduleEnabled(manager, entry),
+            AwayEnabled(manager, entry),
+            *[
+                ModuleEnabled(manager, entry, key)
+                for key in ("weather", "outside", "learning", "anticipation", "predictive")
+            ],
+        ]
         if manager.zones[entry.entry_id].config.get("window"):
             entities.append(WindowEnabled(manager, entry))
         async_add_entities(entities)
+
+
+class ModuleEnabled(RadiantEntity, SwitchEntity):
+    def __init__(self, manager, entry, key):
+        super().__init__(manager, entry, key)
+        self.key = key
+        self._attr_translation_key = key
+
+    @property
+    def is_on(self):
+        return getattr(self.manager.zones[self.entry.entry_id].intelligence.features, self.key)
+
+    @property
+    def extra_state_attributes(self):
+        z = self.manager.zones[self.entry.entry_id]
+        if self.key in ("anticipation", "predictive"):
+            return {"model_ready": z.intelligence.model.response(z.intent.last_mode).ready}
+        return {}
+
+    async def async_turn_on(self, **kwargs):
+        await self.manager.async_feature(self.entry.entry_id, self.key, True)
+
+    async def async_turn_off(self, **kwargs):
+        await self.manager.async_feature(self.entry.entry_id, self.key, False)
+
+
+class AwayEnabled(RadiantEntity, SwitchEntity):
+    _attr_translation_key = "away"
+    _attr_icon = "mdi:bag-suitcase"
+
+    def __init__(self, manager, entry):
+        super().__init__(manager, entry, "away")
+
+    @property
+    def is_on(self):
+        return self.manager.zones[self.entry.entry_id].program.away
+
+    @property
+    def extra_state_attributes(self):
+        until = self.manager.zones[self.entry.entry_id].program.away_until
+        return {"return_at": until.isoformat() if until else None}
+
+    async def async_turn_on(self, **kwargs):
+        await self.manager.async_away(self.entry.entry_id, True)
+
+    async def async_turn_off(self, **kwargs):
+        await self.manager.async_away(self.entry.entry_id, False)
 
 
 class WindowEnabled(RadiantEntity, SwitchEntity):

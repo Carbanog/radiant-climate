@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 from .control import HoldPolicy, Intent, Mode, Settings, aware, temperature
 
-PROFILES = ("home", "eco", "sleep")
+PROFILES = ("home", "eco", "sleep", "away")
 
 
 @dataclass(frozen=True, order=True)
@@ -34,11 +34,24 @@ class Program:
     minutes: float = 240
     profiles: dict = field(
         default_factory=lambda: {
-            "heat": {"home": 21.0, "eco": 19.0, "sleep": 20.0},
-            "cool": {"home": 25.0, "eco": 27.0, "sleep": 26.0},
+            "heat": {"home": 21.0, "eco": 19.0, "sleep": 20.0, "away": 17.0},
+            "cool": {"home": 25.0, "eco": 27.0, "sleep": 26.0, "away": 28.0},
         }
     )
     blocks: list[Block] = field(default_factory=list)
+    away: bool = False
+    away_until: datetime | None = None
+
+    def expire(self, now):
+        if self.away_until is not None and now >= self.away_until:
+            self.away = False
+            self.away_until = None
+
+    def profile(self, now, timezone):
+        self.expire(now)
+        return (
+            "away" if self.away else (self.active(now, timezone) if self.enabled else self.selected)
+        )
 
     def set_blocks(self, days: list[int], minute: int, profile: str) -> None:
         new = [Block(d, minute, profile) for d in days]
@@ -73,6 +86,9 @@ class Program:
         return previous[-1].profile if previous else "home"
 
     def next_change(self, now: datetime, timezone: str) -> datetime | None:
+        self.expire(now)
+        if self.away:
+            return self.away_until
         return next((when for when, _ in self.occurrences(now, timezone) if when > now), None)
 
     def reconcile_edit(self, intent: Intent, now: datetime, timezone: str) -> None:
@@ -84,7 +100,7 @@ class Program:
 
     def scheduled_target(self, intent: Intent, now: datetime, timezone: str) -> float | None:
         mode = intent.mode if intent.mode != Mode.OFF else intent.last_mode
-        profile = self.active(now, timezone) if self.enabled else self.selected
+        profile = self.profile(now, timezone)
         return self.profiles[mode.value][profile] if profile else None
 
     def target(self, intent: Intent, now: datetime, timezone: str) -> float:
@@ -93,7 +109,14 @@ class Program:
     def set_manual(
         self, intent: Intent, settings: Settings, value: float, now: datetime, timezone: str
     ):
-        if self.enabled and self.policy == HoldPolicy.NEXT_CHANGE and not self.blocks:
+        self.expire(now)
+        boundary = self.next_change(now, timezone)
+        if (
+            self.enabled
+            and self.policy == HoldPolicy.NEXT_CHANGE
+            and boundary is None
+            and not self.away
+        ):
             raise ValueError("A schedule block is required for next-change holds")
         from dataclasses import replace
 
@@ -101,8 +124,11 @@ class Program:
             value,
             now,
             replace(settings, hold_policy=self.policy, hold_minutes=self.minutes),
-            scheduled=self.enabled,
-            next_change=self.next_change(now, timezone),
+            scheduled=self.enabled or self.away,
+            next_change=boundary,
+            policy=HoldPolicy.UNTIL_RESUME
+            if self.away and self.policy == HoldPolicy.NEXT_CHANGE and boundary is None
+            else self.policy,
         )
         self.selected = None
 
@@ -116,6 +142,8 @@ class Program:
             "blocks": [
                 {"day": b.day, "minute": b.minute, "profile": b.profile} for b in self.blocks
             ],
+            "away": self.away,
+            "away_until": self.away_until.isoformat() if self.away_until else None,
         }
 
     @classmethod
@@ -126,12 +154,21 @@ class Program:
         if not 1 <= minutes <= 1440:
             raise ValueError("Invalid hold duration")
         profiles = {
-            mode: {p: temperature(raw["profiles"][mode][p]) for p in PROFILES}
+            mode: {
+                p: temperature(raw["profiles"][mode].get(p, cls().profiles[mode][p]))
+                for p in PROFILES
+            }
             for mode in ["heat", "cool"]
         }
         blocks = [Block(**b) for b in raw["blocks"]]
         if len({(b.day, b.minute) for b in blocks}) != len(blocks):
             raise ValueError("Duplicate weekly block")
+        away = raw.get("away", False)
+        until = datetime.fromisoformat(raw["away_until"]) if raw.get("away_until") else None
+        if type(away) is not bool:
+            raise ValueError("Invalid vacation state")
+        if until:
+            aware(until)
         return cls(
             raw["enabled"],
             raw["selected"],
@@ -139,4 +176,6 @@ class Program:
             minutes,
             profiles,
             sorted(blocks),
+            away,
+            until,
         )

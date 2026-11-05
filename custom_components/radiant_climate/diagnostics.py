@@ -15,6 +15,9 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "target": zone.decision.target if zone and zone.decision else None,
         "reason": zone.decision.reason if zone and zone.decision else None,
         "actuator_count": len(zone.config["actuators"]) if zone else None,
+        "optional_modules": zone.intelligence.dump()["features"] if zone else None,
+        "model": zone.intelligence.model.dump() if zone else None,
+        "optimisation": zone.intelligence.diagnostics if zone else None,
         "valve_position_measured": False,
         "command_fault_count": len(manager._command_faults),
     }

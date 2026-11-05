@@ -27,13 +27,15 @@ La primera base implementada es deliberadamente pequeña. La tabla siguiente dis
 | Diagnóstico del motivo de actuación y opciones en español/inglés | Implementados |
 | Tres políticas Manual | Conectadas a programación y controles nativos; CI valida el adaptador |
 | Perfiles editables y programación propia | Normal/Eco/Noche por temporada, agenda semanal por zona y controles propios; CI valida el adaptador |
-| Meteorología seleccionable, solar y compensación exterior | Pendientes; no hay controles sin efecto |
-| Aprendizaje en observación, anticipación y parada predictiva | Pendientes |
+| Meteorología seleccionable, exterior y solar por zona | Implementados en la candidata; validación ampliada en CI |
+| Observación, anticipación y pausa por inercia | Implementados con calidad mínima y límites; necesitan datos reales y piloto |
 | Copiar temperaturas, política Manual y agenda a otras zonas/todas | Implementado mediante acción nativa con selectores |
-| Vacaciones | Pendientes |
+| Ausente/vacaciones | Perfil por temporada, ausencia indefinida o regreso programado |
 | Precisión térmica, comportamiento físico e instalación real | No validados |
 
 Consulta [arquitectura y prioridades](docs/architecture.md), [uso y configuración](docs/configuration.md), [validación](docs/testing.md) y [plan de desarrollo](docs/roadmap.md).
+
+Los [módulos avanzados y sus límites](docs/intelligence.md) distinguen la implementación del ajuste físico. No hay un modelo preentrenado de una vivienda ni promesa de ahorro o precisión comercial.
 
 ## Compatibilidad y alcance
 

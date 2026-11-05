@@ -419,3 +419,212 @@ async def test_sensor_failure_while_general_opens_never_opens_zone(house):
         assert house.states.get("switch.fixture_a").state == "off"
     finally:
         unsubscribe()
+
+
+async def configure_sources(hass, entry, **sources):
+    flow = await hass.config_entries.options.async_init(entry.entry_id)
+    flow = await hass.config_entries.options.async_configure(
+        flow["flow_id"], {"next_step_id": "sources"}
+    )
+    result = await hass.config_entries.options.async_configure(flow["flow_id"], sources)
+    assert result["type"] == "create_entry", result
+    await settle(hass)
+
+
+async def test_weather_and_outdoor_failure_degrade_to_interior_control(house):
+    from datetime import timedelta
+
+    from homeassistant.core import SupportsResponse
+    from homeassistant.util import dt as dt_util
+
+    calls = []
+
+    async def forecast(call):
+        calls.append(call.data["entity_id"])
+        return {
+            "weather.fixture": {
+                "forecast": [
+                    {
+                        "datetime": (dt_util.utcnow() + timedelta(hours=1)).isoformat(),
+                        "temperature": 12,
+                        "cloud_coverage": 20,
+                    }
+                ]
+            }
+        }
+
+    house.services.async_register(
+        "weather", "get_forecasts", forecast, supports_response=SupportsResponse.ONLY
+    )
+    house.states.async_set(
+        "weather.fixture",
+        "sunny",
+        {"temperature": 10, "temperature_unit": "°C", "supported_features": 2},
+    )
+    house.states.async_set("sensor.fixture_outdoor", "10", {"unit_of_measurement": "°C"})
+    entry, climate = await add_zone(house)
+    await configure_sources(
+        house, entry, weather="weather.fixture", outdoor="sensor.fixture_outdoor"
+    )
+    for key in ("weather", "outside"):
+        await service(house, "switch", "turn_on", zone_entity(house, entry, "switch", key))
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    assert calls == ["weather.fixture"]
+    assert house.states.get("switch.fixture_a").state == "on"
+    house.states.async_set("weather.fixture", "unavailable")
+    house.states.async_set("sensor.fixture_outdoor", "unavailable")
+    await settle(house)
+    assert house.states.get("switch.fixture_a").state == "on"
+    assert house.states.get(climate).attributes["weather_status"] == "unavailable"
+    assert not house.states.get(climate).attributes["outside_available"]
+    for key in ("weather", "outside"):
+        await service(house, "switch", "turn_off", zone_entity(house, entry, "switch", key))
+    assert house.states.get("switch.fixture_a").state == "on"
+
+
+async def test_provider_change_and_unsupported_hourly_forecast(house):
+    house.states.async_set("weather.fixture_one", "cloudy", {"supported_features": 0})
+    house.states.async_set("weather.fixture_two", "sunny", {"supported_features": 0})
+    entry, climate = await add_zone(house)
+    await configure_sources(house, entry, weather="weather.fixture_one")
+    await service(house, "switch", "turn_on", zone_entity(house, entry, "switch", "weather"))
+    assert house.states.get(climate).attributes["weather_status"] == "hourly_not_supported"
+    await configure_sources(house, entry, weather="weather.fixture_two")
+    assert (
+        house.data[DOMAIN].source(house.data[DOMAIN].zones[entry.entry_id], "weather")
+        == "weather.fixture_two"
+    )
+    assert house.states.get(climate).attributes["weather_status"] == "hourly_not_supported"
+
+
+async def test_solar_observation_active_and_manual_priority(house):
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+
+    entry, climate = await add_zone(house)
+    house.states.async_set("sun.sun", "above_horizon", {"azimuth": 135, "elevation": 30})
+    await configure_sources(house, entry, orientation=135, solar_elevation=20, solar_confirmed=True)
+    await service(
+        house,
+        "select",
+        "select_option",
+        zone_entity(house, entry, "select", "solar"),
+        option="observe",
+    )
+    await service(house, "climate", "set_temperature", climate, temperature=22)
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    now = dt_util.utcnow()
+    model = house.data[DOMAIN].zones[entry.entry_id].intelligence.model
+    model.points = [
+        (now - timedelta(minutes=30), 21.3),
+        (now - timedelta(minutes=15), 21.6),
+        (now - timedelta(seconds=1), 21.9),
+    ]
+    house.states.async_set("sensor.fixture_a", "21.9", {"unit_of_measurement": "°C"})
+    await settle(house)
+    assert house.states.get("switch.fixture_a").state == "on"
+    assert house.states.get(climate).attributes["solar_candidate"]
+    await service(
+        house,
+        "select",
+        "select_option",
+        zone_entity(house, entry, "select", "solar"),
+        option="active",
+    )
+    assert house.states.get("switch.fixture_a").state == "off"
+    assert house.states.get(climate).attributes["reason"] == "solar_pause"
+    await add_schedule(house, entry)
+    await service(house, "switch", "turn_on", zone_entity(house, entry, "switch", "schedule"))
+    await service(house, "climate", "set_temperature", climate, temperature=22.5)
+    assert house.states.get(climate).attributes["control_state"] == "manual"
+    assert house.states.get(climate).attributes["temperature"] == 22.5
+    assert house.states.get("switch.fixture_a").state == "on"
+
+
+async def test_unconfirmed_solar_cannot_be_activated(house):
+    entry, _ = await add_zone(house)
+    with pytest.raises(ValueError, match="exposure"):
+        await house.data[DOMAIN].async_feature(entry.entry_id, "solar", "active")
+    assert house.data[DOMAIN].zones[entry.entry_id].intelligence.features.solar == "off"
+
+
+async def test_anticipation_requires_model_and_preserves_displayed_comfort_target(house):
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+
+    from custom_components.radiant_climate.core.intelligence import Statistics
+
+    entry, climate = await add_zone(house)
+    z = house.data[DOMAIN].zones[entry.entry_id]
+    now = dt_util.as_local(dt_util.utcnow())
+    later = now + timedelta(minutes=30)
+    z.program.set_blocks([now.weekday()], now.hour * 60 + now.minute, "eco")
+    z.program.set_blocks([later.weekday()], later.hour * 60 + later.minute, "home")
+    z.program.profiles["heat"].update(eco=20, home=22)
+    await service(house, "switch", "turn_on", zone_entity(house, entry, "switch", "schedule"))
+    house.states.async_set("sensor.fixture_a", "20", {"unit_of_measurement": "°C"})
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    await service(house, "switch", "turn_on", zone_entity(house, entry, "switch", "anticipation"))
+    assert house.states.get("switch.fixture_a").state == "off"
+    z.intelligence.model.statistics["heat_on"] = Statistics(
+        count=12, hours=6, delta=3, rate_square=1.5, episodes=3
+    )
+    await settle(house)
+    assert house.states.get(climate).attributes["temperature"] == 20
+    assert house.states.get(climate).attributes["control_target"] == 22
+    assert house.states.get(climate).attributes["reason"] == "anticipation"
+    assert house.states.get("switch.fixture_a").state == "on"
+    await service(house, "switch", "turn_off", zone_entity(house, entry, "switch", "anticipation"))
+    assert house.states.get("switch.fixture_a").state == "off"
+
+
+async def test_away_manual_and_expiry_without_enabling_off_zone(house):
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+
+    entry, climate = await add_zone(house)
+    await service(house, "switch", "turn_on", zone_entity(house, entry, "switch", "away"))
+    assert house.states.get(climate).state == "off"
+    assert house.states.get(climate).attributes["temperature"] == 17
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "climate", "set_temperature", climate, temperature=22)
+    assert house.states.get(climate).attributes["control_state"] == "manual"
+    z = house.data[DOMAIN].zones[entry.entry_id]
+    z.intent.hold.until = dt_util.utcnow() - timedelta(seconds=1)
+    await settle(house)
+    assert house.states.get(climate).attributes["temperature"] == 17
+    await house.data[DOMAIN].async_away(
+        entry.entry_id, True, dt_util.utcnow() - timedelta(seconds=1)
+    )
+    assert not z.program.away
+    assert house.states.get(climate).attributes["control_state"] == "fixed"
+
+
+async def test_estimated_inlet_opening_does_not_claim_physical_position(house):
+    _, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    manager.entries[manager.hub]["general_travel"] = 120
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    assert house.states.get("switch.fixture_general").state == "on"
+    assert house.states.get("switch.fixture_a").state == "off"
+    assert house.states.get(climate).attributes["reason"] == "general_opening_estimated"
+    assert house.states.get(climate).attributes["valve_position"] == "not_measured"
+
+
+async def test_same_supply_mode_does_not_cancel_manual(house):
+    entry, climate = await add_zone(house)
+    await add_schedule(house, entry)
+    await service(house, "switch", "turn_on", zone_entity(house, entry, "switch", "schedule"))
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "climate", "set_temperature", climate, temperature=22)
+    deadline = house.states.get(climate).attributes["manual_until"]
+    await house.data[DOMAIN].async_supply("heat")
+    await settle(house)
+    assert house.states.get(climate).attributes["manual_until"] == deadline

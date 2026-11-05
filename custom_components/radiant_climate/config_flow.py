@@ -362,6 +362,9 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
                     else "invalid_configuration"
                 )
             else:
+                await self.hass.data[DOMAIN].async_prepare_hardware(
+                    self.config_entry.entry_id, data
+                )
                 return self.async_create_entry(title="", data=data)
         return self.async_show_form(
             step_id="hardware",

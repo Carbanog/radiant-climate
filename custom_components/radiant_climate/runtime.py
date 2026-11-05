@@ -79,6 +79,7 @@ class Installation:
         self._command_faults: set[str] = set()
         self._close_recovery: dict[str, tuple[int, object]] = {}
         self._retired: dict[str, float] = {}
+        self._hardware_pending: dict[str, set[str]] = {}
         self._stop_requested = False
         self._change_requested = 0
         self._change_applied = 0
@@ -205,7 +206,8 @@ class Installation:
     async def async_remove(self, entry_id: str) -> None:
         self._revision += 1
         async with self._lock:
-            if zone := self.zones.pop(entry_id, None):
+            zone = self.zones.get(entry_id)
+            if zone:
                 self._saved[entry_id] = {
                     **zone.intent.dump(),
                     "program": zone.program.dump(),
@@ -216,7 +218,6 @@ class Installation:
                     self._retired[entity] = max(
                         self._retired.get(entity, 0), zone.config.get("valve_travel", 0)
                     )
-                    await self._command(entity, False)
             if self.hub == entry_id:
                 if self.general:
                     self._retired[self.general] = max(
@@ -224,12 +225,70 @@ class Installation:
                         self.entries[self.hub].get("general_closing", 0),
                     )
                 self.enabled = False
+            # Write-ahead record: a stop/cancellation during the first close must
+            # not lose ownership of an output no longer present in config entries.
+            await self._save()
+            self.zones.pop(entry_id, None)
+            if zone:
+                for entity in zone.config["actuators"]:
+                    await self._command(entity, False)
+            if self.hub == entry_id:
                 await self._apply()
                 self.hub = None
             self.entries.pop(entry_id, None)
+            self._hardware_pending.pop(entry_id, None)
             await self._apply()
             await self._save()
             self._notify()
+
+    async def async_prepare_hardware(self, entry_id: str, data: dict) -> None:
+        """Journal removed outputs before HA commits their replacement options."""
+        old = self.entries[entry_id]
+        before = set(old.get("actuators", [])) | ({old["general"]} if old.get("general") else set())
+        after = set(data.get("actuators", [])) | (
+            {data["general"]} if data.get("general") else set()
+        )
+        removed = before - after
+        if not removed:
+            return
+
+        def update():
+            travel = (
+                old.get("general_closing", 0)
+                if old["kind"] == "installation"
+                else old.get("valve_travel", 0)
+            )
+            for entity in removed:
+                self._retired[entity] = max(self._retired.get(entity, 0), travel)
+            # Until options are committed and the old entry is unloaded, its
+            # outputs must not be released and reopened under the old config.
+            self._hardware_pending[entry_id] = removed
+
+        await self.async_change(update)
+
+    async def async_update_options(self, entry: ConfigEntry) -> bool:
+        """Apply logical options without unloading entities or retiring outputs."""
+        data = {**entry.data, **entry.options}
+        old = self.entries.get(entry.entry_id)
+        hardware = ("kind", "sensor", "actuators", "modes", "window", "general")
+        if old is None or any(old.get(key) != data.get(key) for key in hardware):
+            return False
+
+        def update():
+            self.entries[entry.entry_id] = data
+            if zone := self.zones.get(entry.entry_id):
+                zone.config = data
+                zone.settings = Settings(
+                    modes=tuple(Mode(m) for m in data["modes"]),
+                    **{
+                        k: data[k]
+                        for k in ("hysteresis", "minimum_on", "minimum_off", "stale_after")
+                        if k in data
+                    },
+                )
+
+        await self.async_change(update)
+        return True
 
     @property
     def general(self) -> str | None:
@@ -316,7 +375,7 @@ class Installation:
                     self._command_faults.add(entity)
                     self._fault_dirty = True
                     _LOGGER.warning(
-                        "Repeated actuator deviations; control inhibited until explicit global off and review"
+                        "Repeated actuator deviations; control inhibited until explicit fault review"
                     )
             self._revision += 1
             self._request_update()
@@ -389,6 +448,17 @@ class Installation:
         state = self.hass.states.get(entity)
         return state is not None and state.state == ("on" if wanted else "off")
 
+    async def _abort_open(self, zone: Zone | None = None) -> None:
+        """Compensate a failed opening in this pass, without waiting for a tick."""
+        self._revision += 1
+        if zone:
+            zone.decision = Decision(False, "actuator_unavailable", zone.decision.target)
+            for entity in zone.config["actuators"]:
+                await self._command(entity, False)
+        if self.general:
+            await self._command(self.general, False)
+        self._request_update()
+
     async def _apply(self) -> None:
         revision = self._revision
         now = dt_util.utcnow()
@@ -397,7 +467,13 @@ class Installation:
         for entity, travel in list(self._retired.items()):
             closed = await self._command(entity, False)
             state = self.hass.states.get(entity)
-            if closed and state and (now - state.last_changed).total_seconds() >= travel:
+            pending = any(entity in outputs for outputs in self._hardware_pending.values())
+            if (
+                not pending
+                and closed
+                and state
+                and (now - state.last_changed).total_seconds() >= travel
+            ):
                 del self._retired[entity]
                 self._fault_dirty = True
         enabled = (
@@ -469,6 +545,9 @@ class Installation:
         if self.general:
             inlet_healthy = self.general not in self._command_faults
             supply = await self._command(self.general, demand and isolated and inlet_healthy)
+            if demand and isolated and inlet_healthy and self.general in self._command_faults:
+                await self._abort_open()
+                return
             general_state = self.hass.states.get(self.general)
             elapsed = (now - general_state.last_changed).total_seconds() if general_state else 0
             opening = elapsed >= self.entries.get(self.hub, {}).get("general_travel", 0)
@@ -496,6 +575,9 @@ class Installation:
                         self._request_update()
                         return
                     await self._command(e, bool(allowed))
+                    if allowed and e in self._command_faults:
+                        await self._abort_open(z)
+                        return
 
     async def async_reconcile(self) -> None:
         async with self._lock:
@@ -570,12 +652,27 @@ class Installation:
         def update():
             self.enabled = value
             self._stop_requested = False
-            if not value:
-                # Explicit global off authorises a fresh bounded close attempt.
-                self._command_faults.clear()
-                self._last_command.clear()
-                self._deviations.clear()
-                self._close_recovery.clear()
+
+        await self.async_change(update)
+
+    async def async_reset_actuator_faults(self, entities: list[str]) -> None:
+        def update():
+            if self.enabled:
+                raise ValueError("Switch off the installation before reviewing actuator faults")
+            selected = set(entities) if entities else set(self._command_faults)
+            if not selected <= self._command_faults:
+                raise ValueError("Select only actuators with a latched fault")
+            for entity in selected:
+                state = self.hass.states.get(entity)
+                if entity in self._retired or state is None or state.state != "off":
+                    raise ValueError(
+                        "Resolve retired outputs and confirm reported off before resetting faults"
+                    )
+            for entity in selected:
+                self._command_faults.discard(entity)
+                self._last_command.pop(entity, None)
+                self._deviations.pop(entity, None)
+                self._close_recovery.pop(entity, None)
 
         await self.async_change(update)
 
@@ -596,6 +693,10 @@ class Installation:
             if entity not in self._retired or entity in assigned:
                 raise ValueError("Only unassigned pending retired actuators can be acknowledged")
             del self._retired[entity]
+            self._command_faults.discard(entity)
+            self._last_command.pop(entity, None)
+            self._close_recovery.pop(entity, None)
+            self._deviations.pop(entity, None)
             self._fault_dirty = True
 
         await self.async_change(update)

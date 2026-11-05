@@ -33,6 +33,21 @@ copy_settings:
               label: Activación de módulos (sin fuentes, orientación ni aprendizaje)
             - value: vacation
               label: Ausencia y fecha de vuelta
+reset_actuator_faults:
+  name: Reconocer fallos de relés tras revisión
+  description: Con Climatización apagada, reconoce los fallos seleccionados después de revisar su causa. Todos deben comunicar apagado y no tener una retirada pendiente. No enciende la instalación.
+  fields:
+    actuators:
+      name: Relés con fallo (vacío para todos)
+      selector:
+        entity:
+          domain: switch
+          multiple: true
+    confirmed_review:
+      name: He revisado la causa del fallo y los estados comunicados
+      required: true
+      selector:
+        boolean:
 acknowledge_retired_actuator:
   name: Confirmar retirada física de un relé antiguo
   description: Solo con Climatización apagada y tras comprobar la desconexión física. Libera una salida retirada pendiente que ya no está asignada; no acredita el cierre de una válvula.

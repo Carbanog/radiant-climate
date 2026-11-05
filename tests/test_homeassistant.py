@@ -836,8 +836,12 @@ async def test_repeated_output_deviations_isolate_zone_and_persist(house):
     finally:
         restored.async_stop()
     await service(house, "switch", "turn_off", global_entity(house))
-    assert not manager._command_faults
+    assert "switch.fixture_a" in manager._command_faults
     assert house.states.get("switch.fixture_a").state == "off"
+    await house.services.async_call(
+        DOMAIN, "reset_actuator_faults", {"confirmed_review": True}, blocking=True
+    )
+    assert not manager._command_faults
 
 
 async def test_sustained_unknown_zone_output_blocks_shared_supply_then_recovers(house):
@@ -1283,3 +1287,228 @@ async def test_last_enabled_schedule_block_cannot_be_removed_silently(house):
     assert not manager.zones[a.entry_id].program.blocks
     await service(house, "climate", "set_temperature", ca, temperature=23)
     assert house.states.get(ca).attributes["temperature"] == 23
+
+
+@pytest.mark.parametrize("failure", ["exception", "timeout", "unconfirmed"])
+async def test_second_zone_channel_failure_closes_partial_open_in_same_pass(house, caplog, failure):
+    from datetime import timedelta
+    from unittest.mock import patch
+
+    from homeassistant.exceptions import HomeAssistantError
+    from homeassistant.util import dt as dt_util
+
+    entry, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    zone = manager.zones[entry.entry_id]
+    zone.config["actuators"] = ["switch.fixture_a", "switch.fixture_b"]
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    original = type(house.services).async_call
+    commands = []
+
+    async def fail_second(registry, domain, name, service_data=None, *args, **kwargs):
+        if domain == "switch":
+            commands.append((name, service_data["entity_id"]))
+            if name == "turn_on" and service_data["entity_id"] == "switch.fixture_b":
+                raise (
+                    HomeAssistantError("Simulated second-channel failure")
+                    if failure == "exception"
+                    else TimeoutError()
+                )
+        return await original(registry, domain, name, service_data, *args, **kwargs)
+
+    # A already opened in the previous pass. Suppress event-driven retries so
+    # this assertion cannot accidentally pass because of a subsequent tick.
+    with patch.object(manager, "_request_update"):
+        await house.services.async_call(
+            "input_boolean",
+            "turn_on",
+            {"entity_id": ["input_boolean.fixture_a", "input_boolean.fixture_general"]},
+            blocking=True,
+        )
+        await house.async_block_till_done()
+        manager.enabled = True
+        if failure == "unconfirmed":
+            manager._last_command["switch.fixture_b"] = (
+                True,
+                dt_util.utcnow() - timedelta(seconds=31),
+            )
+        with patch.object(type(house.services), "async_call", new=fail_second):
+            await manager._apply()
+        assert ("turn_off", "switch.fixture_a") in commands
+        assert ("turn_off", "switch.fixture_general") in commands
+        assert "switch.fixture_b" in manager._command_faults
+        assert not zone.decision.demand
+        assert house.states.get("switch.fixture_a").state == "off"
+        assert house.states.get("switch.fixture_general").state == "off"
+    expected = "did not report" if failure == "unconfirmed" else "command failed"
+    assert expected in caplog.text
+    caplog.clear()  # The simulated command failure above is the expected error.
+    await manager.async_enable(False)
+
+
+@pytest.mark.parametrize("operation", ["zone", "general", "replacement"])
+async def test_retirement_is_durable_before_first_close_even_if_interrupted(house, operation):
+    import asyncio
+    from unittest.mock import patch
+
+    from custom_components.radiant_climate.runtime import Installation
+
+    entry, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    manager.zones[entry.entry_id].config["valve_travel"] = 120
+    manager.entries[manager.hub]["general_closing"] = 120
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    old = "switch.fixture_general" if operation == "general" else "switch.fixture_a"
+
+    async def interrupted(entity, wanted):
+        assert not wanted
+        saved = await manager._store.async_load()
+        assert old in saved["retired_actuators"]
+        raise asyncio.CancelledError
+
+    with (
+        patch.object(manager, "_request_update"),
+        patch.object(manager, "_command", new=interrupted),
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            if operation == "replacement":
+                flow = await house.config_entries.options.async_init(entry.entry_id)
+                flow = await house.config_entries.options.async_configure(
+                    flow["flow_id"], {"next_step_id": "hardware"}
+                )
+                await house.config_entries.options.async_configure(
+                    flow["flow_id"],
+                    {
+                        "sensor": "sensor.fixture_a",
+                        "actuators": ["switch.fixture_b"],
+                        "available_modes": "heat_cool",
+                        "target": 21,
+                    },
+                )
+            else:
+                await manager.async_remove(
+                    manager.hub if operation == "general" else entry.entry_id
+                )
+    restored = Installation(house)
+    try:
+        await restored.async_load()
+        assert restored._retired[old] == 120
+        # A fresh process retains the guard even if the original entry is gone.
+        assert restored._retired
+    finally:
+        restored.async_stop()
+    manager.enabled = False
+
+
+@pytest.mark.parametrize("kind", ["sources", "regulation", "installation"])
+async def test_logical_options_keep_entities_learning_and_outputs_running(house, kind):
+    from unittest.mock import patch
+
+    entry, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    zone = manager.zones[entry.entry_id]
+    model = zone.intelligence.model
+    await manager.async_change(lambda: setattr(model, "rejected", 7))
+    flow = await house.config_entries.options.async_init(
+        manager.hub if kind == "installation" else entry.entry_id
+    )
+    flow = await house.config_entries.options.async_configure(
+        flow["flow_id"], {"next_step_id": "sources" if kind == "sources" else "hardware"}
+    )
+    data = (
+        {
+            "orientation": 133.5,
+            "solar_elevation": 20,
+            "solar_width": 60,
+            "max_advance": 90,
+            "residual_minutes": 15,
+            "solar_confirmed": False,
+        }
+        if kind == "sources"
+        else (
+            {"general": "switch.fixture_general", "general_travel": 0, "general_closing": 120}
+            if kind == "installation"
+            else {
+                "sensor": "sensor.fixture_a",
+                "actuators": ["switch.fixture_a"],
+                "available_modes": "heat_cool",
+                "target": 21,
+                "minimum_on": 0,
+                "minimum_off": 0,
+                "hysteresis": 0.3,
+            }
+        )
+    )
+    original = type(house.services).async_call
+    closes = []
+
+    async def record(registry, domain, name, service_data=None, *args, **kwargs):
+        if domain == "switch" and name == "turn_off":
+            closes.append(service_data)
+        return await original(registry, domain, name, service_data, *args, **kwargs)
+
+    with (
+        patch.object(manager, "async_remove", wraps=manager.async_remove) as remove,
+        patch.object(type(house.services), "async_call", new=record),
+    ):
+        result = await house.config_entries.options.async_configure(flow["flow_id"], data)
+        assert result["type"] == "create_entry", result
+        await settle(house)
+        remove.assert_not_called()
+        assert not closes
+    assert manager.zones[entry.entry_id] is zone
+    assert zone.intelligence.model is model and model.rejected == 7
+    assert not manager._retired and manager.enabled
+    assert house.states.get("switch.fixture_a").state == "on"
+    assert house.states.get("switch.fixture_general").state == "on"
+    if kind == "regulation":
+        assert zone.settings.hysteresis == 0.3
+
+
+async def test_normal_off_does_not_acknowledge_faults_and_review_never_opens(house):
+    from custom_components.radiant_climate.runtime import Installation
+
+    _, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await manager.async_change(lambda: manager._command_faults.add("switch.fixture_a"))
+    await manager.async_enable(False)
+    await manager.async_enable(True)
+    await settle(house)
+    assert "switch.fixture_a" in manager._command_faults
+    assert house.states.get("switch.fixture_a").state == "off"
+    with pytest.raises(ValueError, match="Switch off"):
+        await manager.async_reset_actuator_faults([])
+    await manager.async_enable(False)
+    restored = Installation(house)
+    try:
+        await restored.async_load()
+        assert "switch.fixture_a" in restored._command_faults
+    finally:
+        restored.async_stop()
+    await house.services.async_call(
+        DOMAIN, "reset_actuator_faults", {"confirmed_review": True}, blocking=True
+    )
+    assert not manager._command_faults
+    assert not manager.enabled
+    assert house.states.get("switch.fixture_a").state == "off"
+    await manager.async_enable(True)
+    await settle(house)
+    assert house.states.get("switch.fixture_a").state == "on"
+
+
+@pytest.mark.parametrize("state", ["on", "unavailable", "unknown"])
+async def test_fault_review_requires_reported_off(house, state):
+    from unittest.mock import patch
+
+    await add_zone(house)
+    manager = house.data[DOMAIN]
+    with patch.object(manager, "_request_update"):
+        house.states.async_set("switch.fixture_a", state)
+        manager._command_faults.add("switch.fixture_a")
+        with pytest.raises(ValueError, match="reported off"):
+            await manager.async_reset_actuator_faults([])
+        assert "switch.fixture_a" in manager._command_faults

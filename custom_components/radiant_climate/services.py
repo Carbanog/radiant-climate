@@ -6,6 +6,7 @@ import voluptuous as vol
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
@@ -103,7 +104,8 @@ def async_register_services(hass):
             raise HomeAssistantError("No Radiant Climate installation is loaded")
         await manager.async_acknowledge_retired(call.data["actuator"])
 
-    hass.services.async_register(
+    async_register_admin_service(
+        hass,
         DOMAIN,
         "acknowledge_retired_actuator",
         acknowledge_retired,
@@ -111,6 +113,25 @@ def async_register_services(hass):
             {
                 vol.Required("actuator"): cv.entity_id,
                 vol.Required("confirmed_disconnected"): vol.All(cv.boolean, vol.In([True])),
+            }
+        ),
+    )
+
+    async def reset_actuator_faults(call):
+        manager = hass.data.get(DOMAIN)
+        if manager is None:
+            raise HomeAssistantError("No Radiant Climate installation is loaded")
+        await manager.async_reset_actuator_faults(call.data["actuators"])
+
+    async_register_admin_service(
+        hass,
+        DOMAIN,
+        "reset_actuator_faults",
+        reset_actuator_faults,
+        schema=vol.Schema(
+            {
+                vol.Optional("actuators", default=[]): cv.entity_ids,
+                vol.Required("confirmed_review"): vol.All(cv.boolean, vol.In([True])),
             }
         ),
     )

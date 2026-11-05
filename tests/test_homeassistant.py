@@ -902,7 +902,15 @@ def test_optional_temperature_conversion_rejects_invalid_data(value, unit, expec
 
 @pytest.mark.parametrize(
     "scenario",
-    ["duration", "until_resume", "expired", "individual_off", "household_away", "retired"],
+    [
+        "duration",
+        "until_resume",
+        "expired",
+        "individual_off",
+        "household_away",
+        "retired",
+        "preset",
+    ],
 )
 async def test_full_core_restart_restores_control_without_bypassing_off(house, scenario):
     from datetime import timedelta
@@ -922,6 +930,9 @@ async def test_full_core_restart_restores_control_without_bypassing_off(house, s
             option="until_resume",
         )
     await service(house, "climate", "set_temperature", climate, temperature=22)
+    if scenario == "preset":
+        house.data[DOMAIN].zones[entry.entry_id].program.profiles["heat"]["eco"] = 22
+        await service(house, "climate", "set_preset_mode", climate, preset_mode="eco")
     if scenario == "household_away":
         await add_zone(house, "b")
         await house.data[DOMAIN].async_away_all(True)
@@ -967,6 +978,8 @@ async def test_full_core_restart_restores_control_without_bypassing_off(house, s
         state = restarted.states.get(climate)
         assert state is not None
         assert state.state == ("heat" if scenario == "retired" else "off")
+        if scenario == "preset":
+            assert state.attributes["preset_mode"] == "eco"
         assert restarted.states.get("switch.fixture_a").state == "off"
         assert restarted.states.get("switch.fixture_general").state == "off"
         if scenario == "retired":
@@ -1707,7 +1720,7 @@ async def test_native_profile_keeps_its_name_during_manual_hold(house, mode, pro
     assert house.states.get(climate).attributes["control_state"] == "scheduled"
 
 
-@pytest.mark.parametrize("change", ["sensor", "relay", "logical"])
+@pytest.mark.parametrize("change", ["sensor", "sensor_legacy", "relay", "logical"])
 async def test_model_follows_sensor_but_not_relay_identity(house, change):
     from custom_components.radiant_climate.core.intelligence import Statistics
 
@@ -1720,6 +1733,11 @@ async def test_model_follows_sensor_but_not_relay_identity(house, change):
         )
     )
     await service(house, "climate", "set_temperature", climate, temperature=22.5)
+    if change == "sensor_legacy":
+        raw = await manager._store.async_load()
+        raw["zones"][entry.entry_id].pop("learning_sensor")
+        await manager._store.async_save(raw)
+        manager._saved = raw["zones"]
     if change == "logical":
         await configure_sources(house, entry, orientation=100)
     else:
@@ -1730,7 +1748,7 @@ async def test_model_follows_sensor_but_not_relay_identity(house, change):
         result = await house.config_entries.options.async_configure(
             flow["flow_id"],
             {
-                "sensor": "sensor.fixture_b" if change == "sensor" else "sensor.fixture_a",
+                "sensor": "sensor.fixture_b" if change.startswith("sensor") else "sensor.fixture_a",
                 "actuators": ["switch.fixture_b" if change == "relay" else "switch.fixture_a"],
                 "available_modes": "heat_cool",
                 "target": 21,
@@ -1742,6 +1760,6 @@ async def test_model_follows_sensor_but_not_relay_identity(house, change):
         await settle(house)
     restored = manager.zones[entry.entry_id]
     assert restored.intelligence.model.response(restored.intent.last_mode).ready == (
-        change != "sensor"
+        not change.startswith("sensor")
     )
     assert house.states.get(climate).attributes["temperature"] == 22.5

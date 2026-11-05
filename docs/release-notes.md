@@ -1,5 +1,23 @@
 # Cambios y actualización
 
+## v0.2.3
+
+Correcciones tras contrastar la auditoría de v0.2.2 con el comportamiento previsto. No añade ayudantes ni automatizaciones externas.
+
+- La apertura espera el estado comunicado dentro del límite total de cinco segundos de la maniobra. Un retraso breve se admite sin declarar avería; si no llega la confirmación, se enclava el fallo y se solicita cerrar el grupo y la general en esa revisión. Un apagado, cambio de configuración, fallo interior o apertura de ventana interrumpe la espera. Las órdenes tardías posteriores siguen supervisadas.
+- Modificar orientación, elevación mínima o amplitud invalida la confirmación solar previa y devuelve Solar Activo a Observación. Desmarcar la confirmación también suspende la optimización. Para reactivarla hay que revisar los nuevos valores, guardarlos confirmados sin volver a cambiar geometría y seleccionar Activo expresamente.
+- Elegir Normal, Eco o Noche con programación conserva su nombre en el selector nativo mientras el estado sigue siendo Manual. Una intervención numérica posterior se muestra sin preset, aunque coincida con su temperatura. El perfil retenido se conserva al reiniciar.
+- El modelo aprendido guarda la identidad del sensor interior. Cambiarlo reinicia solo el modelo y conserva perfiles, agenda y controles; sustituir únicamente el relé conserva aprendizaje. Los cambios físicos de circuitos que no se puedan deducir de las entidades requieren el botón existente Restablecer aprendizaje térmico.
+- README corregido y validación automática de coherencia entre su versión, manifiesto, constantes y proyecto. Ejemplos de orientación con datos ficticios independientes de instalaciones reales.
+
+### Actualización y límites
+
+Haz copia, apaga Climatización, instala **v0.2.3** y reinicia Home Assistant. Se conserva almacenamiento versión 1 con campos opcionales nuevos; no hay que recrear entidades. Al primer cambio de sensor se registra la procedencia del modelo antes de guardar la nueva selección, también al actualizar desde estados antiguos.
+
+No reviertas con fallos o retiradas pendientes. Conserva código y configuración juntos y no restaures almacenamiento en caliente. La versión anterior permanece disponible para recuperación.
+
+La confirmación es del estado del relé, no de posición de válvula ni caudal. Durante el plazo de comunicación puede existir un desfase entre canales; no se promete simultaneidad física. El suministro sigue declarado: sin una señal verificada no se inventa el estado del agua comunitaria. Protecciones eléctricas, recuperación de alimentación y anticondensación deben verificarse en cada instalación.
+
 ## v0.2.2
 
 Mejora de fiabilidad sin cambiar regulación térmica, perfiles ni optimizaciones, y sin añadir ayudantes o automatizaciones externas.

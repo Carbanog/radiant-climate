@@ -90,7 +90,7 @@ En Dispositivos y regulación se ajustan histéresis, mínimos, caducidad, conta
 2. Una vez que HA exponga las salidas nuevas como entidades `switch` independientes, abre **Configurar → Dispositivos y regulación** del termostato existente y cambia su relé. Se conservan su identidad, perfiles y agenda.
 3. Las salidas antiguas siguen pendientes de aislamiento hasta comunicar apagado y transcurrir su tiempo de cierre estimado. Mientras haya alguna pendiente, no se permiten nuevas aperturas en la instalación. El motivo y los atributos de Climatización muestran qué queda pendiente; el bloqueo persiste al reiniciar.
 4. Si has retirado físicamente el módulo y la entidad antigua ya no puede comunicar, utiliza **Confirmar retirada física de un relé antiguo** (`radiant_climate.acknowledge_retired_actuator`), con Climatización apagada, introduciendo el identificador antiguo y confirmando la desconexión comprobada. La acción no admite una salida todavía asignada. No se debe usar para ocultar un fallo sin resolver.
-5. Revisa los tiempos del dispositivo nuevo y vuelve a habilitar tras comprobar las asignaciones. Si han cambiado los circuitos o el sensor, utiliza **Restablecer aprendizaje térmico** para no seguir utilizando la respuesta anterior.
+5. Revisa los tiempos del dispositivo nuevo y vuelve a habilitar tras comprobar las asignaciones. Cambiar el sensor interior reinicia automáticamente el modelo desde v0.2.3. Si cambia físicamente el circuito sin cambiar el sensor, utiliza **Restablecer aprendizaje térmico**; sustituir solo el relé conserva el modelo.
 
 Para separar un circuito antes agrupado, conserva el termostato original asignado a su nueva salida y añade otro para el circuito separado, con su propio sensor, consigna y horario. Cada uno puede usar calor/frío, aprendizaje e inercia, con solar desactivado. Un contacto de puerta puede seleccionarse igual que uno de ventana para pausar esa zona. El control no depende del número de canales que tenga cada módulo, sino de que HA exponga sus salidas independientes y no estén asignadas a más de un controlador.
 
@@ -132,3 +132,14 @@ Antes de sustituir una asignación se persisten las salidas antiguas pendientes.
 Para reconocer una avería, revisa su causa, apaga **Climatización** y comprueba que los relés afectados comunican apagado. En Herramientas para desarrolladores → Acciones, ejecuta **Reconocer fallos de relés tras revisión** (`radiant_climate.reset_actuator_faults`), confirma la revisión y selecciona salidas concretas o deja la lista vacía para todas las bloqueadas. Requiere administrador. La validación es conjunta: si alguna salida no comunica apagado o tiene una retirada pendiente, no libera ninguna. La acción no enciende la instalación; después puedes habilitarla expresamente.
 
 Si una salida sigue encendida, desconocida o sin comunicación, resuelve ese estado antes de reconocerla. No automatices el reconocimiento ni lo añadas al apagado cotidiano. Para una salida retirada físicamente utiliza la acción de retirada, que también requiere administrador, no el reconocimiento de averías.
+
+
+## Confirmaciones, perfiles y modelos desde v0.2.3
+
+La apertura admite confirmación diferida dentro del límite total de cinco segundos de la llamada. Al vencer se registra un fallo y se solicitan cierres compensatorios en el mismo ciclo. Un cambio solicitado o una entrada interior/ventana interrumpe la espera; una orden ya enviada puede llegar tarde y su estado sigue supervisado. No se acredita posición, caudal ni simultaneidad de válvulas.
+
+Un preset elegido durante la agenda permanece visible como Normal/Eco/Noche y la zona sigue en Manual durante su retención. Es distinto de editar un número, que conserva Manual sin atribuirlo a un perfil. Ambos respetan la política de duración/siguiente bloque/hasta reanudación y Off.
+
+Editar orientación, elevación mínima o amplitud obliga a revisar de nuevo la exposición: Solar pasa a Observación. Guarda primero la nueva geometría; después confirma sus valores sin modificarlos y activa Optimizar expresamente. No uses horarios solares supuestos como si se hubieran medido sombras.
+
+El aprendizaje conserva sus estadísticas al cambiar únicamente el relé. Cambiar la entidad de sensor interior reinicia solo el modelo, no las preferencias ni funciones activadas. La división física de circuitos no siempre cambia esa entidad y no se puede inferir automáticamente: utiliza el botón existente para las zonas afectadas; una zona nueva empieza con modelo vacío.

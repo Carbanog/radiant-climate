@@ -41,3 +41,8 @@ Los ZIP de CI incluyen commit, BUILD.json y SHA-256, sin fixtures ni datos domé
 - Retirada de zona, general y sustitución mediante opciones: interrupción simulada en la primera orden de cierre; el registro ya debe existir en almacenamiento y recuperarse en un gestor nuevo.
 - Opciones lógicas de zona e instalación: no descargan la entrada, no ordenan cierres artificiales y conservan la identidad del modelo aprendido.
 - Off/On conserva la avería y su persistencia. El reconocimiento exige Off y estado comunicado apagado; estados on, unknown y unavailable se rechazan. El reconocimiento no habilita el control.
+
+
+## Regresiones de v0.2.3
+
+Confirmación inicial diferida, ausente e interrumpida por Off, fallo interior o ventana; cierre compensatorio sin depender de un tick posterior; informe tardío después de Off. Geometría modificada invalida autorización incluso si el formulario heredaba Confirmado. Presets home/eco/sleep en calor y frío conservan nombre y prioridad Manual, intervención numérica posterior no hereda perfil. Reinicio completo con preset retenido. Procedencia del modelo y cambio de sensor en almacenamiento actual/antiguo, conservación al sustituir relé y ante ajustes lógicos. Comprobación automática de versiones del README/manifiesto/constantes/paquete.

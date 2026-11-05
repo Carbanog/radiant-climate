@@ -83,7 +83,7 @@
       },
       "sources": {
         "title": "Optional sources and optimisation",
-        "description": "Blank sources inherit installation defaults. Enable modules separately on the device. Confirm actual exposure before Solar Active; geometry does not prove direct sun.",
+        "description": "Blank sources inherit installation defaults. Enable modules separately on the device. Geometry edits invalidate confirmation. Review and confirm the unchanged new values before Solar Active; geometry does not prove direct sun.",
         "data": {
           "weather": "Weather source (optional)",
           "outdoor": "Outdoor sensor (optional)",

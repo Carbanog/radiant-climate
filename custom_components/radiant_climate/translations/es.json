@@ -83,7 +83,7 @@
       },
       "sources": {
         "title": "Fuentes opcionales y optimización",
-        "description": "Fuentes vacías heredan las de instalación. Activa los módulos por separado en el dispositivo. Comprueba la incidencia antes de Solar Activo; la geometría no demuestra sol directo.",
+        "description": "Fuentes vacías heredan las de instalación. Activa los módulos por separado en el dispositivo. Cambiar la geometría invalida la confirmación. Revisa y confirma los nuevos valores sin modificarlos antes de Solar Activo; la geometría no demuestra sol directo.",
         "data": {
           "weather": "Fuente meteorológica (opcional)",
           "outdoor": "Sensor exterior (opcional)",

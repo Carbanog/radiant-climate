@@ -285,8 +285,8 @@ def complete_document(language):
             language
         ],
         "description": (
-            "Blank sources inherit installation defaults. Enable modules separately on the device. Confirm actual exposure before Solar Active; geometry does not prove direct sun.",
-            "Fuentes vacías heredan las de instalación. Activa los módulos por separado en el dispositivo. Comprueba la incidencia antes de Solar Activo; la geometría no demuestra sol directo.",
+            "Blank sources inherit installation defaults. Enable modules separately on the device. Geometry edits invalidate confirmation. Review and confirm the unchanged new values before Solar Active; geometry does not prove direct sun.",
+            "Fuentes vacías heredan las de instalación. Activa los módulos por separado en el dispositivo. Cambiar la geometría invalida la confirmación. Revisa y confirma los nuevos valores sin modificarlos antes de Solar Activo; la geometría no demuestra sol directo.",
         )[language],
         "data": {
             **{k: v[language] for k, v in FIELDS.items() if k in ("weather", "outdoor")},

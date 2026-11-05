@@ -363,7 +363,28 @@ class Installation:
     @callback
     def _state_changed(self, event) -> None:
         entity = event.data["entity_id"]
-        if any(entity in (z.config["sensor"], z.config.get("window")) for z in self.zones.values()):
+        state = event.data.get("new_state")
+        now = dt_util.utcnow()
+        unsafe = any(
+            (entity == z.config["sensor"] and indoor_temperature(state) is None)
+            or (
+                entity == z.config.get("window")
+                and z.window_enabled
+                and window_pause(
+                    state.state if state else None,
+                    state.last_changed if state else None,
+                    now,
+                    z.config.get("window_open_delay", 0),
+                    z.config.get("window_close_delay", 0),
+                )
+                is not False
+            )
+            for z in self.zones.values()
+        )
+        # Valid samples still invalidate the plan below, but do not cancel an
+        # in-flight acknowledgment. Re-evaluate before any additional opening.
+        # Only invalid feedback or an effective enabled window pause interrupts.
+        if unsafe:
             self._change_signal.set()
             self._change_signal = asyncio.Event()
         watched = {self.general, "sun.sun"} | {
@@ -782,12 +803,15 @@ class Installation:
             raise ValueError("Configure a weekly schedule before enabling anticipation")
 
     async def async_feature(self, zone_id, key, value):
-        z = self.zones[zone_id]
-        candidate = z.intelligence.features.restore(
-            {**z.intelligence.dump()["features"], key: value}
-        )
-        self.validate_feature(z, key, value)
-        await self.async_change(lambda: setattr(z.intelligence, "features", candidate))
+        def update():
+            z = self.zones[zone_id]
+            candidate = z.intelligence.features.restore(
+                {**z.intelligence.dump()["features"], key: value}
+            )
+            self.validate_feature(z, key, value)
+            z.intelligence.features = candidate
+
+        await self.async_change(update)
 
     async def async_away(self, zone_id, enabled, until=None):
         await self.async_change(lambda: self._set_away(self.zones[zone_id], enabled, until))
@@ -808,40 +832,39 @@ class Installation:
         await self.async_change(update)
 
     async def async_resume(self, zone_id):
-        z = self.zones[zone_id]
-        if not z.program.away and z.program.blocks:
-            await self.async_schedule(zone_id, True)
-        else:
-            await self.async_change(z.intent.resume)
-
-    async def async_schedule(self, zone_id: str, enabled: bool) -> None:
-        z = self.zones[zone_id]
-
         def update():
-            now = dt_util.utcnow()
-            current = z.program.target(z.intent, now, self.hass.config.time_zone)
-            mode = z.intent.last_mode if z.intent.mode == Mode.OFF else z.intent.mode
-            profile = (
-                z.program.active(now, self.hass.config.time_zone)
-                if z.program.enabled
-                else z.program.selected
-            )
-            underlying = (
-                z.program.profiles[mode.value][profile] if profile else z.intent.targets[mode]
-            )
-            if enabled and not z.program.blocks:
-                raise ValueError("Configure at least one weekly block before enabling the schedule")
-            z.program.enabled = enabled
-            z.program.selected = None
-            if z.program.away:
-                if not enabled:
-                    z.intent.targets[mode] = underlying
-                return
-            z.intent.resume()
-            if not enabled:
-                z.program.set_manual(z.intent, z.settings, current, now, self.hass.config.time_zone)
+            z = self.zones[zone_id]
+            if not z.program.away and z.program.blocks:
+                self._set_schedule(z, True)
+            else:
+                z.intent.resume()
 
         await self.async_change(update)
+
+    async def async_schedule(self, zone_id: str, enabled: bool) -> None:
+        await self.async_change(lambda: self._set_schedule(self.zones[zone_id], enabled))
+
+    def _set_schedule(self, z: Zone, enabled: bool) -> None:
+        now = dt_util.utcnow()
+        current = z.program.target(z.intent, now, self.hass.config.time_zone)
+        mode = z.intent.last_mode if z.intent.mode == Mode.OFF else z.intent.mode
+        profile = (
+            z.program.active(now, self.hass.config.time_zone)
+            if z.program.enabled
+            else z.program.selected
+        )
+        underlying = z.program.profiles[mode.value][profile] if profile else z.intent.targets[mode]
+        if enabled and not z.program.blocks:
+            raise ValueError("Configure at least one weekly block before enabling the schedule")
+        z.program.enabled = enabled
+        z.program.selected = None
+        if z.program.away:
+            if not enabled:
+                z.intent.targets[mode] = underlying
+            return
+        z.intent.resume()
+        if not enabled:
+            z.program.set_manual(z.intent, z.settings, current, now, self.hass.config.time_zone)
 
     async def async_edit_schedule(self, zone_id: str, edit: Callable) -> None:
         def update():
@@ -862,14 +885,15 @@ class Installation:
         mode = Mode(value)
         if mode == Mode.OFF:
             raise ValueError("Supply mode must be heating or cooling")
-        if mode == self.supply_mode:
+        if mode == self.supply_mode and self._change_requested == self._change_applied:
             return
-
         self._stop_requested = True
 
         def update():
-            self.supply_mode = mode
             self._stop_requested = False
+            if mode == self.supply_mode:
+                return
+            self.supply_mode = mode
             delay = max(
                 [
                     self.entries.get(self.hub, {}).get("general_travel", 0),

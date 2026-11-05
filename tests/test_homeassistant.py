@@ -1592,7 +1592,16 @@ async def test_fault_acknowledgment_is_admin_only(house):
 
 
 @pytest.mark.parametrize(
-    "outcome", ["delayed", "missing", "global_off", "sensor_loss", "window_open"]
+    "outcome",
+    [
+        "delayed",
+        "missing",
+        "missing_reports",
+        "global_off",
+        "sensor_loss",
+        "window_open",
+        "shutdown",
+    ],
 )
 async def test_initial_unconfirmed_second_channel_is_bounded_and_interruptible(
     house, caplog, outcome
@@ -1649,6 +1658,14 @@ async def test_initial_unconfirmed_second_channel_is_bounded_and_interruptible(
             house.states.async_set("sensor.fixture_a", "unavailable")
         elif outcome == "window_open":
             house.states.async_set("binary_sensor.fixture_window", "on")
+        elif outcome == "shutdown":
+            manager.async_stop()
+        elif outcome == "missing_reports":
+            for index in range(8):
+                house.states.async_set(
+                    "sensor.fixture_a", str(19.1 + index / 100), {"unit_of_measurement": "°C"}
+                )
+                await asyncio.sleep(0.01)
         await asyncio.wait_for(opening, 1)
         if outcome == "global_off":
             await stop
@@ -1660,8 +1677,10 @@ async def test_initial_unconfirmed_second_channel_is_bounded_and_interruptible(
             assert ("turn_off", "switch.fixture_general") in commands
             assert house.states.get("switch.fixture_a").state == "off"
             assert house.states.get("switch.fixture_general").state == "off"
-        assert ("switch.fixture_b" in manager._command_faults) == (outcome == "missing")
-    if outcome == "missing":
+        assert ("switch.fixture_b" in manager._command_faults) == (
+            outcome in ("missing", "missing_reports")
+        )
+    if outcome in ("missing", "missing_reports"):
         errors = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
         assert errors == ["Actuator command failed; opening inhibited and close recovery bounded"]
         caplog.clear()
@@ -1775,6 +1794,7 @@ async def test_model_follows_sensor_but_not_relay_identity(house, change):
         "window_attributes",
         "window_delay",
         "target_reached",
+        "same_season",
     ],
 )
 async def test_ordinary_reports_do_not_cancel_acknowledgment(house, event_kind):
@@ -1828,6 +1848,8 @@ async def test_ordinary_reports_do_not_cancel_acknowledgment(house, event_kind):
                 house.states.async_set(
                     "sensor.fixture_a", "19", {"unit_of_measurement": "°C", "sample": index}
                 )
+            elif event_kind == "same_season":
+                await manager.async_supply("heat")
             elif event_kind == "other_zone":
                 house.states.async_set(
                     "sensor.fixture_b", str(19.1 + index / 10), {"unit_of_measurement": "°C"}
@@ -1985,3 +2007,66 @@ async def test_queued_zone_action_uses_the_current_zone_instance(house, action):
         assert current.program.enabled
     else:
         assert current.intent.hold is None
+
+
+async def test_queued_season_changes_keep_the_last_explicit_choice(house):
+    import asyncio
+
+    await add_zone(house)
+    manager = house.data[DOMAIN]
+    await manager._lock.acquire()
+    try:
+        cooling = house.async_create_task(manager.async_supply("cool"))
+        await asyncio.sleep(0)
+        heating = house.async_create_task(manager.async_supply("heat"))
+        await asyncio.sleep(0)
+    finally:
+        manager._lock.release()
+    await asyncio.gather(cooling, heating)
+    assert manager.supply_mode.value == "heat"
+    assert not manager._stop_requested
+    assert house.states.get("switch.fixture_general").state == "off"
+
+
+async def test_queued_turn_on_uses_the_current_declared_season(house):
+    import asyncio
+
+    entry, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    await manager._lock.acquire()
+    try:
+        cooling = house.async_create_task(manager.async_supply("cool"))
+        await asyncio.sleep(0)
+        turn_on = house.async_create_task(
+            house.services.async_call("climate", "turn_on", {"entity_id": climate}, blocking=True)
+        )
+        await asyncio.sleep(0)
+    finally:
+        manager._lock.release()
+    await asyncio.gather(cooling, turn_on)
+    assert manager.zones[entry.entry_id].intent.mode.value == "cool"
+    assert not manager.enabled
+    assert house.states.get("switch.fixture_a").state == "off"
+
+
+async def test_queued_resume_rechecks_away_before_enabling_schedule(house):
+    import asyncio
+
+    from custom_components.radiant_climate.core.control import Hold, HoldPolicy
+
+    entry, _ = await add_zone(house)
+    manager = house.data[DOMAIN]
+    await add_schedule(house, entry)
+    await manager._lock.acquire()
+    try:
+        resume = house.async_create_task(manager.async_resume(entry.entry_id))
+        await asyncio.sleep(0)
+        z = manager.zones[entry.entry_id]
+        z.program.away = True
+        z.intent.hold = Hold(22, HoldPolicy.UNTIL_RESUME, None)
+    finally:
+        manager._lock.release()
+    await resume
+    assert z.program.away
+    assert z.intent.hold is None
+    assert not z.program.enabled

@@ -161,7 +161,10 @@ class RadiantThermostat(RadiantEntity, ClimateEntity):
         await self.async_set_hvac_mode(HVACMode.OFF)
 
     async def async_turn_on(self):
-        mode = self.manager.supply_mode
-        if mode not in self.zone.settings.modes:
-            mode = self.zone.settings.modes[0]
-        await self.async_set_hvac_mode(HVACMode(mode.value))
+        def update():
+            mode = self.manager.supply_mode
+            if mode not in self.zone.settings.modes:
+                mode = self.zone.settings.modes[0]
+            self.zone.intent.set_mode(mode, self.zone.settings)
+
+        await self.manager.async_change(update)

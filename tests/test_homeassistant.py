@@ -4,6 +4,7 @@ This suite is skipped on the lightweight local core environment. CI installs
 the exact supported Home Assistant version on Linux and must run it separately.
 """
 
+import logging
 import shutil
 from pathlib import Path
 
@@ -23,7 +24,7 @@ SOURCE = Path(__file__).resolve().parents[1] / "custom_components/radiant_climat
 
 
 @pytest_asyncio.fixture
-async def house(tmp_path):
+async def house(tmp_path, caplog):
     shutil.copytree(SOURCE, tmp_path / "custom_components/radiant_climate")
     hass = HomeAssistant(str(tmp_path))
     async_setup_loader(hass)
@@ -76,6 +77,13 @@ async def house(tmp_path):
         yield hass
     finally:
         await hass.async_stop()
+        errors = [
+            record
+            for phase in ("setup", "call", "teardown")
+            for record in caplog.get_records(phase)
+            if record.levelno >= logging.ERROR
+        ]
+        assert not errors, [(r.name, r.getMessage()) for r in errors]
 
 
 async def add_zone(hass, key="a"):

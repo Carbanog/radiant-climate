@@ -57,6 +57,7 @@ async def house(tmp_path, caplog):
             "input_boolean": {f"fixture_{x}": {} for x in ["a", "b", "general"]},
             "template": [{"switch": switches}],
         }
+        hass.data["radiant_fixture_boot_config"] = config
         # Use Core's real storage, registries, auth and setup. Its full bootstrap
         # also loads the default UI/voice/media stack, unrelated to these tests.
         hass.config_entries = ConfigEntries(hass, config)
@@ -731,3 +732,72 @@ async def test_forecast_failure_has_bounded_retry_without_blocking_control(house
     await environment.refresh({"weather.fixture"})
     assert calls == [True]
     assert environment.status["weather.fixture"] == "forecast_unavailable"
+
+
+@pytest.mark.parametrize("scenario", ["duration", "until_resume", "expired", "individual_off"])
+async def test_full_core_restart_restores_control_without_bypassing_off(house, scenario):
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+
+    entry, climate = await add_zone(house)
+    await add_schedule(house, entry)
+    await service(house, "switch", "turn_on", zone_entity(house, entry, "switch", "schedule"))
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    if scenario == "until_resume":
+        await service(
+            house,
+            "select",
+            "select_option",
+            zone_entity(house, entry, "select", "manual_policy"),
+            option="until_resume",
+        )
+    await service(house, "climate", "set_temperature", climate, temperature=22)
+    if scenario == "expired":
+        house.data[DOMAIN].zones[entry.entry_id].intent.hold.until = dt_util.utcnow() - timedelta(
+            seconds=1
+        )
+    if scenario == "individual_off":
+        await service(house, "climate", "turn_off", climate)
+        await service(house, "switch", "turn_on", global_entity(house))
+    config = house.data["radiant_fixture_boot_config"]
+    config_dir = house.config.config_dir
+    await house.async_stop()
+    restarted = HomeAssistant(config_dir)
+    async_setup_loader(restarted)
+    try:
+        restarted.config_entries = ConfigEntries(restarted, config)
+        assert await async_load_base_functionality(restarted)
+        await async_process_ha_core_config(restarted, {})
+        for domain in (
+            "homeassistant",
+            "persistent_notification",
+            "input_boolean",
+            "template",
+            DOMAIN,
+        ):
+            assert await async_setup_component(restarted, domain, config)
+        for key in ("a", "b"):
+            restarted.states.async_set(f"sensor.fixture_{key}", "19", {"unit_of_measurement": "°C"})
+        for stored in restarted.config_entries.async_entries(DOMAIN):
+            if stored.state.value != "loaded":
+                assert await restarted.config_entries.async_setup(stored.entry_id)
+        await restarted.async_start()
+        await settle(restarted)
+        state = restarted.states.get(climate)
+        assert state is not None
+        assert state.state == "off"
+        assert restarted.states.get("switch.fixture_a").state == "off"
+        assert restarted.states.get("switch.fixture_general").state == "off"
+        if scenario == "expired":
+            assert state.attributes["temperature"] == 21
+            assert state.attributes["control_state"] == "scheduled"
+        elif scenario == "individual_off":
+            assert restarted.data[DOMAIN].enabled
+            assert state.attributes["control_state"] == "off"
+        else:
+            assert state.attributes["temperature"] == 22
+            assert state.attributes["control_state"] == "manual"
+            assert (state.attributes["manual_until"] is None) == (scenario == "until_resume")
+    finally:
+        await restarted.async_stop()

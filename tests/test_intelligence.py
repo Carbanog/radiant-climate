@@ -194,6 +194,42 @@ def test_indefinite_away_next_change_hold_has_no_fictional_deadline():
     assert i.hold.policy == HoldPolicy.UNTIL_RESUME
 
 
+def test_temporary_away_manual_does_not_overwrite_underlying_fixed_profile():
+    p, i = (
+        Program(selected="home", away=True, away_until=NOW + timedelta(days=2)),
+        Intent(mode=Mode.HEAT),
+    )
+    p.profiles["heat"]["home"] = 21.5
+    p.set_manual(i, Settings(), 22, NOW, "UTC")
+    assert p.target(i, NOW, "UTC") == 22
+    assert p.target(i, NOW + timedelta(days=3), "UTC") == 21.5
+    assert i.targets[Mode.HEAT] == 21
+
+
+def test_corrupt_required_profile_is_not_silently_replaced():
+    raw = Program().dump()
+    raw["profiles"]["heat"].pop("home")
+    with pytest.raises(KeyError):
+        Program.restore(raw)
+
+
+def test_corrupt_model_variance_cannot_enable_predictions():
+    with pytest.raises(ValueError):
+        ThermalModel.restore(
+            {
+                "statistics": {
+                    "heat_on": {
+                        "count": 12,
+                        "hours": 6,
+                        "delta": 3,
+                        "rate_square": -1,
+                        "episodes": 3,
+                    }
+                }
+            }
+        )
+
+
 def test_program_old_storage_migrates_away_profile_additively():
     old = Program().dump()
     for values in old["profiles"].values():

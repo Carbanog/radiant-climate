@@ -130,7 +130,8 @@ class Program:
             if self.away and self.policy == HoldPolicy.NEXT_CHANGE and boundary is None
             else self.policy,
         )
-        self.selected = None
+        if not self.enabled and not self.away:
+            self.selected = None
 
     def dump(self) -> dict:
         return {

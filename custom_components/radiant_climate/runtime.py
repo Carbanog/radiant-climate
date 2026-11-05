@@ -7,7 +7,12 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EVENT_HOMEASSISTANT_STOP, EVENT_STATE_CHANGED, UnitOfTemperature
+from homeassistant.const import (
+    EVENT_HOMEASSISTANT_STARTED,
+    EVENT_HOMEASSISTANT_STOP,
+    EVENT_STATE_CHANGED,
+    UnitOfTemperature,
+)
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryError, HomeAssistantError
 from homeassistant.helpers.event import async_track_time_interval
@@ -82,6 +87,7 @@ class Installation:
         self._unsub_state = hass.bus.async_listen(EVENT_STATE_CHANGED, self._state_changed)
         self._unsub_tick = async_track_time_interval(hass, self._tick, timedelta(seconds=15))
         self._unsub_stop = hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, self._shutdown)
+        self._unsub_start = hass.bus.async_listen(EVENT_HOMEASSISTANT_STARTED, self._tick)
 
     async def async_load(self) -> None:
         raw = await self._store.async_load()
@@ -500,7 +506,8 @@ class Installation:
         def update():
             z = self.zones[zone_id]
             z.program.away, z.program.away_until = enabled, until if enabled else None
-            z.intent.resume()
+            if enabled:
+                z.intent.resume()
 
         await self.async_change(update)
 
@@ -517,10 +524,23 @@ class Installation:
         def update():
             now = dt_util.utcnow()
             current = z.program.target(z.intent, now, self.hass.config.time_zone)
+            mode = z.intent.last_mode if z.intent.mode == Mode.OFF else z.intent.mode
+            profile = (
+                z.program.active(now, self.hass.config.time_zone)
+                if z.program.enabled
+                else z.program.selected
+            )
+            underlying = (
+                z.program.profiles[mode.value][profile] if profile else z.intent.targets[mode]
+            )
             if enabled and not z.program.blocks:
                 raise ValueError("Configure at least one weekly block before enabling the schedule")
             z.program.enabled = enabled
             z.program.selected = None
+            if z.program.away:
+                if not enabled:
+                    z.intent.targets[mode] = underlying
+                return
             z.intent.resume()
             if not enabled:
                 z.program.set_manual(z.intent, z.settings, current, now, self.hass.config.time_zone)
@@ -571,6 +591,7 @@ class Installation:
         self._unsub_state()
         self._unsub_tick()
         self._unsub_stop()
+        self._unsub_start()
         if self._pending and not self._pending.done():
             self._pending.cancel()
         if self._weather_task and not self._weather_task.done():

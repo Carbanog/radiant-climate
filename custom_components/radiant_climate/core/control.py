@@ -125,7 +125,6 @@ class Intent:
                 if selected == HoldPolicy.DURATION
                 else None
             )
-        self.targets[mode] = target
         self.last_mode = mode
         self.hold = Hold(target, selected, until)
 

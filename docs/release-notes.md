@@ -1,5 +1,19 @@
 # Cambios y actualización
 
+## v0.2.1
+
+Correcciones de seguridad de salidas y configuración encontradas en la revisión de v0.2.0. Conserva la versión 1 del almacenamiento con campos aditivos para salidas retiradas y recuperación de cierre. No añade ayudantes externos.
+
+- Un relé con fallo continúa bloqueando aperturas, pero admite hasta dos intentos de cierre de recuperación, espaciados 30 segundos y persistentes al reiniciar. El apagado explícito permite un nuevo intento acotado.
+- Al retirar o reasignar relés de zona o de general, las salidas anteriores permanecen bajo supervisión hasta comunicar apagado y agotar la espera estimada. Las pendientes bloquean la instalación y sobreviven al reinicio. Se incorpora una acción de confirmación física de retirada, solo con Climatización apagada y para salidas no asignadas.
+- Las órdenes pendientes de apagado o cambio invalidan nuevas aperturas de un plan anterior, incluidos varios relés de la misma zona. Una orden ya en curso no se puede deshacer; las llamadas están acotadas.
+- Copiar Programación y Módulos valida los candidatos finales, después de componer ambas partes, y aplica todos los destinos solo si todos son válidos.
+- El último bloque de una agenda activa no se elimina silenciosamente: primero hay que apagar Usar horario, conservando la consigna fija. Se muestra una explicación en el formulario.
+
+[Procedimiento de sustitución de relés](configuration.md#sustituir-un-relé-o-dividir-una-zona). Mantén respaldo, apaga Climatización antes de actualizar y reinicia según el aviso de HA. Los modelos y las consignas no se borran al cambiar un relé; restablece el aprendizaje cuando cambie el circuito o sensor. No reviertas a v0.2.0 con retiradas pendientes sin resolver.
+
+El suministro sigue siendo declarado, no medido. Una señal externa de temporada solo debe utilizarse tras verificar su significado; esta entrega no inventa disponibilidad ni temperatura del agua comunitaria. La política de arranque conserva intenciones, pero exige estados utilizables y bloquea con retiradas pendientes. Los tiempos reales, comportamiento al recuperar alimentación y protecciones físicas siguen requiriendo comprobación en cada instalación.
+
 ## v0.2.0
 
 Primera release normal, publicada fuera del canal de versiones preliminares. Incluye las correcciones de beta.2 y añade **Vacaciones de la vivienda**: un único control para aplicar Ausente a todas las zonas cargadas, con fecha/hora de regreso comunes desde Configuración general → Vacaciones y regreso.

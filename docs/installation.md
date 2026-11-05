@@ -1,12 +1,12 @@
 # Instalación, piloto y reversión
 
-La release v0.2.0 incluye las correcciones y pruebas descritas en las notas de versión. Su publicación no configura los actuadores domésticos. Conserva una copia recuperable y el commit exacto, y detén cualquier controlador anterior sobre las mismas salidas antes de habilitar la nueva instalación.
+La release v0.2.1 incluye las correcciones y pruebas descritas en las notas de versión. Actualiza antes de reasignar actuadores respecto a v0.2.0. Su publicación no configura los actuadores domésticos. Conserva una copia recuperable y el commit exacto, y detén cualquier controlador anterior sobre las mismas salidas antes de habilitar la nueva instalación.
 
 ## Marketplace/HACS y alta por interfaz
 
 1. En el HA donde vayas a instalar, crea una copia completa y comprueba que aparece con contenido de Home Assistant y opción de restauración. No envíes esa copia a un repositorio público.
 2. En HA 2026.11 o posterior, abre Configuración → Marketplace → Añadir desde enlace e introduce `https://github.com/Carbanog/radiant-climate`. En 2026.10 y anteriores, utiliza HACS → Repositorios personalizados, categoría Integración. No reinstales HACS en 2026.11: Marketplace lo sustituye.
-3. Busca Radiant Climate y selecciona `v0.2.0`, sin necesidad de mostrar versiones preliminares. Registra versión y commit. Main es una rama mutable: no uses su estado futuro como sustituto de una versión identificada.
+3. Busca Radiant Climate y selecciona `v0.2.1`, sin necesidad de mostrar versiones preliminares. Registra versión y commit. Main es una rama mutable: no uses su estado futuro como sustituto de una versión identificada.
 4. En Marketplace 2026.11 una instalación nueva abre directamente el asistente de configuración, sin reinicio intermedio. Las actualizaciones todavía pueden requerir reiniciar según el aviso de HA. Con HACS antiguo, reinicia ese HA y utiliza Dispositivos y servicios → Añadir integración. No actualices Core como parte de este procedimiento.
 5. La primera pantalla, «Configuración general», configura el sistema compartido. En beta.1 se llamaba «Instalación». La válvula general es opcional; puede dejarse vacía y configurarse después. Para el ensayo selecciona únicamente una salida simulada.
 6. Añade otra entrada por termostato. Elige sensor interior, relés, modos y consigna; conserva Climatización y las zonas apagadas hasta revisar las asignaciones.
@@ -45,5 +45,7 @@ Migra referencias de paneles al climate y controles propios. Haz una prueba cont
 Apaga Climatización en Radiant Climate y verifica los estados comunicados. Deshabilita sus entradas antes de habilitar el controlador anterior. Nunca dejes ambos activos sobre los mismos relés. Reactiva las automatizaciones y paneles conservados y declara la temporada correcta.
 
 Si una actualización impide arrancar, utiliza el modo seguro o la restauración de la copia anterior. Para volver a un commit, restaura juntos código, configuración y almacenamiento respaldados; no cambies archivos de .storage a mano con HA activo. Retirar el paquete mediante HACS y reiniciar es una desinstalación, no recupera por sí sola la configuración anterior.
+
+No vuelvas a v0.2.0 mientras existan actuadores retirados pendientes: esa versión no supervisa ese registro. Resuelve el aislamiento antes de una reversión. No elimines toda la integración para eludirlo; aunque la supervisión se conserva mientras HA sigue ejecutándose, no se puede prometer control tras eliminar todas las entradas y reiniciar HA.
 
 Las entregas se publican después de validar sus pruebas; no se crean releases para cada ensayo. Conserva la versión elegida y su copia para recuperación sin depender de main. Los ajustes cotidianos se realizan desde HA; las correcciones de código se distribuyen como nuevas releases.

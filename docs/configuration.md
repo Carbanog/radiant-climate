@@ -36,6 +36,8 @@ Durante Manual no actúan anticipación, solar ni pausa predictiva. Editar un pe
 
 Configurar → Añadir o sustituir bloque horario permite seleccionar días, hora y perfil. Cada bloque continúa hasta el siguiente, también entre días. Repetir día/hora sustituye el bloque. Eliminar bloque muestra los existentes. Utiliza la zona horaria de HA.
 
+Para eliminar el último bloque debes desactivar antes **Usar horario**. Esto conserva la consigna vigente como fija; después puedes vaciar la agenda y seguir haciendo cambios manuales. La interfaz impide dejar una agenda habilitada sin transiciones.
+
 En primavera una hora inexistente se desplaza al primer minuto válido; en otoño una hora repetida se ejecuta una sola vez, en la primera aparición. Manual hasta próximo bloque termina en la frontera aunque ambos perfiles tengan igual temperatura. Editar agenda recalcula esa frontera; si desaparecen todas, la retención pasa a sin vencimiento explícito. Activar horario desde cero exige un bloque.
 
 ### Ejemplo paso a paso
@@ -81,6 +83,18 @@ Solar Optimizar requiere confirmar orientación, elevación y sombras observadas
 ## Regulación y válvulas
 
 En Dispositivos y regulación se ajustan histéresis, mínimos, caducidad, contacto, retardos y tiempo estimado de cierre. En instalación se configura el tiempo estimado de apertura general. Cero indica desconocido, nunca apertura instantánea demostrada.
+
+### Sustituir un relé o dividir una zona
+
+1. Apaga **Climatización** y comprueba el cierre comunicado. La instalación física y su aislamiento deben realizarse con los medios y conocimientos adecuados, sin manipular cableado bajo tensión.
+2. Una vez que HA exponga las salidas nuevas como entidades `switch` independientes, abre **Configurar → Dispositivos y regulación** del termostato existente y cambia su relé. Se conservan su identidad, perfiles y agenda.
+3. Las salidas antiguas siguen pendientes de aislamiento hasta comunicar apagado y transcurrir su tiempo de cierre estimado. Mientras haya alguna pendiente, no se permiten nuevas aperturas en la instalación. El motivo y los atributos de Climatización muestran qué queda pendiente; el bloqueo persiste al reiniciar.
+4. Si has retirado físicamente el módulo y la entidad antigua ya no puede comunicar, utiliza **Confirmar retirada física de un relé antiguo** (`radiant_climate.acknowledge_retired_actuator`), con Climatización apagada, introduciendo el identificador antiguo y confirmando la desconexión comprobada. La acción no admite una salida todavía asignada. No se debe usar para ocultar un fallo sin resolver.
+5. Revisa los tiempos del dispositivo nuevo y vuelve a habilitar tras comprobar las asignaciones. Si han cambiado los circuitos o el sensor, utiliza **Restablecer aprendizaje térmico** para no seguir utilizando la respuesta anterior.
+
+Para separar un circuito antes agrupado, conserva el termostato original asignado a su nueva salida y añade otro para el circuito separado, con su propio sensor, consigna y horario. Cada uno puede usar calor/frío, aprendizaje e inercia, con solar desactivado. Un contacto de puerta puede seleccionarse igual que uno de ventana para pausar esa zona. El control no depende del número de canales que tenga cada módulo, sino de que HA exponga sus salidas independientes y no estén asignadas a más de un controlador.
+
+Un fallo de actuador mantiene bloqueadas las aperturas. El cierre admite hasta dos intentos de recuperación separados al menos 30 segundos, con presupuesto persistente; no se reintenta indefinidamente. Apagado general explícito autoriza un nuevo ciclo acotado de cierre. Una orden ya enviada puede terminar antes de que se procese la siguiente; nuevas aperturas se inhiben mientras haya cambios pendientes. Cada llamada de maniobra está acotada a cinco segundos, sin acreditar tiempos físicos.
 
 | Ajuste | Inicial | Rango del asistente |
 |---|---:|---:|

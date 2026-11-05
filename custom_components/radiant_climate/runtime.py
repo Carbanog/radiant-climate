@@ -80,6 +80,8 @@ class Installation:
         self._close_recovery: dict[str, tuple[int, object]] = {}
         self._retired: dict[str, float] = {}
         self._stop_requested = False
+        self._change_requested = 0
+        self._change_applied = 0
         self._desired: dict[str, bool] = {}
         self._deviations: dict[str, list] = {}
         self._fault_dirty = False
@@ -341,7 +343,11 @@ class Installation:
 
     async def _command(self, entity: str, wanted: bool) -> bool:
         self._desired[entity] = wanted
-        if wanted and (entity in self._command_faults or self._stop_requested):
+        if wanted and (
+            entity in self._command_faults
+            or self._stop_requested
+            or self._change_requested != self._change_applied
+        ):
             return False
         state = self.hass.states.get(entity)
         if state is None or state.state not in ("on", "off"):
@@ -538,7 +544,10 @@ class Installation:
 
     async def async_change(self, change: Callable) -> None:
         self._revision += 1
+        self._change_requested += 1
+        ticket = self._change_requested
         async with self._lock:
+            self._change_applied = ticket
             change()
             try:
                 await self._save()

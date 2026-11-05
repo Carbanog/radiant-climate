@@ -77,6 +77,9 @@ class Installation:
         self._revision = 0
         self._last_command: dict[str, tuple[bool, object]] = {}
         self._command_faults: set[str] = set()
+        self._close_recovery: dict[str, tuple[int, object]] = {}
+        self._retired: dict[str, float] = {}
+        self._stop_requested = False
         self._desired: dict[str, bool] = {}
         self._deviations: dict[str, list] = {}
         self._fault_dirty = False
@@ -104,6 +107,32 @@ class Installation:
             self._command_faults = set(raw.get("command_faults", []))
             if any(not isinstance(e, str) for e in self._command_faults):
                 raise ValueError("Invalid command fault state")
+            retired = raw.get("retired_actuators", {})
+            recovery_states = raw.get("close_recovery", {})
+            if not isinstance(retired, dict) or not isinstance(recovery_states, dict):
+                raise ValueError("Invalid actuator recovery state")
+            for entity, travel in retired.items():
+                if (
+                    not isinstance(entity, str)
+                    or type(travel) not in (int, float)
+                    or not 0 <= travel <= 900
+                ):
+                    raise ValueError("Invalid retired actuator")
+                self._retired[entity] = float(travel)
+            for entity, recovery in recovery_states.items():
+                if not isinstance(recovery, dict):
+                    raise ValueError("Invalid close recovery state")
+                count = recovery["attempts"]
+                when = dt_util.parse_datetime(recovery["last_attempt"])
+                if (
+                    not isinstance(entity, str)
+                    or type(count) is not int
+                    or not 0 <= count <= 2
+                    or when is None
+                    or when.tzinfo is None
+                ):
+                    raise ValueError("Invalid close recovery state")
+                self._close_recovery[entity] = (count, when)
             self._transition_until = (
                 dt_util.parse_datetime(raw["transition_until"])
                 if raw.get("transition_until")
@@ -172,6 +201,7 @@ class Installation:
         self._refresh_weather()
 
     async def async_remove(self, entry_id: str) -> None:
+        self._revision += 1
         async with self._lock:
             if zone := self.zones.pop(entry_id, None):
                 self._saved[entry_id] = {
@@ -181,8 +211,16 @@ class Installation:
                     "intelligence": zone.intelligence.dump(),
                 }
                 for entity in zone.config["actuators"]:
+                    self._retired[entity] = max(
+                        self._retired.get(entity, 0), zone.config.get("valve_travel", 0)
+                    )
                     await self._command(entity, False)
             if self.hub == entry_id:
+                if self.general:
+                    self._retired[self.general] = max(
+                        self._retired.get(self.general, 0),
+                        self.entries[self.hub].get("general_travel", 0),
+                    )
                 self.enabled = False
                 await self._apply()
                 self.hub = None
@@ -256,6 +294,7 @@ class Installation:
             for entry in self.hass.config_entries.async_entries(DOMAIN)
             for a in {**entry.data, **entry.options}.get("actuators", [])
         }
+        watched |= self._retired.keys()
         if entity in watched:
             state = event.data.get("new_state")
             if (
@@ -302,7 +341,7 @@ class Installation:
 
     async def _command(self, entity: str, wanted: bool) -> bool:
         self._desired[entity] = wanted
-        if wanted and entity in self._command_faults:
+        if wanted and (entity in self._command_faults or self._stop_requested):
             return False
         state = self.hass.states.get(entity)
         if state is None or state.state not in ("on", "off"):
@@ -310,9 +349,16 @@ class Installation:
         if (state.state == "on") == wanted:
             self._last_command.pop(entity, None)
             return True
-        if entity in self._command_faults:
-            return False
         now = dt_util.utcnow()
+        if entity in self._command_faults:
+            # Open remains latched. Permit at most two recovery close commands,
+            # spaced by 30 seconds; preserve the budget across restarts.
+            count, last = self._close_recovery.get(entity, (0, None))
+            if count >= 2 or (last is not None and (now - last).total_seconds() < 30):
+                return False
+            self._close_recovery[entity] = (count + 1, now)
+            self._fault_dirty = True
+            self._last_command.pop(entity, None)
         previous = self._last_command.get(entity)
         if previous and previous[0] == wanted:
             if (now - previous[1]).total_seconds() > 30:
@@ -332,7 +378,7 @@ class Installation:
         except (HomeAssistantError, TimeoutError):
             self._command_faults.add(entity)
             self._fault_dirty = True
-            _LOGGER.error("Actuator command failed; no automatic retry loop will be started")
+            _LOGGER.error("Actuator command failed; opening inhibited and close recovery bounded")
             return False
         state = self.hass.states.get(entity)
         return state is not None and state.state == ("on" if wanted else "off")
@@ -340,7 +386,21 @@ class Installation:
     async def _apply(self) -> None:
         revision = self._revision
         now = dt_util.utcnow()
-        enabled = self.enabled and self._ready() and self.hass.is_running
+        # Retired outputs remain owned until they report off and their estimated
+        # travel has elapsed. Unavailable is never accepted as physical removal.
+        for entity, travel in list(self._retired.items()):
+            closed = await self._command(entity, False)
+            state = self.hass.states.get(entity)
+            if closed and state and (now - state.last_changed).total_seconds() >= travel:
+                del self._retired[entity]
+                self._fault_dirty = True
+        enabled = (
+            self.enabled
+            and not self._stop_requested
+            and not self._retired
+            and self._ready()
+            and self.hass.is_running
+        )
         transition = self._transition_until is not None and now < self._transition_until
         if transition:
             enabled = False
@@ -373,7 +433,9 @@ class Installation:
             if self.enabled and not enabled and self.hass.is_running:
                 z.decision = Decision(
                     False,
-                    "season_transition" if transition else "setup_not_ready",
+                    "retired_actuator_pending"
+                    if self._retired
+                    else ("season_transition" if transition else "setup_not_ready"),
                     z.decision.target,
                 )
             plan[key] = z.decision.demand
@@ -423,6 +485,9 @@ class Installation:
                 z.decision = Decision(False, reason, z.decision.target)
             for e in z.config["actuators"]:
                 if plan[key]:
+                    if allowed and revision != self._revision:
+                        self._request_update()
+                        return
                     await self._command(e, bool(allowed))
 
     async def async_reconcile(self) -> None:
@@ -432,6 +497,14 @@ class Installation:
             if self._fault_dirty or (dt_util.utcnow() - self._checkpoint).total_seconds() >= 900:
                 self._checkpoint = dt_util.utcnow()
                 await self._save()
+            if not self.entries and not self._retired:
+                self.hass.loop.call_soon(self._dispose_if_unused)
+
+    @callback
+    def _dispose_if_unused(self):
+        if not self.entries and not self._retired and self.hass.data.get(DOMAIN) is self:
+            self.async_stop()
+            del self.hass.data[DOMAIN]
 
     async def _save(self) -> None:
         self._saved.update(
@@ -451,6 +524,11 @@ class Installation:
                 "supply_mode": self.supply_mode.value,
                 "zones": self._saved,
                 "command_faults": sorted(self._command_faults),
+                "retired_actuators": dict(self._retired),
+                "close_recovery": {
+                    entity: {"attempts": count, "last_attempt": when.isoformat()}
+                    for entity, (count, when) in self._close_recovery.items()
+                },
                 "transition_until": self._transition_until.isoformat()
                 if self._transition_until
                 else None,
@@ -459,6 +537,7 @@ class Installation:
         self._fault_dirty = False
 
     async def async_change(self, change: Callable) -> None:
+        self._revision += 1
         async with self._lock:
             change()
             try:
@@ -475,13 +554,39 @@ class Installation:
             self._notify()
 
     async def async_enable(self, value: bool) -> None:
+        if not value:
+            self._stop_requested = True
+
         def update():
             self.enabled = value
+            self._stop_requested = False
             if not value:
                 # Explicit global off authorises a fresh bounded close attempt.
                 self._command_faults.clear()
                 self._last_command.clear()
                 self._deviations.clear()
+                self._close_recovery.clear()
+
+        await self.async_change(update)
+
+    async def async_acknowledge_retired(self, entity: str) -> None:
+        def update():
+            if self.enabled:
+                raise ValueError(
+                    "Switch off the installation before acknowledging physical removal"
+                )
+            assigned = {
+                output
+                for entry in self.hass.config_entries.async_entries(DOMAIN)
+                for output in [
+                    *{**entry.data, **entry.options}.get("actuators", []),
+                    {**entry.data, **entry.options}.get("general"),
+                ]
+            }
+            if entity not in self._retired or entity in assigned:
+                raise ValueError("Only unassigned pending retired actuators can be acknowledged")
+            del self._retired[entity]
+            self._fault_dirty = True
 
         await self.async_change(update)
 
@@ -565,9 +670,14 @@ class Installation:
         def update():
             z = self.zones[zone_id]
             now = dt_util.utcnow()
-            z.program.target(z.intent, now, self.hass.config.time_zone)
-            edit(z.program)
-            z.program.reconcile_edit(z.intent, now, self.hass.config.time_zone)
+            program = Program.restore(z.program.dump())
+            intent = Intent.restore(z.intent.dump())
+            program.target(intent, now, self.hass.config.time_zone)
+            edit(program)
+            if program.enabled and not program.blocks:
+                raise ValueError("Disable the schedule before removing its last block")
+            program.reconcile_edit(intent, now, self.hass.config.time_zone)
+            z.program, z.intent = program, intent
 
         await self.async_change(update)
 
@@ -578,8 +688,11 @@ class Installation:
         if mode == self.supply_mode:
             return
 
+        self._stop_requested = True
+
         def update():
             self.supply_mode = mode
+            self._stop_requested = False
             delay = max(
                 [
                     self.entries.get(self.hub, {}).get("general_travel", 0),

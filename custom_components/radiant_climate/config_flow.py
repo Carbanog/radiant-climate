@@ -301,18 +301,23 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
         program = self.hass.data[DOMAIN].zones[self.config_entry.entry_id].program
         if not program.blocks:
             return self.async_abort(reason="no_schedule")
+        errors = {}
         if user_input is not None:
             day, minute = map(int, user_input["block"].split(":"))
 
-            await self.hass.data[DOMAIN].async_edit_schedule(
-                self.config_entry.entry_id,
-                lambda current: setattr(
-                    current,
-                    "blocks",
-                    [b for b in current.blocks if (b.day, b.minute) != (day, minute)],
-                ),
-            )
-            return self.async_create_entry(title="", data=dict(self.config_entry.options))
+            try:
+                await self.hass.data[DOMAIN].async_edit_schedule(
+                    self.config_entry.entry_id,
+                    lambda current: setattr(
+                        current,
+                        "blocks",
+                        [b for b in current.blocks if (b.day, b.minute) != (day, minute)],
+                    ),
+                )
+            except ValueError:
+                errors["base"] = "schedule_in_use"
+            else:
+                return self.async_create_entry(title="", data=dict(self.config_entry.options))
         options = [
             {
                 "value": f"{b.day}:{b.minute}",
@@ -329,6 +334,7 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
                     )
                 }
             ),
+            errors=errors,
         )
 
     async def async_step_hardware(self, user_input=None):

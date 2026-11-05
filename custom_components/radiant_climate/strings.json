@@ -21,6 +21,7 @@
       }
     },
     "error": {
+      "schedule_in_use": "Switch off Use schedule before removing its last block.",
       "invalid_actuators": "Choose at least one actuator, without duplicates.",
       "actuator_assigned": "This actuator is already assigned to another zone or the inlet.",
       "entity_missing": "A selected entity does not exist.",
@@ -104,6 +105,7 @@
       }
     },
     "error": {
+      "schedule_in_use": "Switch off Use schedule before removing its last block.",
       "invalid_actuators": "Choose at least one actuator, without duplicates.",
       "actuator_assigned": "This actuator is already assigned to another zone or the inlet.",
       "entity_missing": "A selected entity does not exist.",
@@ -203,6 +205,7 @@
       "reason": {
         "name": "Control reason",
         "state": {
+          "retired_actuator_pending": "Waiting for a retired actuator to be isolated",
           "solar_pause": "Solar opportunity with warming near target",
           "predictive_pause": "Residual thermal response near target",
           "anticipation": "Preparing the next scheduled profile",

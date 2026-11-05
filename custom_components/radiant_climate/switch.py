@@ -165,6 +165,14 @@ class InstallationEnabled(RadiantEntity, SwitchEntity):
     def is_on(self):
         return self.manager.enabled
 
+    @property
+    def extra_state_attributes(self):
+        return {
+            "retired_actuators": sorted(self.manager._retired),
+            "command_faults": sorted(self.manager._command_faults),
+            "stop_requested": self.manager._stop_requested,
+        }
+
     async def async_turn_on(self, **kwargs):
         await self.manager.async_enable(True)
 

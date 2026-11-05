@@ -33,3 +33,18 @@ copy_settings:
               label: Activación de módulos (sin fuentes, orientación ni aprendizaje)
             - value: vacation
               label: Ausencia y fecha de vuelta
+acknowledge_retired_actuator:
+  name: Confirmar retirada física de un relé antiguo
+  description: Solo con Climatización apagada y tras comprobar la desconexión física. Libera una salida retirada pendiente que ya no está asignada; no acredita el cierre de una válvula.
+  fields:
+    actuator:
+      name: Entidad antigua pendiente
+      description: Copia el identificador exacto de retired_actuators en los atributos de Climatización.
+      required: true
+      selector:
+        text:
+    confirmed_disconnected:
+      name: He comprobado que está físicamente desconectado
+      required: true
+      selector:
+        boolean:

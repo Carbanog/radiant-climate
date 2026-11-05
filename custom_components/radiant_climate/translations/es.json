@@ -21,6 +21,7 @@
       }
     },
     "error": {
+      "schedule_in_use": "Desactiva Usar horario antes de eliminar su último bloque.",
       "invalid_actuators": "Selecciona al menos un relé, sin duplicados.",
       "actuator_assigned": "Este relé ya está asignado a otra zona o a la general.",
       "entity_missing": "Una entidad seleccionada no existe.",
@@ -104,6 +105,7 @@
       }
     },
     "error": {
+      "schedule_in_use": "Desactiva Usar horario antes de eliminar su último bloque.",
       "invalid_actuators": "Selecciona al menos un relé, sin duplicados.",
       "actuator_assigned": "Este relé ya está asignado a otra zona o a la general.",
       "entity_missing": "Una entidad seleccionada no existe.",
@@ -203,6 +205,7 @@
       "reason": {
         "name": "Motivo de regulación",
         "state": {
+          "retired_actuator_pending": "Pendiente aislar un relé retirado",
           "solar_pause": "Oportunidad solar con calentamiento cerca de consigna",
           "predictive_pause": "Respuesta térmica residual cerca de consigna",
           "anticipation": "Anticipando el próximo perfil horario",

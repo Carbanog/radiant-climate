@@ -36,6 +36,10 @@ FIELDS = {
     ),
 }
 ERRORS = {
+    "schedule_in_use": (
+        "Switch off Use schedule before removing its last block.",
+        "Desactiva Usar horario antes de eliminar su último bloque.",
+    ),
     "invalid_actuators": (
         "Choose at least one actuator, without duplicates.",
         "Selecciona al menos un relé, sin duplicados.",
@@ -51,6 +55,10 @@ ERRORS = {
     ),
 }
 REASONS = {
+    "retired_actuator_pending": (
+        "Waiting for a retired actuator to be isolated",
+        "Pendiente aislar un relé retirado",
+    ),
     "solar_pause": (
         "Solar opportunity with warming near target",
         "Oportunidad solar con calentamiento cerca de consigna",

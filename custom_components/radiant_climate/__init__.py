@@ -40,7 +40,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return False
     manager = hass.data[DOMAIN]
     await manager.async_remove(entry.entry_id)
-    if not manager.entries:
+    if not manager.entries and not manager._retired:
         manager.async_stop()
         del hass.data[DOMAIN]
     return True

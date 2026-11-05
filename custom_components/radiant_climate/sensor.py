@@ -7,6 +7,7 @@ from .const import DOMAIN
 from .entity import RadiantEntity
 
 REASONS = [
+    "retired_actuator_pending",
     "zone_closing_estimated",
     "general_opening_estimated",
     "solar_pause",

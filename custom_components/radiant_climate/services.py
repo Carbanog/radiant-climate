@@ -42,14 +42,9 @@ def async_register_services(hass):
         def update():
             source = manager.zones[source_id].program
             now = dt_util.utcnow()
-            if "modules" in parts:
-                for key in set(targets) - {source_id}:
-                    for module, enabled in (
-                        manager.zones[source_id].intelligence.dump()["features"].items()
-                    ):
-                        manager.validate_feature(manager.zones[key], module, enabled)
+            planned = {}
             for key in set(targets) - {source_id}:
-                z = manager.zones[key]
+                z = deepcopy(manager.zones[key])
                 current = z.program.target(z.intent, now, hass.config.time_zone)
                 if "temperatures" in parts:
                     z.program.profiles = deepcopy(source.profiles)
@@ -72,6 +67,16 @@ def async_register_services(hass):
                         z.program.set_manual(
                             z.intent, z.settings, current, now, hass.config.time_zone
                         )
+                if "modules" in parts:
+                    for module, enabled in z.intelligence.dump()["features"].items():
+                        manager.validate_feature(z, module, enabled)
+                planned[key] = z
+            # Validate every final candidate before publishing any of them.
+            for key, candidate in planned.items():
+                z = manager.zones[key]
+                z.program, z.intent = candidate.program, candidate.intent
+                z.intelligence.features = candidate.intelligence.features
+                z.window_enabled = candidate.window_enabled
 
         await manager.async_change(update)
 
@@ -88,6 +93,24 @@ def async_register_services(hass):
                     [vol.In(["temperatures", "manual", "schedule", "modules", "vacation"])],
                     vol.Length(min=1),
                 ),
+            }
+        ),
+    )
+
+    async def acknowledge_retired(call):
+        manager = hass.data.get(DOMAIN)
+        if manager is None:
+            raise HomeAssistantError("No Radiant Climate installation is loaded")
+        await manager.async_acknowledge_retired(call.data["actuator"])
+
+    hass.services.async_register(
+        DOMAIN,
+        "acknowledge_retired_actuator",
+        acknowledge_retired,
+        schema=vol.Schema(
+            {
+                vol.Required("actuator"): cv.entity_id,
+                vol.Required("confirmed_disconnected"): vol.All(cv.boolean, vol.In([True])),
             }
         ),
     )

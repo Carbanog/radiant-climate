@@ -55,7 +55,7 @@ class Installation:
         self._command_faults: set[str] = set()
         self._unsub_state = hass.bus.async_listen(EVENT_STATE_CHANGED, self._state_changed)
         self._unsub_tick = async_track_time_interval(hass, self._tick, timedelta(seconds=15))
-        self._unsub_stop = hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, self._shutdown)
+        self._unsub_stop = hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, self._shutdown)
 
     async def async_load(self) -> None:
         raw = await self._store.async_load()

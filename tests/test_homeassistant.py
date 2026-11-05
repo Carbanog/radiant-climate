@@ -28,14 +28,6 @@ async def house(tmp_path):
     hass = HomeAssistant(str(tmp_path))
     async_setup_loader(hass)
     try:
-        assert await async_from_config_dict({"homeassistant": {}}, hass) is hass
-        assert await async_setup_component(
-            hass,
-            "input_boolean",
-            {
-                "input_boolean": {f"fixture_{x}": {} for x in ["a", "b", "general"]},
-            },
-        )
         switches = []
         for key in ["a", "b", "general"]:
             switches.append(
@@ -57,7 +49,12 @@ async def house(tmp_path):
                     ],
                 }
             )
-        assert await async_setup_component(hass, "template", {"template": [{"switch": switches}]})
+        config = {
+            "homeassistant": {},
+            "input_boolean": {f"fixture_{x}": {} for x in ["a", "b", "general"]},
+            "template": [{"switch": switches}],
+        }
+        assert await async_from_config_dict(config, hass) is hass
         for key in ["a", "b"]:
             hass.states.async_set(
                 f"sensor.fixture_{key}",
@@ -67,6 +64,8 @@ async def house(tmp_path):
         assert await async_setup_component(hass, DOMAIN, {})
         await hass.async_start()
         await hass.async_block_till_done()
+        for key in ["a", "b", "general"]:
+            assert hass.states.get(f"input_boolean.fixture_{key}") is not None
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
         assert result["step_id"] == "installation"
         result = await hass.config_entries.flow.async_configure(

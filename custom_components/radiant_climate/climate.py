@@ -99,6 +99,8 @@ class RadiantThermostat(RadiantEntity, ClimateEntity):
 
     @property
     def extra_state_attributes(self):
+        # An indefinite absence suppresses the next block even with an agenda.
+        next_change = self.zone.program.next_change(dt_util.utcnow(), self.hass.config.time_zone)
         return {
             "requested_mode": self.zone.intent.mode.value,
             "control_state": "off"
@@ -116,11 +118,7 @@ class RadiantThermostat(RadiantEntity, ClimateEntity):
             if self.zone.intent.hold and self.zone.intent.hold.until
             else None,
             "manual_policy": self.zone.intent.hold.policy.value if self.zone.intent.hold else None,
-            "next_schedule_change": self.zone.program.next_change(
-                dt_util.utcnow(), self.hass.config.time_zone
-            ).isoformat()
-            if self.zone.program.blocks
-            else None,
+            "next_schedule_change": next_change.isoformat() if next_change else None,
             "reason": self.zone.decision.reason if self.zone.decision else "not_ready",
             "control_target": self.zone.decision.target
             if self.zone.decision

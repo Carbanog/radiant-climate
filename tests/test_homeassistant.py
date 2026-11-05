@@ -272,6 +272,27 @@ async def test_native_schedule_and_manual_hold_ignore_profile_changes(house):
     assert house.states.get(climate).attributes["control_state"] == "scheduled"
 
 
+async def test_indefinite_away_with_schedule_updates_state_and_resumes(house):
+    entry, climate = await add_zone(house)
+    await add_schedule(house, entry)
+    await service(house, "switch", "turn_on", zone_entity(house, entry, "switch", "schedule"))
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "switch", "turn_on", zone_entity(house, entry, "switch", "away"))
+    state = house.states.get(climate)
+    assert state.attributes["control_state"] == "away"
+    assert state.attributes["next_schedule_change"] is None
+    assert state.attributes["temperature"] == 17
+    await service(house, "climate", "set_temperature", climate, temperature=22)
+    assert house.states.get(climate).attributes["control_state"] == "manual"
+    await service(house, "button", "press", zone_entity(house, entry, "button", "resume"))
+    assert house.states.get(climate).attributes["control_state"] == "away"
+    await service(house, "switch", "turn_off", zone_entity(house, entry, "switch", "away"))
+    state = house.states.get(climate)
+    assert state.attributes["control_state"] == "scheduled"
+    assert state.attributes["next_schedule_change"] is not None
+    assert state.attributes["temperature"] == 21
+
+
 async def test_same_as_profile_manual_persists_across_entry_reload(house):
     entry, climate = await add_zone(house)
     await add_schedule(house, entry)

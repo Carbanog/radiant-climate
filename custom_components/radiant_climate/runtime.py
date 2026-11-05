@@ -116,6 +116,12 @@ class Installation:
             _LOGGER.error("Stored installation state is invalid; control remains disabled")
 
     async def async_add(self, entry: ConfigEntry) -> None:
+        async with self._lock:
+            self._register(entry)
+            await self._apply()
+            self._notify()
+
+    def _register(self, entry: ConfigEntry) -> None:
         data = {**entry.data, **entry.options}
         used = {a for c in self.entries.values() for a in c.get("actuators", [])}
         used |= {c["general"] for c in self.entries.values() if c.get("general")}
@@ -164,7 +170,6 @@ class Installation:
             )
         self.entries[entry.entry_id] = data
         self._refresh_weather()
-        await self.async_reconcile()
 
     async def async_remove(self, entry_id: str) -> None:
         async with self._lock:

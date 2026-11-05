@@ -85,7 +85,7 @@ Un fallo interior detiene solo su zona cuando sus actuadores pueden aislarla. Co
 
 Busca automatizaciones anteriores, otra integración, mandos físicos o el comportamiento al volver la alimentación. Las discrepancias repetidas se enclavan para evitar una competencia ilimitada de órdenes. El diagnóstico no atribuye el cambio a una persona sin evidencia.
 
-Después de corregir la causa, apagar **Climatización** permite un nuevo intento acotado de cierre. Comprueba comunicaciones y estados antes de reactivar. Un corte de red o de alimentación puede impedir cualquier orden software; no se promete cierre físico.
+En la candidata posterior a v0.2.1, apagar **Climatización** conserva los fallos enclavados. Después de corregir la causa y confirmar apagado comunicado, utiliza **Reconocer fallos de relés tras revisión** antes de reactivar. Consulta el procedimiento de [configuración](configuration.md#revisión-de-fiabilidad-posterior-a-v021-sin-release-publicada). Un corte de red o de alimentación puede impedir cualquier orden software; no se promete cierre físico.
 
 ## Manual, perfiles y vacaciones
 

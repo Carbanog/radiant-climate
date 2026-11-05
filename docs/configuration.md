@@ -94,7 +94,7 @@ En Dispositivos y regulación se ajustan histéresis, mínimos, caducidad, conta
 
 Para separar un circuito antes agrupado, conserva el termostato original asignado a su nueva salida y añade otro para el circuito separado, con su propio sensor, consigna y horario. Cada uno puede usar calor/frío, aprendizaje e inercia, con solar desactivado. Un contacto de puerta puede seleccionarse igual que uno de ventana para pausar esa zona. El control no depende del número de canales que tenga cada módulo, sino de que HA exponga sus salidas independientes y no estén asignadas a más de un controlador.
 
-Un fallo de actuador mantiene bloqueadas las aperturas. El cierre admite hasta dos intentos de recuperación separados al menos 30 segundos, con presupuesto persistente; no se reintenta indefinidamente. Apagado general explícito autoriza un nuevo ciclo acotado de cierre. Una orden ya enviada puede terminar antes de que se procese la siguiente; nuevas aperturas se inhiben mientras haya cambios pendientes. Cada llamada de maniobra está acotada a cinco segundos, sin acreditar tiempos físicos.
+Un fallo de actuador mantiene bloqueadas las aperturas. El cierre admite hasta dos intentos de recuperación separados al menos 30 segundos, con presupuesto persistente; no se reintenta indefinidamente. En la candidata posterior a v0.2.1, el apagado cotidiano conserva el bloqueo y el presupuesto de cierre; el reconocimiento se realiza por separado. Una orden ya enviada puede terminar antes de que se procese la siguiente; nuevas aperturas se inhiben mientras haya cambios pendientes. Cada llamada de maniobra está acotada a cinco segundos, sin acreditar tiempos físicos.
 
 | Ajuste | Inicial | Rango del asistente |
 |---|---:|---:|
@@ -120,4 +120,15 @@ La acción Radiant Climate: Copiar ajustes entre termostatos elige origen, desti
 
 Motivo de regulación explica Apagado, fallo, ventana, mínimos, maniobra estimada, anticipación o pausa. El climate expone intención solicitada, control_state, manual_policy, manual_until, next_schedule_change, control_target, disponibilidad de fuentes y calidad del modelo. El objetivo anticipado se distingue de la consigna del bloque actual.
 
-El diagnóstico exportable omite nombres, entidades fuente, identificadores y agenda. Restablecer aprendizaje elimina solo el modelo de esa zona. Si un relé presenta discrepancias repetidas, revisa escritores, comunicaciones y comportamiento al encender; apagar la general permite un nuevo intento acotado. No uses los relés como mandos cotidianos ni atribuyas el cambio a una persona sin evidencia.
+El diagnóstico exportable omite nombres, entidades fuente, identificadores y agenda. Restablecer aprendizaje elimina solo el modelo de esa zona. Si un relé presenta discrepancias repetidas, revisa escritores, comunicaciones y comportamiento al encender; apagar la general conserva el bloqueo; utiliza el reconocimiento explícito descrito a continuación después de revisar la causa. No uses los relés como mandos cotidianos ni atribuyas el cambio a una persona sin evidencia.
+
+
+## Revisión de fiabilidad posterior a v0.2.1 (sin release publicada)
+
+Los cambios de orientación, fuentes y parámetros se aplican sin descargar entidades, retirar salidas ni reiniciar el aprendizaje. Una variación efectiva de la demanda puede cambiar naturalmente la actuación. Cambiar sensores, relés, modos disponibles o el contacto sí conserva el procedimiento seguro de recarga. La sustitución de un relé por otro sobre el mismo circuito no exige restablecer aprendizaje.
+
+Antes de sustituir una asignación se persisten las salidas antiguas pendientes. Permanecen bloqueadas mientras se confirma la nueva configuración; una interrupción durante el cierre conserva ese registro para el siguiente arranque. Un fallo al abrir un canal de una zona de varios relés cancela nuevas aperturas del plan, solicita cerrar todos sus canales y la general en la misma revisión, y vuelve a evaluar. Las órdenes y los estados comunicados no acreditan maniobras físicas.
+
+Para reconocer una avería, revisa su causa, apaga **Climatización** y comprueba que los relés afectados comunican apagado. En Herramientas para desarrolladores → Acciones, ejecuta **Reconocer fallos de relés tras revisión** (`radiant_climate.reset_actuator_faults`), confirma la revisión y selecciona salidas concretas o deja la lista vacía para todas las bloqueadas. Requiere administrador. La validación es conjunta: si alguna salida no comunica apagado o tiene una retirada pendiente, no libera ninguna. La acción no enciende la instalación; después puedes habilitarla expresamente.
+
+Si una salida sigue encendida, desconocida o sin comunicación, resuelve ese estado antes de reconocerla. No automatices el reconocimiento ni lo añadas al apagado cotidiano. Para una salida retirada físicamente utiliza la acción de retirada, que también requiere administrador, no el reconocimiento de averías.

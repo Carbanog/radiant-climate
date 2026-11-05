@@ -1305,16 +1305,16 @@ async def test_second_zone_channel_failure_closes_partial_open_in_same_pass(hous
     original = type(house.services).async_call
     commands = []
 
-    async def fail_second(registry, domain, name, service_data=None, *args, **kwargs):
+    async def fail_second(registry, domain, service, service_data=None, *args, **kwargs):
         if domain == "switch":
-            commands.append((name, service_data["entity_id"]))
-            if name == "turn_on" and service_data["entity_id"] == "switch.fixture_b":
+            commands.append((service, service_data["entity_id"]))
+            if service == "turn_on" and service_data["entity_id"] == "switch.fixture_b":
                 raise (
                     HomeAssistantError("Simulated second-channel failure")
                     if failure == "exception"
                     else TimeoutError()
                 )
-        return await original(registry, domain, name, service_data, *args, **kwargs)
+        return await original(registry, domain, service, service_data, *args, **kwargs)
 
     # A already opened in the previous pass. Suppress event-driven retries so
     # this assertion cannot accidentally pass because of a subsequent tick.
@@ -1390,12 +1390,20 @@ async def test_retirement_is_durable_before_first_close_even_if_interrupted(hous
                 await manager.async_remove(
                     manager.hub if operation == "general" else entry.entry_id
                 )
+    manager.enabled = False
     restored = Installation(house)
     try:
         await restored.async_load()
         assert restored._retired[old] == 120
         # A fresh process retains the guard even if the original entry is gone.
         assert restored._retired
+        for configured in house.config_entries.async_entries(DOMAIN):
+            await restored.async_add(configured)
+        await restored.async_reconcile()
+        assert house.states.get("switch.fixture_a").state == "off"
+        assert house.states.get("switch.fixture_b").state == "off"
+        assert house.states.get("switch.fixture_general").state == "off"
+        assert old in restored._retired
     finally:
         restored.async_stop()
     manager.enabled = False
@@ -1445,10 +1453,10 @@ async def test_logical_options_keep_entities_learning_and_outputs_running(house,
     original = type(house.services).async_call
     closes = []
 
-    async def record(registry, domain, name, service_data=None, *args, **kwargs):
-        if domain == "switch" and name == "turn_off":
+    async def record(registry, domain, service, service_data=None, *args, **kwargs):
+        if domain == "switch" and service == "turn_off":
             closes.append(service_data)
-        return await original(registry, domain, name, service_data, *args, **kwargs)
+        return await original(registry, domain, service, service_data, *args, **kwargs)
 
     with (
         patch.object(manager, "async_remove", wraps=manager.async_remove) as remove,
@@ -1512,3 +1520,51 @@ async def test_fault_review_requires_reported_off(house, state):
         with pytest.raises(ValueError, match="reported off"):
             await manager.async_reset_actuator_faults([])
         assert "switch.fixture_a" in manager._command_faults
+
+
+async def test_failed_retirement_journal_does_not_commit_new_assignment(house):
+    from unittest.mock import patch
+
+    entry, _ = await add_zone(house)
+    manager = house.data[DOMAIN]
+    before = dict(entry.options)
+    flow = await house.config_entries.options.async_init(entry.entry_id)
+    flow = await house.config_entries.options.async_configure(
+        flow["flow_id"], {"next_step_id": "hardware"}
+    )
+    with patch.object(
+        manager._store, "async_save", side_effect=OSError("Simulated storage failure")
+    ):
+        with pytest.raises(OSError, match="storage failure"):
+            await house.config_entries.options.async_configure(
+                flow["flow_id"],
+                {
+                    "sensor": "sensor.fixture_a",
+                    "actuators": ["switch.fixture_b"],
+                    "available_modes": "heat_cool",
+                    "target": 21,
+                },
+            )
+    assert dict(entry.options) == before
+    assert not manager.enabled
+    assert house.states.get("switch.fixture_b").state == "off"
+
+
+async def test_fault_acknowledgment_is_admin_only(house):
+    from homeassistant.core import Context
+    from homeassistant.exceptions import Unauthorized
+
+    await add_zone(house)
+    manager = house.data[DOMAIN]
+    await manager.async_change(lambda: manager._command_faults.add("switch.fixture_a"))
+    user = await house.auth.async_create_user("Fixture non-admin")
+    assert not user.is_admin
+    with pytest.raises(Unauthorized):
+        await house.services.async_call(
+            DOMAIN,
+            "reset_actuator_faults",
+            {"confirmed_review": True},
+            blocking=True,
+            context=Context(user_id=user.id),
+        )
+    assert "switch.fixture_a" in manager._command_faults

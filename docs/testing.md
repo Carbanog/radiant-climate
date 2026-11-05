@@ -1,26 +1,29 @@
 # Validación
 
-## Capas
+Las pruebas separan cálculo, adaptación a Home Assistant y comportamiento físico. Una beta instalable no acredita calibración, apertura de válvulas ni ahorro.
 
-- `tests/test_control.py`: lógica pura con temperaturas y tiempos sintéticos. No importa HA ni toca dispositivos.
-- `tests/test_program.py`: agenda semanal, medianoche, cambios de hora, perfiles por temporada, edición de bloques y retenciones.
-- `tests/test_homeassistant.py`: instancia real de Core y servicios nativos con sensores ficticios y switches de plantilla respaldados por booleanos de prueba. Los tiempos mínimos se aceleran explícitamente a cero solo en esta fixture.
-- Ensayo físico: todavía no realizado. CI no valida tensión, corriente, apertura de válvula, caudal, disponibilidad de suministro ni respuesta térmica de un edificio.
+## Comprobaciones automáticas
 
-CI utiliza Python 3.12 para el núcleo y Python 3.14 con Core 2026.10.4 para adaptación. Deben pasar los dos trabajos. El soporte de otra versión de HA no se deduce de que importe el código.
+- Núcleo: regulación de calor/frío, histéresis, mínimos, prioridades, caducidad, almacenamiento, tres políticas Manual, agenda semanal, medianoche/cambios de hora y vacaciones.
+- Inteligencia: temperaturas no inventadas, geometría con elevación y azimut, pérdida meteorológica, calidad de aprendizaje por temporada, rechazo de saltos, conservación de consigna y límites de pausa/adelanto.
+- Core real 2026.10.4 y 2026.11.0: altas y opciones nativas, servicios climate, perfiles editables, Manual igual a preset, edición durante retención, copia de ajustes y apagados.
+- Fallos: pérdida interior aislable, unidad incompatible, exterior y meteorología indisponibles, proveedor sin previsión, error meteorológico con reintento acotado, salida desconocida persistente y discrepancias repetidas con enclavamiento compartido.
+- Optimización: solar Observación/Activo y prioridad Manual; anticipación y desactivación en calor/frío; pausa predictiva en refrigeración; espera estimada general.
+- Reinicio completo de instancias Core: retención temporal, retención sin vencimiento, plazo vencido y apagado individual/general. No se presenta una recarga de entrada como si fuera un reinicio.
+- Calidad: ruff, formato, revisión de privacidad, HACS y hassfest. Se consideran fallos los registros ERROR inesperados de arranque, uso o parada.
 
-## Casos del núcleo
+Los sensores, actuadores, previsiones y modelos preparados son fixtures explícitas de tests. Los modelos sintéticos nunca se empaquetan para entrenar una instalación. Los mínimos se aceleran a cero solo en el banco de integración de tests.
 
-Calor/frío; histéresis; mínimos de maniobra; prioridad de Apagado y fallos; sensor inválido/caducado; conservación de consigna fija; tres políticas Manual; renovación al repetir consigna; ausencia de próximo cambio; cambio de temporada; almacenamiento y rechazo de estados inválidos.
+## Reproducción
 
-## Casos del adaptador
+Consulta los comandos del README y `.github/workflows/ci.yml`. El núcleo funciona con Python 3.12; las dos versiones de Core se prueban en Linux/Python 3.14. Una suite omitida por falta de HA no cuenta como compatibilidad. El estado exacto y los registros corresponden al commit de Actions, no al futuro contenido de main.
 
-Alta por formulario; creación apagada sin exterior ni meteo; habilitación general; Apagado individual persistente; pérdida de un sensor y continuidad de otra zona aislable; rechazo de salida duplicada; persistencia mediante Store de HA; refrigeración y compatibilidad con temporada declarada.
+## Alcance físico pendiente
 
-## Lo que no acreditan estas pruebas
+CI no reproduce cortes eléctricos, fallos mecánicos, comunicaciones reales, caudal, condensación, impulsión ni respuesta térmica de la vivienda. Reconciliaciones repetidas con un estado unavailable acreditan software, no una desconexión de radio durante horas. La geometría solar no mide sombras ni demuestra ganancia térmica.
 
-No validan todas las prestaciones de la especificación futura. La agenda y las retenciones ya están conectadas a entidades y formularios. Las pruebas incluyen cambios manuales iguales al perfil, recarga de entrada con retención, edición de temperaturas durante Manual, deshabilitar agenda, copia entre zonas, orden conjunta de modo/consigna, fallo de almacenamiento, ventana opcional y general indisponible. Falta probar fallos prolongados de comunicación, detención durante servicios pendientes, ventanas con retardos, conflictos externos, migraciones de almacenamiento y dispositivos reales. El código debe permanecer en desarrollo hasta ampliar estas pruebas.
+El piloto doméstico y la calibración necesitan copia recuperable, circuitos comprobados, actores anteriores detenidos y aceptación del propietario. Las pruebas visuales y de instalación en su servidor deben documentarse separadamente. No se publican releases solo para ensayar: una beta entregada es una versión identificable para instalación voluntaria, sin aprobación de producción.
 
 ## Artefactos
 
-El ZIP de CI identifica el commit en su nombre y en BUILD.json; solo empaqueta código, licencia y README. No es una release ni activa servicios. La creación de etiquetas o releases requiere una aprobación de instalación/publicación independiente.
+Los ZIP de CI incluyen commit, BUILD.json y SHA-256, sin fixtures ni datos domésticos. Los artefactos temporales no son por sí mismos una publicación. Las releases adjuntan una candidata ya validada y mantienen identificador para recuperación. HACS obtiene el código de la etiqueta correspondiente; las betas deben elegirse expresamente.

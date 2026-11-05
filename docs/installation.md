@@ -6,7 +6,7 @@ La candidata está destinada primero a pruebas aisladas. Aprobar código no apru
 
 1. En el HA de pruebas, crea una copia completa y comprueba que aparece con contenido de Home Assistant y opción de restauración. No envíes esa copia a un repositorio público.
 2. En HACS, abre el menú → Repositorios personalizados. Introduce `https://github.com/Carbanog/radiant-climate` y categoría Integración.
-3. Busca Radiant Climate, descarga la rama principal y registra el commit instalado. No se necesita una release para un repositorio personalizado, pero main es una rama de desarrollo mutable: no uses actualizaciones automáticas en una vivienda.
+3. Busca Radiant Climate y selecciona `v0.2.0-beta.1` como versión; muestra versiones beta si hace falta. Registra versión y commit. Main es una rama mutable: no uses su estado futuro como sustituto de una versión identificada.
 4. Reinicia únicamente ese HA de pruebas. No actualices Core como parte de esta instalación.
 5. En Dispositivos y servicios → Añadir integración crea Radiant Climate. La primera entrada es la instalación. Selecciona la válvula general solo si existe y, para el ensayo, únicamente una salida simulada.
 6. Añade otra entrada por termostato. Elige sensor interior, relés, modos y consigna; conserva Climatización y las zonas apagadas hasta revisar las asignaciones.
@@ -40,4 +40,4 @@ Apaga Climatización en Radiant Climate y verifica los estados comunicados. Desh
 
 Si una actualización impide arrancar, utiliza el modo seguro o la restauración de la copia anterior. Para volver a un commit, restaura juntos código, configuración y almacenamiento respaldados; no cambies archivos de .storage a mano con HA activo. Retirar el paquete mediante HACS y reiniciar es una desinstalación, no recupera por sí sola la configuración anterior.
 
-No se han publicado etiquetas/releases solo para ensayar. Una versión doméstica deberá quedar identificada y aprobada para poder recuperarla sin depender del estado futuro de main.
+La beta se publica como entrega instalable voluntaria, después de validar sus pruebas; no se crean releases para cada ensayo. Una versión doméstica deberá quedar aprobada y conservarse para recuperación sin depender de main.

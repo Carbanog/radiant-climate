@@ -1,13 +1,20 @@
-# Plan de desarrollo
+# Alcance de la primera beta
 
-El proyecto es personal, público y con alcance explícito. Tener una función en este plan no significa que esté implementada. Cada fase debe cerrar comportamiento, implementación, pruebas, diagnóstico y documentación antes de declarar su disponibilidad.
+La implementación de software incluye termostatos propios calor/frío, intención persistente, apagado general/individual, perfiles, agenda, las tres políticas Manual, ventanas con retardos, módulos ambientales independientes, solar por zona, observación térmica, adelanto acotado, pausa por inercia, vacaciones y copia de ajustes.
 
-1. **Base local:** termostato fijo, apagado general/individual, fallos y persistencia. Es el trabajo inicial de esta candidata.
-2. **Programación y perfiles:** agenda por zona, temperaturas editables y tres políticas Manual conectadas a la interfaz. Sin ayudantes externos obligatorios y con restauración/cambio horario probados.
-3. **Módulos opcionales:** exterior y meteorología seleccionables, solar por orientación y ventanas. Falta de datos degrada solo el módulo; cada control del panel debe tener efecto real y explicación.
-4. **Observación térmica:** calidad de datos, tendencias y modelos separados por calor/frío. No atribuir todo cambio a los actuadores.
-5. **Anticipación y parada predictiva:** activación por zona tras validación del modelo, límites de confort y degradación al control base.
-6. **Uso avanzado:** ausencia/vacaciones, aplicar ajustes a todas y mejoras de accesibilidad y diagnóstico.
-7. **Piloto y aceptación:** copia/restauración, comprobaciones físicas, pruebas en un único laboratorio limpio y posterior aprobación de una versión identificable antes de cualquier instalación doméstica.
+La primera beta se entrega para una instalación voluntaria e identificable. No se conecta automáticamente a dispositivos ni cambia una instalación existente. Las funciones avanzadas comienzan desactivadas y requieren configurar sus fuentes; predicción exige calidad mínima y solar activo exige confirmar incidencia.
 
-No se controla producción comunitaria, bombas ni persianas. El proyecto no puede garantizar posición de válvulas sin sensores ni sustituir protecciones físicas de refrigeración. Se prioriza previsibilidad y mantenimiento frente a añadir opciones sin validar.
+## Antes de aceptar una vivienda
+
+1. Instalar la beta en un único laboratorio limpio y probar sus formularios y salidas simuladas.
+2. Confirmar modelos, tiempos, comunicaciones, comportamiento al volver la alimentación y dimensionado eléctrico.
+3. Copia y reversión recuperables; detener los otros escritores antes de conectar salidas reales.
+4. Configurar horarios y consignas, validar calor y frío según suministro disponible y conservar las protecciones físicas de la instalación.
+5. Recopilar datos reales en observación y calibrar por zona/temporada; comparar confort antes de activar predicciones.
+6. Aprobar expresamente una versión doméstica y retirar componentes antiguos solo tras revisar dependencias.
+
+## Mejoras futuras que no se simulan
+
+Un modelo físico completo de losa, atribución causal de ganancias solares, geometría detallada de obstáculos y confirmación real de posición/caudal requieren más modelos o instrumentación. No se afirma que existan en esta beta. Las heurísticas actuales tienen límites publicados y pueden desactivarse individualmente.
+
+No se controlan producción ni bombas comunitarias, ni se utilizan persianas. La facilidad de mantenimiento se basa en módulos pequeños, configuración nativa y regresiones automatizadas; no significa mantenimiento nulo ante futuras versiones de HA.

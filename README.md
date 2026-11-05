@@ -48,7 +48,7 @@ Los [módulos avanzados y sus límites](docs/intelligence.md) distinguen la impl
 
 ## Instalación de desarrollo
 
-No se ha publicado una release. Los ZIP de CI son **artefactos temporales del commit**, no versiones aprobadas para instalar en una vivienda.
+La primera entrega es **v0.2.0-beta.1**, para ensayo voluntario y calibración. Utiliza [Releases](https://github.com/Carbanog/radiant-climate/releases) para elegir una versión identificable. Los ZIP de CI son artefactos temporales y no acreditan aprobación doméstica.
 
 1. Utiliza una instancia de pruebas aislada y salidas simuladas o desconectadas de equipos reales. Conserva copia recuperable de su configuración.
 2. Abre [Actions](https://github.com/Carbanog/radiant-climate/actions), selecciona una ejecución correcta y descarga el artefacto identificado por su SHA. Comprueba `BUILD.json` y el SHA-256 cuando se facilite.
@@ -58,7 +58,7 @@ No se ha publicado una release. Los ZIP de CI son **artefactos temporales del co
 6. Añade otra entrada de Radiant Climate para cada termostato: sensor, relés, modos disponibles y consigna inicial. Cada zona comienza apagada.
 7. Revisa las opciones de regulación, la temporada declarada y las salidas antes de habilitar el interruptor general y encender una zona de prueba.
 
-No se modifica `configuration.yaml` ni se crean automatizaciones externas. Las validaciones oficiales de HACS y hassfest comprueban estructura y metadatos. Para un piloto, añade este repositorio a HACS como Integración y descarga la rama principal. Sigue siendo desarrollo; conserva copia y commit para revertir. No se afirma inclusión en el catálogo ni aprobación para una vivienda. [Instalación y reversión](docs/installation.md).
+No se modifica `configuration.yaml` ni se crean automatizaciones externas. HACS y hassfest comprueban estructura y metadatos. Añade el repositorio a HACS como Integración y selecciona expresamente la beta identificada; activa la visualización de versiones beta si hace falta. Conserva copia y versión para revertir. No se afirma inclusión en el catálogo ni aprobación para una vivienda. [Instalación y reversión](docs/installation.md).
 
 ## Uso de la base actual
 

@@ -599,7 +599,8 @@ async def test_away_manual_and_expiry_without_enabling_off_zone(house):
     from homeassistant.util import dt as dt_util
 
     entry, climate = await add_zone(house)
-    await service(house, "switch", "turn_on", zone_entity(house, entry, "switch", "away"))
+    await service(house, "climate", "set_preset_mode", climate, preset_mode="away")
+    assert house.states.get(zone_entity(house, entry, "switch", "away")).state == "on"
     assert house.states.get(climate).state == "off"
     assert house.states.get(climate).attributes["temperature"] == 17
     await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
@@ -732,6 +733,24 @@ async def test_forecast_failure_has_bounded_retry_without_blocking_control(house
     await environment.refresh({"weather.fixture"})
     assert calls == [True]
     assert environment.status["weather.fixture"] == "forecast_unavailable"
+
+
+@pytest.mark.parametrize(
+    "value,unit,expected",
+    [
+        (32, "°F", 0),
+        (273.15, "K", 0),
+        (10, "°C", 10),
+        (None, "°C", None),
+        (True, "°C", None),
+        ("bad", "°C", None),
+        (20, "unknown", None),
+    ],
+)
+def test_optional_temperature_conversion_rejects_invalid_data(value, unit, expected):
+    from custom_components.radiant_climate.environment import celsius
+
+    assert celsius(value, unit) == expected
 
 
 @pytest.mark.parametrize("scenario", ["duration", "until_resume", "expired", "individual_off"])

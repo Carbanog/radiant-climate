@@ -21,6 +21,8 @@ def fresh(state, now, maximum=3600):
 
 
 def celsius(value, unit):
+    if isinstance(value, bool):
+        return None
     if unit not in ("°C", "°F", "K"):
         return None
     try:

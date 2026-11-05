@@ -31,8 +31,10 @@ Se guardan habilitación general, temporada, intención, programa, perfiles, pol
 
 La parada ordenada de HA intenta desenergizar salidas sin olvidar la intención guardada. Un corte eléctrico, un proceso terminado a la fuerza o un dispositivo incomunicado no puede recibir esa orden: se necesitan comportamientos físicos adecuados.
 
-## Evolución prevista, todavía no operativa
+## Optimización opcional implementada
 
-Programación y perfiles ya calculan el objetivo sin escribir en relés. Las tres políticas Manual se conectan a la agenda y sobreviven a recargas. Solar, exterior, previsión y aprendizaje serán módulos opcionales con condiciones de disponibilidad explícitas. Una predicción no cambiará la intención del usuario ni deshabilitará una protección.
+Programación y perfiles calculan el objetivo sin escribir en relés. Las tres políticas Manual se conectan a la agenda y sobreviven a reinicios completos. `environment.py` obtiene fuentes y previsión con tiempos y frecuencia acotados fuera del bloqueo de actuadores; `intelligence.py` aplica políticas de zona y `core/intelligence.py` calcula geometría, tendencias, calidad y adelanto. Los módulos se habilitan por separado, sin cambiar la intención ni deshabilitar protecciones.
 
-El aprendizaje tendrá estado separado por zona y temporada y comenzará en observación. La primera estrategia de confort mantendrá la consigna de la persona y optimizará el aporte; no anunciará ahorro simplemente por reducirla. No hay algoritmo predictivo implementado en esta base.
+El aprendizaje separa zona, temporada y estado de actuación y comienza observando. Anticipación y pausa por inercia exigen calidad mínima; solar requiere geometría y tendencia, y la activación exige confirmar incidencia. Las heurísticas mantienen la consigna de confort y tienen límites explícitos. No equivalen a un modelo físico completo, aprendizaje causal de ganancias solares ni ahorro demostrado. Véase [algoritmos y límites](intelligence.md).
+
+Core puede cargar entradas concurrentemente al arrancar. La creación del gestor está protegida por un bloqueo de instalación y el registro de zonas comparte el bloqueo de maniobras. Ninguna apertura se permite antes de registrar las entradas habilitadas. Las discrepancias repetidas quedan enclavadas y persistidas hasta revisión y apagado general explícito.

@@ -811,7 +811,7 @@ async def test_cooling_predictive_pause_and_disabling_returns_to_basic(house):
     assert house.states.get("switch.fixture_a").state == "on"
 
 
-async def test_repeated_output_deviations_inhibit_shared_supply_and_persist(house):
+async def test_repeated_output_deviations_isolate_zone_and_persist(house):
     from custom_components.radiant_climate.runtime import Installation
 
     await add_zone(house, "a")
@@ -824,8 +824,11 @@ async def test_repeated_output_deviations_inhibit_shared_supply_and_persist(hous
             assert house.states.get("switch.fixture_a").state == "off"
     manager = house.data[DOMAIN]
     assert "switch.fixture_a" in manager._command_faults
-    assert house.states.get("switch.fixture_general").state == "off"
-    assert house.states.get("switch.fixture_b").state == "off"
+    # Recovery can now confirm A off; B may continue once A is isolated.
+    # The fault remains latched, so A cannot reopen without explicit review.
+    assert house.states.get("switch.fixture_a").state == "off"
+    assert house.states.get("switch.fixture_general").state == "on"
+    assert house.states.get("switch.fixture_b").state == "on"
     restored = Installation(house)
     try:
         await restored.async_load()
@@ -1159,6 +1162,20 @@ async def test_retired_general_waits_for_closing_time_before_reopening(house):
         await settle(house)
         assert not manager._retired
         assert house.states.get("switch.fixture_general").state == "on"
+
+
+async def test_faulted_inlet_is_closed_even_while_zones_request_heat(house):
+    _, climate = await add_zone(house)
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    manager = house.data[DOMAIN]
+    manager._command_faults.add("switch.fixture_general")
+    await settle(house)
+    assert house.states.get("switch.fixture_general").state == "off"
+    assert house.states.get("switch.fixture_a").state == "off"
+    assert house.states.get(climate).attributes["requested_mode"] == "heat"
+    assert "switch.fixture_general" in manager._command_faults
+    await manager.async_enable(False)
 
 
 @pytest.mark.parametrize("action", ["global_off", "season", "individual_off"])

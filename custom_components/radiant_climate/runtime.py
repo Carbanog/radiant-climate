@@ -467,11 +467,12 @@ class Installation:
             return
         demand = any(plan.values()) and enabled
         if self.general:
-            supply = await self._command(self.general, demand and isolated)
+            inlet_healthy = self.general not in self._command_faults
+            supply = await self._command(self.general, demand and isolated and inlet_healthy)
             general_state = self.hass.states.get(self.general)
             elapsed = (now - general_state.last_changed).total_seconds() if general_state else 0
             opening = elapsed >= self.entries.get(self.hub, {}).get("general_travel", 0)
-            allowed = demand and isolated and supply and opening
+            allowed = demand and isolated and inlet_healthy and supply and opening
         else:
             allowed = enabled
         for key, z in self.zones.items():

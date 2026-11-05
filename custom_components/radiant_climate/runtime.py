@@ -64,6 +64,8 @@ class Installation:
         self._listeners: set[Callable] = set()
         self._pending: asyncio.Task | None = None
         self._closed = False
+        self._dirty = False
+        self._revision = 0
         self._last_command: dict[str, tuple[bool, object]] = {}
         self._command_faults: set[str] = set()
         self._unsub_state = hass.bus.async_listen(EVENT_STATE_CHANGED, self._state_changed)
@@ -170,6 +172,7 @@ class Installation:
             for e in [z.config["sensor"], z.config.get("window"), *z.config["actuators"]]
         }
         if entity in watched:
+            self._revision += 1
             self._request_update()
 
     @callback
@@ -180,8 +183,16 @@ class Installation:
     def _request_update(self) -> None:
         if self._closed:
             return
+        self._dirty = True
         if self._pending is None or self._pending.done():
-            self._pending = self.hass.async_create_task(self.async_reconcile())
+            self._pending = self.hass.async_create_task(self._drain_updates())
+
+    async def _drain_updates(self) -> None:
+        # Events received while a service is awaited must not be lost. The next
+        # pass revalidates safety before permitting any new opening.
+        while self._dirty and not self._closed:
+            self._dirty = False
+            await self.async_reconcile()
 
     async def _command(self, entity: str, wanted: bool) -> bool:
         state = self.hass.states.get(entity)
@@ -216,6 +227,7 @@ class Installation:
         return state is not None and state.state == ("on" if wanted else "off")
 
     async def _apply(self) -> None:
+        revision = self._revision
         now = dt_util.utcnow()
         enabled = self.enabled and self.hub is not None and self.hass.is_running
         plan: dict[str, bool] = {}
@@ -257,6 +269,9 @@ class Installation:
             if not plan[key]:
                 for e in z.config["actuators"]:
                     isolated = await self._command(e, False) and isolated
+        if any(plan.values()) and revision != self._revision:
+            self._request_update()
+            return
         demand = any(plan.values()) and enabled
         if self.general:
             supply = await self._command(self.general, demand and isolated)
@@ -264,6 +279,9 @@ class Installation:
         else:
             allowed = enabled
         for key, z in self.zones.items():
+            if plan[key] and allowed and revision != self._revision:
+                self._request_update()
+                return
             if plan[key] and not allowed:
                 z.decision = Decision(False, "supply_not_ready", z.decision.target)
             for e in z.config["actuators"]:

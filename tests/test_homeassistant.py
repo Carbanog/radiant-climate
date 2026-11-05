@@ -369,3 +369,37 @@ async def test_window_unavailable_blocks_only_when_feature_enabled(house):
         house, "switch", "turn_off", zone_entity(house, entry, "switch", "window_enabled")
     )
     assert house.states.get("switch.fixture_a").state == "on"
+
+
+async def test_sensor_failure_while_general_opens_never_opens_zone(house):
+    from unittest.mock import patch
+
+    _, climate = await add_zone(house)
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    opened = []
+    unsubscribe = house.bus.async_listen(
+        "state_changed",
+        lambda event: opened.append(event.data["new_state"].state)
+        if event.data["entity_id"] == "input_boolean.fixture_a" and event.data["new_state"]
+        else None,
+    )
+    original = house.services.async_call
+
+    async def interrupted(domain, action, data=None, *args, **kwargs):
+        if (
+            domain == "switch"
+            and action == "turn_on"
+            and data.get("entity_id") == "switch.fixture_general"
+        ):
+            house.states.async_set("sensor.fixture_a", "unavailable")
+        return await original(domain, action, data, *args, **kwargs)
+
+    try:
+        with patch.object(house.services, "async_call", side_effect=interrupted):
+            await house.data[DOMAIN].async_enable(True)
+            await settle(house)
+        assert "on" not in opened
+        assert house.states.get("switch.fixture_general").state == "off"
+        assert house.states.get("switch.fixture_a").state == "off"
+    finally:
+        unsubscribe()

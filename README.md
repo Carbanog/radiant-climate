@@ -48,6 +48,8 @@ Los [módulos avanzados y sus límites](docs/intelligence.md) distinguen la impl
 
 ## Instalación de desarrollo
 
+**HA 2026.11+:** HACS está integrado en Configuración → Marketplace. Instalar abre directamente la configuración de la integración; no hace falta reinstalar HACS ni reiniciar antes de ese primer asistente. En 2026.10 y anteriores se utiliza el flujo clásico de HACS. Consulta el [procedimiento por versión](docs/installation.md).
+
 La primera entrega es **v0.2.0-beta.1**, para ensayo voluntario y calibración. Utiliza [Releases](https://github.com/Carbanog/radiant-climate/releases) para elegir una versión identificable. Los ZIP de CI son artefactos temporales y no acreditan aprobación doméstica.
 
 1. Utiliza una instancia de pruebas aislada y salidas simuladas o desconectadas de equipos reales. Conserva copia recuperable de su configuración.

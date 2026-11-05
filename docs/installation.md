@@ -2,13 +2,13 @@
 
 La candidata está destinada primero a pruebas aisladas. Aprobar código no aprueba su conexión a actuadores domésticos. Conserva una copia recuperable y el commit exacto, y detén cualquier controlador anterior sobre las mismas salidas antes de habilitar la nueva instalación.
 
-## HACS y alta por interfaz
+## Marketplace/HACS y alta por interfaz
 
 1. En el HA de pruebas, crea una copia completa y comprueba que aparece con contenido de Home Assistant y opción de restauración. No envíes esa copia a un repositorio público.
-2. En HACS, abre el menú → Repositorios personalizados. Introduce `https://github.com/Carbanog/radiant-climate` y categoría Integración.
+2. En HA 2026.11 o posterior, abre Configuración → Marketplace → Añadir desde enlace e introduce `https://github.com/Carbanog/radiant-climate`. En 2026.10 y anteriores, utiliza HACS → Repositorios personalizados, categoría Integración. No reinstales HACS en 2026.11: Marketplace lo sustituye.
 3. Busca Radiant Climate y selecciona `v0.2.0-beta.1` como versión; muestra versiones beta si hace falta. Registra versión y commit. Main es una rama mutable: no uses su estado futuro como sustituto de una versión identificada.
-4. Reinicia únicamente ese HA de pruebas. No actualices Core como parte de esta instalación.
-5. En Dispositivos y servicios → Añadir integración crea Radiant Climate. La primera entrada es la instalación. Selecciona la válvula general solo si existe y, para el ensayo, únicamente una salida simulada.
+4. En Marketplace 2026.11 una instalación nueva abre directamente el asistente de configuración, sin reinicio intermedio. Las actualizaciones todavía pueden requerir reiniciar según el aviso de HA. Con HACS antiguo, reinicia ese HA y utiliza Dispositivos y servicios → Añadir integración. No actualices Core como parte de este procedimiento.
+5. La primera pantalla configura el sistema compartido. El título «Instalación» de esta beta se refiere al sistema de climatización, no a instalar archivos. La válvula general es opcional; puede dejarse vacía y configurarse después. Para el ensayo selecciona únicamente una salida simulada.
 6. Añade otra entrada por termostato. Elige sensor interior, relés, modos y consigna; conserva Climatización y las zonas apagadas hasta revisar las asignaciones.
 7. Revisa perfiles, temperatura real, disponibilidad de salidas y suministro declarado. Después habilita una zona de prueba y la general.
 
@@ -17,6 +17,12 @@ No necesitas Studio Code Server, YAML interno ni automatizaciones para usar la i
 Si se usa el ZIP temporal de CI, comprueba el SHA-256 y BUILD.json y copia solo la carpeta de la integración. El ZIP es un artefacto del commit, no una release aprobada. La alternativa HACS evita copiar archivos manualmente.
 
 ## Pruebas del piloto
+
+### Icono y miniatura
+
+El componente incluye `custom_components/radiant_climate/brand/icon.png`. El icono local y la miniatura previa de Marketplace tienen rutas de distribución diferentes. Marketplace usa el servicio de imágenes de Home Assistant, cuyo índice se obtiene del catálogo; un repositorio personalizado todavía no indexado puede carecer de miniatura aunque su PNG exista. Reinstalar la integración no incorpora el repositorio a ese índice. No se modifica automáticamente el catálogo público por añadir un repositorio personalizado.
+
+Fuentes: [flujo Marketplace 2026.11](https://www.home-assistant.io/Changelogs), [servicio oficial de miniaturas](https://github.com/home-assistant/brands#marketplace-icons).
 
 Primero prueba sin horario ni módulos: calor, frío, consigna fija, Apagado individual y general. Usa un margen de temperatura suficiente para no confundir histéresis con fallo de regulación. Verifica los motivos visibles y las salidas comunicadas.
 

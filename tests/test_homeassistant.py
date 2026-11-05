@@ -1763,3 +1763,149 @@ async def test_model_follows_sensor_but_not_relay_identity(house, change):
         not change.startswith("sensor")
     )
     assert house.states.get(climate).attributes["temperature"] == 22.5
+
+
+@pytest.mark.parametrize(
+    "event_kind",
+    [
+        "temperature",
+        "attributes",
+        "other_zone",
+        "window_disabled",
+        "window_attributes",
+        "window_delay",
+        "target_reached",
+    ],
+)
+async def test_ordinary_reports_do_not_cancel_acknowledgment(house, event_kind):
+    import asyncio
+    from unittest.mock import patch
+
+    entry, climate = await add_zone(house)
+    await add_zone(house, "b")  # Independent room remains off.
+    manager = house.data[DOMAIN]
+    zone = manager.zones[entry.entry_id]
+    house.states.async_set("binary_sensor.fixture_window", "off")
+    zone.config["window"] = "binary_sensor.fixture_window"
+    zone.window_enabled = event_kind != "window_disabled"
+    if event_kind == "window_delay":
+        zone.config["window_open_delay"] = 60
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    original = type(house.services).async_call
+    began = asyncio.Event()
+    commands = []
+
+    async def delayed(registry, domain, service, service_data=None, *args, **kwargs):
+        if domain == "switch":
+            commands.append((service, service_data["entity_id"]))
+            if service == "turn_on" and service_data["entity_id"] == "switch.fixture_a":
+                began.set()
+                return None
+        return await original(registry, domain, service, service_data, *args, **kwargs)
+
+    with (
+        patch.object(manager, "_request_update"),
+        patch.object(type(house.services), "async_call", new=delayed),
+    ):
+        await house.services.async_call(
+            "input_boolean",
+            "turn_on",
+            {"entity_id": "input_boolean.fixture_general"},
+            blocking=True,
+        )
+        await house.async_block_till_done()
+        manager.enabled = True
+        opening = house.async_create_task(manager.async_reconcile())
+        await asyncio.wait_for(began.wait(), 1)
+        for index in range(4):
+            if event_kind in ("temperature", "target_reached"):
+                house.states.async_set(
+                    "sensor.fixture_a",
+                    "22" if event_kind == "target_reached" else str(19.1 + index / 10),
+                    {"unit_of_measurement": "°C"},
+                )
+            elif event_kind == "attributes":
+                house.states.async_set(
+                    "sensor.fixture_a", "19", {"unit_of_measurement": "°C", "sample": index}
+                )
+            elif event_kind == "other_zone":
+                house.states.async_set(
+                    "sensor.fixture_b", str(19.1 + index / 10), {"unit_of_measurement": "°C"}
+                )
+            else:
+                house.states.async_set(
+                    "binary_sensor.fixture_window",
+                    "off" if event_kind == "window_attributes" else "on",
+                    {"sample": index},
+                )
+            await asyncio.sleep(0.01)
+            assert not opening.done(), "Ordinary input cancelled the pending acknowledgment"
+        assert not any(service == "turn_off" for service, _ in commands)
+        await house.services.async_call(
+            "input_boolean", "turn_on", {"entity_id": "input_boolean.fixture_a"}, blocking=True
+        )
+        await asyncio.wait_for(opening, 1)
+        assert not manager._command_faults
+    await settle(house)
+    assert house.states.get("switch.fixture_a").state == (
+        "off" if event_kind == "target_reached" else "on"
+    )
+    assert house.states.get("switch.fixture_b").state == "off"
+    await manager.async_enable(False)
+
+
+@pytest.mark.parametrize("intermediate", ["unknown", "unavailable", "removed"])
+@pytest.mark.parametrize("stop", [False, True])
+async def test_transient_output_loss_aborts_safely_and_recovers_only_if_requested(
+    house, intermediate, stop
+):
+    import asyncio
+    from unittest.mock import patch
+
+    _, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    original = type(house.services).async_call
+    began = asyncio.Event()
+
+    async def delayed(registry, domain, service, service_data=None, *args, **kwargs):
+        if (
+            domain == "switch"
+            and service == "turn_on"
+            and service_data["entity_id"] == "switch.fixture_a"
+        ):
+            began.set()
+            return None
+        return await original(registry, domain, service, service_data, *args, **kwargs)
+
+    with (
+        patch.object(manager, "_request_update"),
+        patch.object(type(house.services), "async_call", new=delayed),
+    ):
+        await house.services.async_call(
+            "input_boolean",
+            "turn_on",
+            {"entity_id": "input_boolean.fixture_general"},
+            blocking=True,
+        )
+        await house.async_block_till_done()
+        manager.enabled = True
+        opening = house.async_create_task(manager.async_reconcile())
+        await asyncio.wait_for(began.wait(), 1)
+        if intermediate == "removed":
+            house.states.async_remove("switch.fixture_a")
+        else:
+            house.states.async_set("switch.fixture_a", intermediate)
+        await asyncio.wait_for(opening, 1)
+        assert house.states.get("switch.fixture_general").state == "off"
+        assert not manager._command_faults  # Loss of feedback is not a rejected command.
+        if stop:
+            await manager.async_enable(False)
+    # Delayed ON arrives after compensation. It may resume a still-requested
+    # demand, but never overrides a global stop.
+    await service(house, "input_boolean", "turn_on", "input_boolean.fixture_a")
+    await settle(house)
+    assert house.states.get("switch.fixture_a").state == ("off" if stop else "on")
+    assert house.states.get("switch.fixture_general").state == ("off" if stop else "on")
+    assert not manager._command_faults
+    await manager.async_enable(False)

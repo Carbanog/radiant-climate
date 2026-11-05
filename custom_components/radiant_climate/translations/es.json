@@ -11,7 +11,7 @@
       },
       "zone": {
         "title": "Añadir termostato",
-        "description": "Esta versión de desarrollo implementa solo el control básico. El termostato se crea apagado.",
+        "description": "Selecciona los dispositivos. El termostato se crea apagado. Los perfiles y horarios se configuran después.",
         "data": {
           "sensor": "Sensor de temperatura interior",
           "actuators": "Relé o relés",
@@ -33,6 +33,14 @@
   "options": {
     "step": {
       "init": {
+        "title": "Configuración del termostato",
+        "menu_options": {
+          "hardware": "Dispositivos y regulación",
+          "schedule_add": "Añadir o sustituir bloque horario",
+          "schedule_remove": "Eliminar bloque horario"
+        }
+      },
+      "hardware": {
         "title": "Configuración",
         "description": "Los cambios recargan esta entrada. Editar la instalación desactiva el control general; reactívalo expresamente tras revisar las salidas.",
         "data": {
@@ -47,6 +55,21 @@
           "minimum_off": "Tiempo mínimo inactivo (segundos)",
           "stale_after": "Antigüedad máxima del dato interior (segundos)"
         }
+      },
+      "schedule_add": {
+        "title": "Programación semanal",
+        "description": "El perfil se mantiene hasta el siguiente bloque, también de un día a otro. Repetir día y hora sustituye ese bloque.",
+        "data": {
+          "days": "Días de la semana",
+          "time": "Hora de inicio",
+          "profile": "Perfil"
+        }
+      },
+      "schedule_remove": {
+        "title": "Eliminar un bloque",
+        "data": {
+          "block": "Bloque (1 = lunes)"
+        }
       }
     },
     "error": {
@@ -54,6 +77,9 @@
       "actuator_assigned": "Este relé ya está asignado a otra zona o a la general.",
       "entity_missing": "Una entidad seleccionada no existe.",
       "invalid_configuration": "Comprueba los valores y campos obligatorios."
+    },
+    "abort": {
+      "no_schedule": "No hay bloques horarios configurados."
     }
   },
   "selector": {
@@ -63,12 +89,33 @@
         "cool": "Frío",
         "heat_cool": "Calor y frío"
       }
+    },
+    "days": {
+      "options": {
+        "0": "Lunes",
+        "1": "Martes",
+        "2": "Miércoles",
+        "3": "Jueves",
+        "4": "Viernes",
+        "5": "Sábado",
+        "6": "Domingo"
+      }
+    },
+    "profile": {
+      "options": {
+        "home": "Normal",
+        "eco": "Eco",
+        "sleep": "Noche"
+      }
     }
   },
   "entity": {
     "switch": {
       "enabled": {
         "name": "Climatización"
+      },
+      "schedule": {
+        "name": "Usar horario"
       }
     },
     "select": {
@@ -77,6 +124,14 @@
         "state": {
           "heat": "Calor",
           "cool": "Frío"
+        }
+      },
+      "manual_policy": {
+        "name": "Comportamiento de Manual",
+        "state": {
+          "duration": "Durante el tiempo configurado",
+          "next_change": "Hasta el próximo bloque horario",
+          "until_resume": "Hasta volver al horario"
         }
       }
     },
@@ -101,6 +156,34 @@
           "satisfied": "Consigna satisfecha",
           "supply_not_ready": "Relé de suministro compartido no preparado"
         }
+      }
+    },
+    "button": {
+      "resume": {
+        "name": "Volver al horario"
+      }
+    },
+    "number": {
+      "hold_minutes": {
+        "name": "Duración de Manual"
+      },
+      "heat_home": {
+        "name": "Calor · Normal"
+      },
+      "heat_eco": {
+        "name": "Calor · Eco"
+      },
+      "heat_sleep": {
+        "name": "Calor · Noche"
+      },
+      "cool_home": {
+        "name": "Frío · Normal"
+      },
+      "cool_eco": {
+        "name": "Frío · Eco"
+      },
+      "cool_sleep": {
+        "name": "Frío · Noche"
       }
     }
   }

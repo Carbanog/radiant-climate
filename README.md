@@ -16,7 +16,7 @@ La primera base implementada es deliberadamente pequeña. La tabla siguiente dis
 
 | Función | Estado de esta candidata |
 |---|---|
-| Alta de instalación y zonas mediante formularios nativos | Implementada; requiere validación del flujo en Core mediante CI |
+| Alta de instalación y zonas mediante formularios nativos | Implementada y probada en Core 2026.10.4 |
 | Termostato fijo con calor, frío y apagado | Implementado con histéresis y tiempos mínimos |
 | Interruptor general con intención individual conservada | Implementado |
 | Fuente exterior o meteorología obligatorias | No: el control básico no depende de ellas |
@@ -25,8 +25,8 @@ La primera base implementada es deliberadamente pequeña. La tabla siguiente dis
 | Consignas por calor/frío y restauración de intención | Implementadas; pruebas de almacenamiento en Core en CI |
 | Relé asignado dos veces o como general y zona | Rechazado al configurar |
 | Diagnóstico del motivo de actuación y opciones en español/inglés | Implementados |
-| Tres políticas Manual | Núcleo independiente implementado y probado; **todavía no conectado a agenda/interfaz** |
-| Perfiles editables y programación propia | Pendientes |
+| Tres políticas Manual | Conectadas a programación y controles nativos; CI valida el adaptador |
+| Perfiles editables y programación propia | Normal/Eco/Noche por temporada, agenda semanal por zona y controles propios; CI valida el adaptador |
 | Meteorología seleccionable, solar y compensación exterior | Pendientes; no hay controles sin efecto |
 | Aprendizaje en observación, anticipación y parada predictiva | Pendientes |
 | Vacaciones y acción aplicar opciones a todas las zonas | Pendientes |
@@ -83,8 +83,8 @@ Un sensor que solo cambia de valor ocasionalmente o un sensor derivado puede nec
 ```sh
 python -m venv .venv
 # Activa el entorno según tu sistema operativo.
-python -m pip install pytest==8.4.2 pytest-asyncio==1.2.0 ruff==0.14.4
-python -m pytest tests/test_control.py -q
+python -m pip install pytest==8.4.2 pytest-asyncio==1.2.0 ruff==0.14.4 tzdata==2025.2
+python -m pytest tests/test_control.py tests/test_program.py -q
 ruff check .
 ruff format --check .
 python scripts/check_public_content.py

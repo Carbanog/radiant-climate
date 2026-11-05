@@ -94,6 +94,9 @@ async def add_zone(hass, key="a"):
     # Explicitly accelerated cycle-time fixture; never a production default.
     options = await hass.config_entries.options.async_init(entry.entry_id)
     options = await hass.config_entries.options.async_configure(
+        options["flow_id"], {"next_step_id": "hardware"}
+    )
+    options = await hass.config_entries.options.async_configure(
         options["flow_id"],
         {
             **data,
@@ -208,10 +211,88 @@ async def test_state_roundtrip_through_real_storage(house):
 
 async def test_cooling_without_weather_and_mismatched_season(house):
     _, climate = await add_zone(house)
-    house.states.async_set("sensor.fixture_a", "28")
+    house.states.async_set("sensor.fixture_a", "28", {"unit_of_measurement": "°C"})
     await service(house, "climate", "set_hvac_mode", climate, hvac_mode="cool")
     await service(house, "switch", "turn_on", global_entity(house))
     assert house.states.get("switch.fixture_a").state == "off"
     await house.data[DOMAIN].async_supply("cool")
     await settle(house)
     assert house.states.get("switch.fixture_a").state == "on"
+
+
+def zone_entity(hass, entry, platform, key):
+    result = er.async_get(hass).async_get_entity_id(platform, DOMAIN, f"{entry.entry_id}_{key}")
+    assert result is not None
+    return result
+
+
+async def add_schedule(hass, entry):
+    flow = await hass.config_entries.options.async_init(entry.entry_id)
+    flow = await hass.config_entries.options.async_configure(
+        flow["flow_id"], {"next_step_id": "schedule_add"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        flow["flow_id"], {"days": [str(n) for n in range(7)], "time": "00:00:00", "profile": "home"}
+    )
+    assert result["type"] == "create_entry", result
+    await settle(hass)
+
+
+async def test_native_schedule_and_manual_hold_ignore_profile_changes(house):
+    entry, climate = await add_zone(house)
+    await add_schedule(house, entry)
+    await service(house, "switch", "turn_on", zone_entity(house, entry, "switch", "schedule"))
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "climate", "set_temperature", climate, temperature=22)
+    assert house.states.get(climate).attributes["control_state"] == "manual"
+    assert house.states.get(climate).attributes["manual_until"] is not None
+    await service(
+        house, "number", "set_value", zone_entity(house, entry, "number", "heat_home"), value=20
+    )
+    assert house.states.get(climate).attributes["temperature"] == 22
+    await service(house, "button", "press", zone_entity(house, entry, "button", "resume"))
+    assert house.states.get(climate).attributes["temperature"] == 20
+    assert house.states.get(climate).attributes["control_state"] == "scheduled"
+
+
+async def test_same_as_profile_manual_persists_across_entry_reload(house):
+    entry, climate = await add_zone(house)
+    await add_schedule(house, entry)
+    await service(house, "switch", "turn_on", zone_entity(house, entry, "switch", "schedule"))
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "climate", "set_temperature", climate, temperature=21)
+    deadline = house.states.get(climate).attributes["manual_until"]
+    await house.config_entries.async_reload(entry.entry_id)
+    await settle(house)
+    assert house.states.get(climate).attributes["manual_until"] == deadline
+    assert house.states.get(climate).attributes["control_state"] == "manual"
+
+
+async def test_disable_schedule_retains_current_value_without_expiry(house):
+    entry, climate = await add_zone(house)
+    await add_schedule(house, entry)
+    switch = zone_entity(house, entry, "switch", "schedule")
+    await service(house, "switch", "turn_on", switch)
+    await service(house, "climate", "set_temperature", climate, temperature=22)
+    await service(house, "switch", "turn_off", switch)
+    assert house.states.get(climate).attributes["temperature"] == 22
+    assert house.data[DOMAIN].zones[entry.entry_id].intent.hold is None
+
+
+async def test_unsupported_temperature_units_stop_zone(house):
+    _, climate = await add_zone(house)
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    house.states.async_set("sensor.fixture_a", "30", {"unit_of_measurement": "°F"})
+    await settle(house)
+    assert house.states.get("switch.fixture_a").state == "off"
+    assert house.states.get(climate).attributes["current_temperature"] is None
+
+
+async def test_general_unavailable_blocks_all_zones(house):
+    _, climate = await add_zone(house)
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    house.states.async_set("switch.fixture_general", "unavailable")
+    await settle(house)
+    assert house.states.get("switch.fixture_a").state == "off"

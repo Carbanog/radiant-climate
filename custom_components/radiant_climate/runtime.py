@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EVENT_HOMEASSISTANT_STOP, EVENT_STATE_CHANGED
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP, EVENT_STATE_CHANGED, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryError, HomeAssistantError
 from homeassistant.helpers.event import async_track_time_interval
@@ -16,8 +16,19 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, STORAGE_VERSION
 from .core.control import Decision, Intent, Mode, Settings, decide, temperature
+from .core.program import Program
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def indoor_temperature(state) -> float | None:
+    """Reject unsupported units instead of treating a Fahrenheit value as Celsius."""
+    if state is None or state.attributes.get("unit_of_measurement") != UnitOfTemperature.CELSIUS:
+        return None
+    try:
+        return temperature(state.state, -30, 65)
+    except ValueError:
+        return None
 
 
 @dataclass
@@ -26,6 +37,7 @@ class Zone:
     intent: Intent
     settings: Settings
     switched_at: object
+    program: Program
     actual_on: bool = False
     decision: Decision | None = None
 
@@ -94,22 +106,27 @@ class Installation:
                 stale_after=data.get("stale_after", 3600),
             )
             intent = Intent(last_mode=modes[0])
+            program = Program()
             intent.targets[modes[0]] = temperature(data["target"])
             if entry.entry_id in self._saved:
                 try:
                     intent = Intent.restore(self._saved[entry.entry_id])
+                    if raw_program := self._saved[entry.entry_id].get("program"):
+                        program = Program.restore(raw_program)
                     if intent.mode != Mode.OFF and intent.mode not in modes:
                         intent.mode = Mode.OFF
                 except (KeyError, TypeError, ValueError):
+                    intent = Intent(last_mode=modes[0])
+                    program = Program()
                     _LOGGER.error("Stored zone state is invalid; zone remains off")
-            self.zones[entry.entry_id] = Zone(data, intent, settings, dt_util.utcnow())
+            self.zones[entry.entry_id] = Zone(data, intent, settings, dt_util.utcnow(), program)
         self.entries[entry.entry_id] = data
         await self.async_reconcile()
 
     async def async_remove(self, entry_id: str) -> None:
         async with self._lock:
             if zone := self.zones.pop(entry_id, None):
-                self._saved[entry_id] = zone.intent.dump()
+                self._saved[entry_id] = {**zone.intent.dump(), "program": zone.program.dump()}
                 for entity in zone.config["actuators"]:
                     await self._command(entity, False)
             if self.hub == entry_id:
@@ -211,7 +228,7 @@ class Installation:
                 z.settings,
                 z.intent,
                 now,
-                measured=sensor.state if sensor else None,
+                measured=indoor_temperature(sensor),
                 measured_at=sensor.last_reported if sensor else None,
                 actual_on=on,
                 switched_at=z.switched_at,
@@ -219,6 +236,9 @@ class Installation:
                 supply_mode=self.supply_mode,
                 window_open=opened,
                 actuator_available=available,
+                scheduled_target=z.program.scheduled_target(
+                    z.intent, now, self.hass.config.time_zone
+                ),
             )
             plan[key] = z.decision.demand
         # First close zones that must not receive water. If that cannot be
@@ -247,7 +267,9 @@ class Installation:
             self._notify()
 
     async def _save(self) -> None:
-        self._saved.update({k: z.intent.dump() for k, z in self.zones.items()})
+        self._saved.update(
+            {k: {**z.intent.dump(), "program": z.program.dump()} for k, z in self.zones.items()}
+        )
         await self._store.async_save(
             {"enabled": self.enabled, "supply_mode": self.supply_mode.value, "zones": self._saved}
         )
@@ -266,6 +288,22 @@ class Installation:
                 # Explicit global off authorises a fresh bounded close attempt.
                 self._command_faults.clear()
                 self._last_command.clear()
+
+        await self.async_change(update)
+
+    async def async_schedule(self, zone_id: str, enabled: bool) -> None:
+        z = self.zones[zone_id]
+
+        def update():
+            now = dt_util.utcnow()
+            current = z.program.target(z.intent, now, self.hass.config.time_zone)
+            if enabled and not z.program.blocks:
+                raise ValueError("Configure at least one weekly block before enabling the schedule")
+            z.program.enabled = enabled
+            z.program.selected = None
+            z.intent.resume()
+            if not enabled:
+                z.program.set_manual(z.intent, z.settings, current, now, self.hass.config.time_zone)
 
         await self.async_change(update)
 

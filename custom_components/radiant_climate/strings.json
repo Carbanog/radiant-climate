@@ -11,7 +11,7 @@
       },
       "zone": {
         "title": "Add thermostat",
-        "description": "Only basic control is implemented in this development version. The thermostat is created off.",
+        "description": "Select devices. The thermostat starts off. Profiles and scheduling can be configured afterwards.",
         "data": {
           "sensor": "Indoor temperature sensor",
           "actuators": "Actuator switches",
@@ -33,6 +33,14 @@
   "options": {
     "step": {
       "init": {
+        "title": "Thermostat settings",
+        "menu_options": {
+          "hardware": "Devices and regulation",
+          "schedule_add": "Add or replace schedule block",
+          "schedule_remove": "Remove schedule block"
+        }
+      },
+      "hardware": {
         "title": "Settings",
         "description": "Changes reload this entry. Editing the installation disables global control; explicitly enable it after reviewing outputs.",
         "data": {
@@ -47,6 +55,21 @@
           "minimum_off": "Minimum off period (seconds)",
           "stale_after": "Maximum temperature report age (seconds)"
         }
+      },
+      "schedule_add": {
+        "title": "Weekly schedule",
+        "description": "The profile remains active until the next block, including overnight. Reusing a day and time replaces that block.",
+        "data": {
+          "days": "Weekdays",
+          "time": "Start time",
+          "profile": "Profile"
+        }
+      },
+      "schedule_remove": {
+        "title": "Remove a block",
+        "data": {
+          "block": "Block (1 = Monday)"
+        }
       }
     },
     "error": {
@@ -54,6 +77,9 @@
       "actuator_assigned": "This actuator is already assigned to another zone or the inlet.",
       "entity_missing": "A selected entity does not exist.",
       "invalid_configuration": "Check the values and required fields."
+    },
+    "abort": {
+      "no_schedule": "There are no schedule blocks."
     }
   },
   "selector": {
@@ -63,12 +89,33 @@
         "cool": "Cooling",
         "heat_cool": "Heating and cooling"
       }
+    },
+    "days": {
+      "options": {
+        "0": "Monday",
+        "1": "Tuesday",
+        "2": "Wednesday",
+        "3": "Thursday",
+        "4": "Friday",
+        "5": "Saturday",
+        "6": "Sunday"
+      }
+    },
+    "profile": {
+      "options": {
+        "home": "Normal",
+        "eco": "Eco",
+        "sleep": "Sleep"
+      }
     }
   },
   "entity": {
     "switch": {
       "enabled": {
         "name": "Climate enabled"
+      },
+      "schedule": {
+        "name": "Use schedule"
       }
     },
     "select": {
@@ -77,6 +124,14 @@
         "state": {
           "heat": "Heating",
           "cool": "Cooling"
+        }
+      },
+      "manual_policy": {
+        "name": "Manual hold behavior",
+        "state": {
+          "duration": "For the configured duration",
+          "next_change": "Until the next schedule block",
+          "until_resume": "Until resume schedule"
         }
       }
     },
@@ -101,6 +156,34 @@
           "satisfied": "Target satisfied",
           "supply_not_ready": "Shared supply relay not ready"
         }
+      }
+    },
+    "button": {
+      "resume": {
+        "name": "Resume schedule"
+      }
+    },
+    "number": {
+      "hold_minutes": {
+        "name": "Manual duration"
+      },
+      "heat_home": {
+        "name": "Heating · Normal"
+      },
+      "heat_eco": {
+        "name": "Heating · Eco"
+      },
+      "heat_sleep": {
+        "name": "Heating · Sleep"
+      },
+      "cool_home": {
+        "name": "Cooling · Normal"
+      },
+      "cool_eco": {
+        "name": "Cooling · Eco"
+      },
+      "cool_sleep": {
+        "name": "Cooling · Sleep"
       }
     }
   }

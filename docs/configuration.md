@@ -19,7 +19,19 @@ Al añadir otra entrada eliges:
 
 La zona aparece apagada. El nombre inicial se obtiene del sensor y puede editarse desde HA. Una zona puede agrupar varios circuitos, pero deben compartir un objetivo de temperatura. No se exige un termostato independiente para cada circuito físico.
 
-Los sensores deben exponer una temperatura compatible en °C. Esta primera versión no convierte sensores Fahrenheit: no los selecciones. La validación automática de unidades y de sensores derivados aún debe ampliarse antes de producción.
+Los sensores deben exponer temperatura en °C. Un valor sin unidad o con otra unidad se rechaza y detiene la zona. Esta versión no convierte sensores Fahrenheit. La cadencia y fiabilidad de sensores derivados requieren comprobación antes de producción.
+
+## Perfiles y programación semanal
+
+Cada zona crea sus propios controles de temperatura Normal, Eco y Noche para cada modo disponible. Son entidades `number` mantenidas por la integración, sin `input_number` externos ni valores duplicados. Los valores iniciales son orientativos y editables desde el dispositivo o un panel nativo. Noche no obliga a reducir la temperatura de todos los dormitorios: ajústala según el uso y la inercia.
+
+En **Configurar → Añadir o sustituir bloque horario**, selecciona días, hora y perfil. Un bloque continúa hasta el siguiente, incluso entre días; repetir día y hora lo sustituye. El botón de eliminar muestra los bloques existentes. El horario pertenece a cada termostato y utiliza la zona horaria de HA. En el salto de primavera, una hora inexistente se ejecuta al primer minuto válido; la hora repetida de otoño se ejecuta una vez, en su primera aparición.
+
+El interruptor **Usar horario** habilita la programación, sin encender un termostato apagado. Requiere al menos un bloque. Apagarlo conserva la consigna efectiva actual como fija, sin vencimiento. **Volver al horario** elimina Manual y habilita el horario; tampoco vence Apagado individual/general.
+
+**Comportamiento de Manual** permite elegir duración (240 minutos inicialmente, editable), próximo bloque o hasta volver expresamente al horario. Cambiar esta preferencia solo afecta a futuras intervenciones. Cambiar temperatura o seleccionar un perfil desde cualquier servicio `climate` crea Manual cuando hay horario activo, incluso si coincide con el perfil. Una intervención repetida renueva su duración. Cambiar temperaturas de los perfiles no cancela Manual. Sin horario, seleccionar un perfil sigue su valor editable; girar la consigna pasa a fija.
+
+El termostato muestra `control_state`, `manual_policy`, `manual_until` y `next_schedule_change`. Los atributos explican la intención; el sensor Motivo explica los bloqueos y la demanda. Un modo individual Apagado prevalece sobre cualquier perfil. El cambio explícito de temporada elimina la retención del modo anterior y consulta el perfil de la temporada nueva. No se afirma que cuatro horas sean el tiempo de respuesta de un suelo.
 
 ## Opciones
 

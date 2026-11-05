@@ -140,6 +140,90 @@ def document(language: int) -> dict:
     }
 
 
+def complete_document(language):
+    result = document(language)
+    options = result["options"]
+    options["step"]["hardware"] = options["step"]["init"].copy()
+    options["step"]["init"] = {
+        "title": ("Thermostat settings", "Configuración del termostato")[language],
+        "menu_options": {
+            "hardware": ("Devices and regulation", "Dispositivos y regulación")[language],
+            "schedule_add": ("Add or replace schedule block", "Añadir o sustituir bloque horario")[
+                language
+            ],
+            "schedule_remove": ("Remove schedule block", "Eliminar bloque horario")[language],
+        },
+    }
+    options["step"]["schedule_add"] = {
+        "title": ("Weekly schedule", "Programación semanal")[language],
+        "description": (
+            "The profile remains active until the next block, including overnight. Reusing a day and time replaces that block.",
+            "El perfil se mantiene hasta el siguiente bloque, también de un día a otro. Repetir día y hora sustituye ese bloque.",
+        )[language],
+        "data": {
+            "days": ("Weekdays", "Días de la semana")[language],
+            "time": ("Start time", "Hora de inicio")[language],
+            "profile": ("Profile", "Perfil")[language],
+        },
+    }
+    options["step"]["schedule_remove"] = {
+        "title": ("Remove a block", "Eliminar un bloque")[language],
+        "data": {"block": ("Block (1 = Monday)", "Bloque (1 = lunes)")[language]},
+    }
+    options["abort"] = {
+        "no_schedule": ("There are no schedule blocks.", "No hay bloques horarios configurados.")[
+            language
+        ]
+    }
+    result["config"]["step"]["zone"]["description"] = (
+        "Select devices. The thermostat starts off. Profiles and scheduling can be configured afterwards.",
+        "Selecciona los dispositivos. El termostato se crea apagado. Los perfiles y horarios se configuran después.",
+    )[language]
+    result["selector"]["days"] = {
+        "options": {
+            str(n): names[language]
+            for n, names in enumerate(
+                [
+                    ("Monday", "Lunes"),
+                    ("Tuesday", "Martes"),
+                    ("Wednesday", "Miércoles"),
+                    ("Thursday", "Jueves"),
+                    ("Friday", "Viernes"),
+                    ("Saturday", "Sábado"),
+                    ("Sunday", "Domingo"),
+                ]
+            )
+        }
+    }
+    result["selector"]["profile"] = {
+        "options": {
+            "home": ("Normal", "Normal")[language],
+            "eco": "Eco",
+            "sleep": ("Sleep", "Noche")[language],
+        }
+    }
+    entities = result["entity"]
+    entities["switch"]["schedule"] = {"name": ("Use schedule", "Usar horario")[language]}
+    entities["button"] = {"resume": {"name": ("Resume schedule", "Volver al horario")[language]}}
+    entities["select"]["manual_policy"] = {
+        "name": ("Manual hold behavior", "Comportamiento de Manual")[language],
+        "state": {
+            "duration": ("For the configured duration", "Durante el tiempo configurado")[language],
+            "next_change": ("Until the next schedule block", "Hasta el próximo bloque horario")[
+                language
+            ],
+            "until_resume": ("Until resume schedule", "Hasta volver al horario")[language],
+        },
+    }
+    entities["number"] = {
+        "hold_minutes": {"name": ("Manual duration", "Duración de Manual")[language]}
+    }
+    for mode, names in [("heat", ("Heating", "Calor")), ("cool", ("Cooling", "Frío"))]:
+        for profile, title in result["selector"]["profile"]["options"].items():
+            entities["number"][f"{mode}_{profile}"] = {"name": f"{names[language]} · {title}"}
+    return result
+
+
 if __name__ == "__main__":
     destination = ROOT / "custom_components/radiant_climate"
     (destination / "translations").mkdir(exist_ok=True)
@@ -149,5 +233,6 @@ if __name__ == "__main__":
         ("translations/es.json", 1),
     ]:
         (destination / name).write_text(
-            json.dumps(document(language), indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+            json.dumps(complete_document(language), indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
         )

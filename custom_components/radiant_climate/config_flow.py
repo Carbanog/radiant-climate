@@ -158,6 +158,91 @@ class RadiantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class RadiantOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
+        if self.config_entry.data["kind"] == "installation":
+            return await self.async_step_hardware(user_input)
+        return self.async_show_menu(
+            step_id="init", menu_options=["hardware", "schedule_add", "schedule_remove"]
+        )
+
+    async def async_step_schedule_add(self, user_input=None):
+        errors = {}
+        if user_input is not None:
+            try:
+                from datetime import time
+
+                clock = time.fromisoformat(user_input["time"])
+                days = [int(d) for d in user_input["days"]]
+                manager = self.hass.data[DOMAIN]
+                await manager.async_change(
+                    lambda: manager.zones[self.config_entry.entry_id].program.set_blocks(
+                        days, clock.hour * 60 + clock.minute, user_input["profile"]
+                    )
+                )
+            except ValueError:
+                errors["base"] = "invalid_configuration"
+            else:
+                return self.async_create_entry(title="", data=dict(self.config_entry.options))
+        return self.async_show_form(
+            step_id="schedule_add",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("days"): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=[str(n) for n in range(7)],
+                            multiple=True,
+                            translation_key="days",
+                        )
+                    ),
+                    vol.Required("time"): selector.TimeSelector(),
+                    vol.Required("profile", default="home"): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=["home", "eco", "sleep"], translation_key="profile"
+                        )
+                    ),
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_schedule_remove(self, user_input=None):
+        program = self.hass.data[DOMAIN].zones[self.config_entry.entry_id].program
+        if not program.blocks:
+            return self.async_abort(reason="no_schedule")
+        if user_input is not None:
+            remove = int(user_input["block"])
+
+            def update():
+                program.blocks.pop(remove)
+                if not program.blocks:
+                    # Preserve the current effective target instead of silently reverting.
+                    from homeassistant.util import dt as dt_util
+
+                    z = self.hass.data[DOMAIN].zones[self.config_entry.entry_id]
+                    program.enabled = False
+                    program.selected = None
+                    z.intent.set_target(z.decision.target, dt_util.utcnow(), z.settings)
+
+            await self.hass.data[DOMAIN].async_change(update)
+            return self.async_create_entry(title="", data=dict(self.config_entry.options))
+        options = [
+            {
+                "value": str(i),
+                "label": f"{b.day + 1} · {b.minute // 60:02d}:{b.minute % 60:02d} · {b.profile}",
+            }
+            for i, b in enumerate(program.blocks)
+        ]
+        return self.async_show_form(
+            step_id="schedule_remove",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("block"): selector.SelectSelector(
+                        selector.SelectSelectorConfig(options=options)
+                    )
+                }
+            ),
+        )
+
+    async def async_step_hardware(self, user_input=None):
         previous = {**self.config_entry.data, **self.config_entry.options}
         installation = previous["kind"] == "installation"
         errors = {}
@@ -174,7 +259,7 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
             else:
                 return self.async_create_entry(title="", data=data)
         return self.async_show_form(
-            step_id="init",
+            step_id="hardware",
             data_schema=_schema(previous, installation=installation, advanced=True),
             errors=errors,
         )

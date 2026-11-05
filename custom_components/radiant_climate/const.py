@@ -3,6 +3,13 @@
 from homeassistant.const import Platform
 
 DOMAIN = "radiant_climate"
-PLATFORMS = [Platform.CLIMATE, Platform.SWITCH, Platform.SELECT, Platform.SENSOR]
+PLATFORMS = [
+    Platform.CLIMATE,
+    Platform.SWITCH,
+    Platform.SELECT,
+    Platform.SENSOR,
+    Platform.NUMBER,
+    Platform.BUTTON,
+]
 STORAGE_VERSION = 1
 VERSION = "0.1.0.dev0"

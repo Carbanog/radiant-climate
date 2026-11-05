@@ -453,6 +453,47 @@ async def configure_sources(hass, entry, **sources):
     await settle(hass)
 
 
+async def test_optional_entity_selectors_can_be_cleared(house):
+    entry, _ = await add_zone(house)
+    house.states.async_set("sensor.fixture_outside", "10", {"unit_of_measurement": "°C"})
+    house.states.async_set("weather.fixture_optional", "sunny")
+    house.states.async_set("binary_sensor.fixture_window", "off")
+    await configure_sources(
+        house, entry, outdoor="sensor.fixture_outside", weather="weather.fixture_optional"
+    )
+    await configure_sources(house, entry)
+    assert entry.options["outdoor"] is None
+    assert entry.options["weather"] is None
+    # Removing the provider must not block later, unrelated hardware edits.
+    house.states.async_remove("weather.fixture_optional")
+    data = {
+        "sensor": "sensor.fixture_a",
+        "actuators": ["switch.fixture_a"],
+        "available_modes": "heat_cool",
+        "target": 21,
+    }
+    for optional in ({"window": "binary_sensor.fixture_window"}, {}):
+        flow = await house.config_entries.options.async_init(entry.entry_id)
+        flow = await house.config_entries.options.async_configure(
+            flow["flow_id"], {"next_step_id": "hardware"}
+        )
+        result = await house.config_entries.options.async_configure(
+            flow["flow_id"], {**data, **optional}
+        )
+        assert result["type"] == "create_entry", result
+        await settle(house)
+    assert entry.options["window"] is None
+    hub = next(
+        e for e in house.config_entries.async_entries(DOMAIN) if e.data["kind"] == "installation"
+    )
+    flow = await house.config_entries.options.async_init(hub.entry_id)
+    result = await house.config_entries.options.async_configure(flow["flow_id"], {})
+    assert result["type"] == "create_entry", result
+    await settle(house)
+    assert hub.options["general"] is None
+    assert house.data[DOMAIN].general is None
+
+
 async def test_weather_and_outdoor_failure_degrade_to_interior_control(house):
     from datetime import timedelta
 

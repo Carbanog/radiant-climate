@@ -25,19 +25,19 @@ def _number(minimum, maximum, step=1):
     )
 
 
+def _optional_entity(key: str, data: Mapping):
+    # A default is reinserted when the UI omits a cleared optional selector.
+    # Suggested values display the current entity without making it sticky.
+    return vol.Optional(key, description={"suggested_value": data[key]} if data.get(key) else {})
+
+
 def _schema(data: Mapping, *, installation=False, advanced=False) -> vol.Schema:
     if installation:
-        key = (
-            vol.Optional("general", default=data["general"])
-            if data.get("general")
-            else vol.Optional("general")
-        )
+        key = _optional_entity("general", data)
         fields = {key: _entity("switch")}
         if advanced:
             for source, domain in [("outdoor", "sensor"), ("weather", "weather")]:
-                fields[
-                    vol.Optional(source, **({"default": data[source]} if data.get(source) else {}))
-                ] = _entity(domain)
+                fields[_optional_entity(source, data)] = _entity(domain)
             fields[vol.Required("general_travel", default=data.get("general_travel", 0))] = _number(
                 0, 900
             )
@@ -57,11 +57,7 @@ def _schema(data: Mapping, *, installation=False, advanced=False) -> vol.Schema:
         vol.Required("target", default=data.get("target", 21)): _number(5, 40, 0.1),
     }
     if advanced:
-        key = (
-            vol.Optional("window", default=data["window"])
-            if data.get("window")
-            else vol.Optional("window")
-        )
+        key = _optional_entity("window", data)
         fields.update(
             {
                 key: _entity("binary_sensor"),
@@ -202,11 +198,7 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
                 return self.async_create_entry(title="", data=data)
         fields = {}
         for source, domain in [("outdoor", "sensor"), ("weather", "weather")]:
-            fields[
-                vol.Optional(
-                    source, **({"default": previous[source]} if previous.get(source) else {})
-                )
-            ] = _entity(domain)
+            fields[_optional_entity(source, previous)] = _entity(domain)
         for key, default, minimum, maximum in [
             ("orientation", 180, 0, 360),
             ("solar_elevation", 15, 0, 90),

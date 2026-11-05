@@ -551,7 +551,12 @@ async def test_unconfirmed_solar_cannot_be_activated(house):
     assert house.data[DOMAIN].zones[entry.entry_id].intelligence.features.solar == "off"
 
 
-async def test_anticipation_requires_model_and_preserves_displayed_comfort_target(house):
+@pytest.mark.parametrize(
+    "mode,current,home,beyond", [("heat", 20, 22, 20.3), ("cool", 27, 25, 26.7)]
+)
+async def test_anticipation_requires_model_and_preserves_displayed_comfort_target(
+    house, mode, current, home, beyond
+):
     from datetime import timedelta
 
     from homeassistant.util import dt as dt_util
@@ -564,23 +569,24 @@ async def test_anticipation_requires_model_and_preserves_displayed_comfort_targe
     later = now + timedelta(minutes=30)
     z.program.set_blocks([now.weekday()], now.hour * 60 + now.minute, "eco")
     z.program.set_blocks([later.weekday()], later.hour * 60 + later.minute, "home")
-    z.program.profiles["heat"].update(eco=20, home=22)
+    z.program.profiles[mode].update(eco=current, home=home)
     await service(house, "switch", "turn_on", zone_entity(house, entry, "switch", "schedule"))
-    house.states.async_set("sensor.fixture_a", "20", {"unit_of_measurement": "°C"})
-    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    house.states.async_set("sensor.fixture_a", str(current), {"unit_of_measurement": "°C"})
+    await house.data[DOMAIN].async_supply(mode)
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode=mode)
     await service(house, "switch", "turn_on", global_entity(house))
     await service(house, "switch", "turn_on", zone_entity(house, entry, "switch", "anticipation"))
     assert house.states.get("switch.fixture_a").state == "off"
-    z.intelligence.model.statistics["heat_on"] = Statistics(
+    z.intelligence.model.statistics[f"{mode}_on"] = Statistics(
         count=12, hours=6, delta=3, rate_square=1.5, episodes=3
     )
     await settle(house)
-    assert house.states.get(climate).attributes["temperature"] == 20
-    assert house.states.get(climate).attributes["control_target"] == 22
+    assert house.states.get(climate).attributes["temperature"] == current
+    assert house.states.get(climate).attributes["control_target"] == home
     assert house.states.get(climate).attributes["reason"] == "anticipation"
     assert house.states.get("switch.fixture_a").state == "on"
     # Outside the base hysteresis band, disabling anticipation must close.
-    house.states.async_set("sensor.fixture_a", "20.3", {"unit_of_measurement": "°C"})
+    house.states.async_set("sensor.fixture_a", str(beyond), {"unit_of_measurement": "°C"})
     await settle(house)
     await service(house, "switch", "turn_off", zone_entity(house, entry, "switch", "anticipation"))
     assert house.states.get("switch.fixture_a").state == "off"
@@ -631,3 +637,97 @@ async def test_same_supply_mode_does_not_cancel_manual(house):
     await house.data[DOMAIN].async_supply("heat")
     await settle(house)
     assert house.states.get(climate).attributes["manual_until"] == deadline
+
+
+async def test_cooling_predictive_pause_and_disabling_returns_to_basic(house):
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+
+    from custom_components.radiant_climate.core.intelligence import Statistics
+
+    entry, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    await manager.async_supply("cool")
+    house.states.async_set("sensor.fixture_a", "28", {"unit_of_measurement": "°C"})
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="cool")
+    await service(house, "switch", "turn_on", global_entity(house))
+    z = manager.zones[entry.entry_id]
+    z.intelligence.model.statistics["cool_on"] = Statistics(
+        count=12, hours=6, delta=3, rate_square=1.5, episodes=3
+    )
+    now = dt_util.utcnow()
+    z.intelligence.model.points = [
+        (now - timedelta(minutes=30), 25.7),
+        (now - timedelta(minutes=15), 25.4),
+        (now - timedelta(seconds=1), 25.1),
+    ]
+    house.states.async_set("sensor.fixture_a", "25.1", {"unit_of_measurement": "°C"})
+    await service(house, "switch", "turn_on", zone_entity(house, entry, "switch", "predictive"))
+    assert house.states.get("switch.fixture_a").state == "off"
+    assert house.states.get(climate).attributes["reason"] == "predictive_pause"
+    house.states.async_set("sensor.fixture_a", "25.5", {"unit_of_measurement": "°C"})
+    await service(house, "switch", "turn_off", zone_entity(house, entry, "switch", "predictive"))
+    assert house.states.get("switch.fixture_a").state == "on"
+
+
+async def test_repeated_output_deviations_inhibit_shared_supply_and_persist(house):
+    from custom_components.radiant_climate.runtime import Installation
+
+    await add_zone(house, "a")
+    _, climate_b = await add_zone(house, "b")
+    await service(house, "climate", "set_hvac_mode", climate_b, hvac_mode="heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    for attempt in range(2):
+        await service(house, "input_boolean", "turn_on", "input_boolean.fixture_a")
+        if attempt == 0:
+            assert house.states.get("switch.fixture_a").state == "off"
+    manager = house.data[DOMAIN]
+    assert "switch.fixture_a" in manager._command_faults
+    assert house.states.get("switch.fixture_general").state == "off"
+    assert house.states.get("switch.fixture_b").state == "off"
+    restored = Installation(house)
+    try:
+        await restored.async_load()
+        assert "switch.fixture_a" in restored._command_faults
+    finally:
+        restored.async_stop()
+    await service(house, "switch", "turn_off", global_entity(house))
+    assert not manager._command_faults
+    assert house.states.get("switch.fixture_a").state == "off"
+
+
+async def test_sustained_unknown_zone_output_blocks_shared_supply_then_recovers(house):
+    await add_zone(house, "a")
+    _, climate_b = await add_zone(house, "b")
+    await service(house, "climate", "set_hvac_mode", climate_b, hvac_mode="heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    house.states.async_set("switch.fixture_a", "unavailable")
+    for _ in range(3):
+        await settle(house)
+        assert house.states.get("switch.fixture_general").state == "off"
+        assert house.states.get("switch.fixture_b").state == "off"
+    house.states.async_set("switch.fixture_a", "off")
+    await settle(house)
+    assert house.states.get("switch.fixture_b").state == "on"
+
+
+async def test_forecast_failure_has_bounded_retry_without_blocking_control(house):
+    from homeassistant.core import SupportsResponse
+    from homeassistant.exceptions import HomeAssistantError
+
+    calls = []
+
+    async def failure(call):
+        calls.append(True)
+        raise HomeAssistantError("Explicit forecast failure fixture")
+
+    house.services.async_register(
+        "weather", "get_forecasts", failure, supports_response=SupportsResponse.ONLY
+    )
+    house.states.async_set("weather.fixture", "sunny", {"supported_features": 2})
+    environment = house.data[DOMAIN].environment
+    await environment.refresh({"weather.fixture"})
+    await environment.refresh({"weather.fixture"})
+    assert calls == [True]
+    assert environment.status["weather.fixture"] == "forecast_unavailable"

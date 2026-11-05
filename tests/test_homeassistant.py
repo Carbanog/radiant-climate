@@ -1030,11 +1030,15 @@ async def test_close_recovery_is_bounded_and_persisted(house):
     original = type(house.services).async_call
     commands = []
 
-    async def ignore_close(registry, domain, service, data=None, *args, **kwargs):
-        if domain == "switch" and service == "turn_off" and data["entity_id"] == "switch.fixture_a":
+    async def ignore_close(registry, domain, service, service_data=None, *args, **kwargs):
+        if (
+            domain == "switch"
+            and service == "turn_off"
+            and service_data["entity_id"] == "switch.fixture_a"
+        ):
             commands.append(service)
             return None
-        return await original(registry, domain, service, data, *args, **kwargs)
+        return await original(registry, domain, service, service_data, *args, **kwargs)
 
     with patch.object(manager, "_request_update"):
         await house.services.async_call(
@@ -1133,6 +1137,30 @@ async def test_retired_acknowledgment_requires_off_and_unassigned_output(house):
     assert "switch.fixture_missing" not in manager._retired
 
 
+async def test_retired_general_waits_for_closing_time_before_reopening(house):
+    from datetime import timedelta
+    from unittest.mock import patch
+
+    from homeassistant.util import dt as dt_util
+
+    _, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await manager.async_enable(True)
+    await settle(house)
+    await manager.async_enable(False)
+    await manager.async_change(lambda: manager._retired.update({"switch.fixture_general": 120}))
+    await manager.async_enable(True)
+    assert "switch.fixture_general" in manager._retired
+    assert house.states.get("switch.fixture_general").state == "off"
+    assert house.states.get(climate).attributes["reason"] == "retired_actuator_pending"
+    later = dt_util.utcnow() + timedelta(seconds=121)
+    with patch.object(dt_util, "utcnow", return_value=later):
+        await settle(house)
+        assert not manager._retired
+        assert house.states.get("switch.fixture_general").state == "on"
+
+
 @pytest.mark.parametrize("action", ["global_off", "season", "individual_off"])
 async def test_queued_stop_prevents_additional_opens_after_slow_command(house, action):
     import asyncio
@@ -1149,13 +1177,13 @@ async def test_queued_stop_prevents_additional_opens_after_slow_command(house, a
     original = type(house.services).async_call
     opened = []
 
-    async def slow(registry, domain, service, data=None, *args, **kwargs):
+    async def slow(registry, domain, service, service_data=None, *args, **kwargs):
         if domain == "switch" and service == "turn_on":
-            opened.append(data["entity_id"])
-            if data["entity_id"] == "switch.fixture_a":
+            opened.append(service_data["entity_id"])
+            if service_data["entity_id"] == "switch.fixture_a":
                 began.set()
                 await release.wait()
-        return await original(registry, domain, service, data, *args, **kwargs)
+        return await original(registry, domain, service, service_data, *args, **kwargs)
 
     with patch.object(type(house.services), "async_call", new=slow):
         start = house.async_create_task(manager.async_enable(True))

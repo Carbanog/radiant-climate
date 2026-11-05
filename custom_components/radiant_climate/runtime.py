@@ -221,7 +221,7 @@ class Installation:
                 if self.general:
                     self._retired[self.general] = max(
                         self._retired.get(self.general, 0),
-                        self.entries[self.hub].get("general_travel", 0),
+                        self.entries[self.hub].get("general_closing", 0),
                     )
                 self.enabled = False
                 await self._apply()
@@ -705,6 +705,7 @@ class Installation:
             delay = max(
                 [
                     self.entries.get(self.hub, {}).get("general_travel", 0),
+                    self.entries.get(self.hub, {}).get("general_closing", 0),
                     *[
                         max(z.settings.minimum_off, z.config.get("valve_travel", 0))
                         for z in self.zones.values()

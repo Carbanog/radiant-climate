@@ -82,7 +82,7 @@ Solar Optimizar requiere confirmar orientación, elevación y sombras observadas
 
 ## Regulación y válvulas
 
-En Dispositivos y regulación se ajustan histéresis, mínimos, caducidad, contacto, retardos y tiempo estimado de cierre. En instalación se configura el tiempo estimado de apertura general. Cero indica desconocido, nunca apertura instantánea demostrada.
+En Dispositivos y regulación se ajustan histéresis, mínimos, caducidad, contacto, retardos y tiempo estimado de cierre. En instalación se configuran por separado los tiempos estimados de apertura y cierre general; no se presupone que sean iguales. Cero indica desconocido, nunca maniobra instantánea demostrada.
 
 ### Sustituir un relé o dividir una zona
 

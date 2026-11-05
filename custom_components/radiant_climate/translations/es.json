@@ -50,6 +50,7 @@
           "weather": "Fuente meteorológica (opcional)",
           "outdoor": "Sensor exterior (opcional)",
           "general_travel": "Apertura estimada de general (segundos; 0 = desconocido)",
+          "general_closing": "Cierre estimado de general (segundos; 0 = desconocido)",
           "valve_travel": "Cierre estimado de zona (segundos; 0 = desconocido)",
           "window_open_delay": "Retardo al abrir ventana (segundos)",
           "window_close_delay": "Retardo al cerrar ventana (segundos)",

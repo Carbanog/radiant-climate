@@ -41,6 +41,9 @@ def _schema(data: Mapping, *, installation=False, advanced=False) -> vol.Schema:
             fields[vol.Required("general_travel", default=data.get("general_travel", 0))] = _number(
                 0, 900
             )
+            fields[vol.Required("general_closing", default=data.get("general_closing", 0))] = (
+                _number(0, 900)
+            )
         return vol.Schema(fields)
     modes = data.get("modes", ["heat", "cool"])
     selected = "heat_cool" if len(modes) == 2 else modes[0]

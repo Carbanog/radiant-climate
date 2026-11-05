@@ -12,6 +12,10 @@ FIELDS = {
         "Estimated inlet opening time (seconds; 0 = unknown)",
         "Apertura estimada de general (segundos; 0 = desconocido)",
     ),
+    "general_closing": (
+        "Estimated inlet closing time (seconds; 0 = unknown)",
+        "Cierre estimado de general (segundos; 0 = desconocido)",
+    ),
     "valve_travel": (
         "Estimated zone closing time (seconds; 0 = unknown)",
         "Cierre estimado de zona (segundos; 0 = desconocido)",

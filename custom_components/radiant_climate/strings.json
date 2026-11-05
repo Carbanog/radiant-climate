@@ -50,6 +50,7 @@
           "weather": "Weather source (optional)",
           "outdoor": "Outdoor sensor (optional)",
           "general_travel": "Estimated inlet opening time (seconds; 0 = unknown)",
+          "general_closing": "Estimated inlet closing time (seconds; 0 = unknown)",
           "valve_travel": "Estimated zone closing time (seconds; 0 = unknown)",
           "window_open_delay": "Window opening delay (seconds)",
           "window_close_delay": "Window closing delay (seconds)",

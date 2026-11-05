@@ -9,6 +9,7 @@ Correcciones de seguridad de salidas y configuración encontradas en la revisió
 - Las órdenes pendientes de apagado o cambio invalidan nuevas aperturas de un plan anterior, incluidos varios relés de la misma zona. Una orden ya en curso no se puede deshacer; las llamadas están acotadas.
 - Copiar Programación y Módulos valida los candidatos finales, después de componer ambas partes, y aplica todos los destinos solo si todos son válidos.
 - El último bloque de una agenda activa no se elimina silenciosamente: primero hay que apagar Usar horario, conservando la consigna fija. Se muestra una explicación en el formulario.
+- El tiempo de cierre de la general se configura separadamente de su apertura y se utiliza al retirar esa salida y en cambios de temporada; no se presume que ambos tiempos coincidan.
 
 [Procedimiento de sustitución de relés](configuration.md#sustituir-un-relé-o-dividir-una-zona). Mantén respaldo, apaga Climatización antes de actualizar y reinicia según el aviso de HA. Los modelos y las consignas no se borran al cambiar un relé; restablece el aprendizaje cuando cambie el circuito o sensor. No reviertas a v0.2.0 con retiradas pendientes sin resolver.
 

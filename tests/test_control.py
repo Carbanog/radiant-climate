@@ -4,7 +4,24 @@ import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from core.control import HoldPolicy, Intent, Mode, Settings, decide, temperature
+from core.control import Hold, HoldPolicy, Intent, Mode, Settings, decide, temperature
+
+
+@pytest.mark.parametrize("profile", [None, "home", "eco", "sleep"])
+def test_held_profile_roundtrip_is_additive(profile):
+    intent = Intent(hold=Hold(22, HoldPolicy.UNTIL_RESUME, None, profile))
+    assert Intent.restore(intent.dump()).hold.profile == profile
+    old = intent.dump()
+    del old["hold"]["profile"]
+    assert Intent.restore(old).hold.profile is None
+
+
+def test_invalid_held_profile_is_rejected():
+    raw = Intent(hold=Hold(22, HoldPolicy.UNTIL_RESUME, None)).dump()
+    raw["hold"]["profile"] = "unsupported"
+    with pytest.raises(ValueError, match="profile"):
+        Intent.restore(raw)
+
 
 NOW = datetime(2026, 1, 1, 12, tzinfo=UTC)
 

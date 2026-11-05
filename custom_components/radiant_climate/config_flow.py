@@ -193,6 +193,15 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
                 "weather": user_input.get("weather"),
                 "outdoor": user_input.get("outdoor"),
             }
+            if any(
+                data.get(key, default) != previous.get(key, default)
+                for key, default in (
+                    ("orientation", 180),
+                    ("solar_elevation", 15),
+                    ("solar_width", 75),
+                )
+            ):
+                data["solar_confirmed"] = False
             try:
                 _validate(self.hass, data, self.config_entry.entry_id)
             except ValueError:

@@ -69,6 +69,7 @@ class Hold:
     target: float
     policy: HoldPolicy
     until: datetime | None
+    profile: str | None = None
 
     def active(self, now: datetime) -> bool:
         return self.until is None or now < self.until
@@ -151,6 +152,7 @@ class Intent:
                 "target": self.hold.target,
                 "policy": self.hold.policy.value,
                 "until": self.hold.until.isoformat() if self.hold.until else None,
+                "profile": self.hold.profile,
             }
             if self.hold
             else None,
@@ -174,7 +176,10 @@ class Intent:
                 aware(until)
             if (policy == HoldPolicy.UNTIL_RESUME) != (until is None):
                 raise ValueError("Inconsistent stored hold")
-            hold = Hold(temperature(raw["target"]), policy, until)
+            profile = raw.get("profile")
+            if profile not in (None, "home", "eco", "sleep", "away"):
+                raise ValueError("Invalid held profile")
+            hold = Hold(temperature(raw["target"]), policy, until, profile)
         return cls(mode=mode, last_mode=last_mode, targets=targets, hold=hold)
 
 

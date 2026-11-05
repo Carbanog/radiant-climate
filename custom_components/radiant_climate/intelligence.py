@@ -135,7 +135,7 @@ class Intelligence:
             base.target,
             trend,
             config.get("residual_minutes", 15),
-            solar=solar and f.solar == "active",
+            solar=solar and f.solar == "active" and config.get("solar_confirmed", False),
             predictive=f.predictive,
             ready=response.ready,
             manual=manual,

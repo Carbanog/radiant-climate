@@ -6,12 +6,12 @@
 
 Crea termostatos de Home Assistant a partir de tus sensores y relés. Utiliza una consigna fija o añade perfiles, horarios, ventanas y optimización térmica según lo que necesite cada estancia. Diseñado con especial atención al suelo radiante/refrescante y a las válvulas compartidas.
 
-[Última release](https://github.com/Carbanog/radiant-climate/releases/tag/v0.2.1) · [Instalación](#instalación) · [Primer arranque](#primer-arranque) · [Resolver problemas](docs/troubleshooting.md) · [Cambios y actualización](docs/release-notes.md) · [Licencia MIT](LICENSE)
+[Última release](https://github.com/Carbanog/radiant-climate/releases/latest) · [Instalación](#instalación) · [Primer arranque](#primer-arranque) · [Resolver problemas](docs/troubleshooting.md) · [Cambios y actualización](docs/release-notes.md) · [Licencia MIT](LICENSE)
 
 [![Pruebas de software](https://github.com/Carbanog/radiant-climate/actions/workflows/ci.yml/badge.svg)](https://github.com/Carbanog/radiant-climate/actions/workflows/ci.yml)
 [![Metadatos de integración](https://github.com/Carbanog/radiant-climate/actions/workflows/metadata.yml/badge.svg)](https://github.com/Carbanog/radiant-climate/actions/workflows/metadata.yml)
 
-> **Versión: v0.2.1.** Release normal de un proyecto personal, original y de código abierto. Incluye correcciones para cierres tras fallo y sustitución de actuadores; actualiza antes de cambiar salidas respecto a v0.2.0. El software tiene pruebas automatizadas; su respuesta térmica necesita ajuste en cada instalación. No se presenta como un controlador certificado ni como ahorro demostrado.
+> **Versión: v0.2.2.** Release normal de un proyecto personal, original y de código abierto. Incluye correcciones para cierres tras fallo y sustitución de actuadores; actualiza antes de cambiar salidas respecto a v0.2.0. El software tiene pruebas automatizadas; su respuesta térmica necesita ajuste en cada instalación. No se presenta como un controlador certificado ni como ahorro demostrado.
 
 ¿Ya lo has instalado? Consulta los [cambios y la actualización desde las betas](docs/release-notes.md) y continúa en [Primer arranque](#primer-arranque).
 

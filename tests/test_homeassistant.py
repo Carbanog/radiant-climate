@@ -645,6 +645,8 @@ async def test_solar_observation_active_and_manual_priority(house):
     entry, climate = await add_zone(house)
     house.states.async_set("sun.sun", "above_horizon", {"azimuth": 135, "elevation": 30})
     await configure_sources(house, entry, orientation=135, solar_elevation=20, solar_confirmed=True)
+    # Geometry changes require confirmation of the unchanged new values.
+    await configure_sources(house, entry, solar_confirmed=True)
     await service(
         house,
         "select",
@@ -1433,7 +1435,7 @@ async def test_logical_options_keep_entities_learning_and_outputs_running(house,
     )
     data = (
         {
-            "orientation": 133.5,
+            "orientation": 120,
             "solar_elevation": 20,
             "solar_width": 60,
             "max_advance": 90,
@@ -1574,3 +1576,172 @@ async def test_fault_acknowledgment_is_admin_only(house):
             context=Context(user_id=user.id),
         )
     assert "switch.fixture_a" in manager._command_faults
+
+
+@pytest.mark.parametrize(
+    "outcome", ["delayed", "missing", "global_off", "sensor_loss", "window_open"]
+)
+async def test_initial_unconfirmed_second_channel_is_bounded_and_interruptible(
+    house, caplog, outcome
+):
+    import asyncio
+    from unittest.mock import patch
+
+    entry, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    zone = manager.zones[entry.entry_id]
+    zone.config["actuators"] = ["switch.fixture_a", "switch.fixture_b"]
+    house.states.async_set("binary_sensor.fixture_window", "off")
+    zone.config["window"] = "binary_sensor.fixture_window"
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    original = type(house.services).async_call
+    began = asyncio.Event()
+    commands = []
+
+    async def delayed(registry, domain, service, service_data=None, *args, **kwargs):
+        if domain == "switch":
+            commands.append((service, service_data["entity_id"]))
+            if service == "turn_on" and service_data["entity_id"] == "switch.fixture_b":
+                began.set()
+                return None  # Accepted, with no reported change yet.
+        return await original(registry, domain, service, service_data, *args, **kwargs)
+
+    with (
+        patch.object(manager, "_request_update"),
+        patch.object(type(house.services), "async_call", new=delayed),
+        patch("custom_components.radiant_climate.runtime.COMMAND_TIMEOUT", 0.3),
+    ):
+        # First channel was confirmed in the preceding pass. No timer/event
+        # retry is allowed to compensate on behalf of this explicit pass.
+        await house.services.async_call(
+            "input_boolean",
+            "turn_on",
+            {"entity_id": ["input_boolean.fixture_a", "input_boolean.fixture_general"]},
+            blocking=True,
+        )
+        await house.async_block_till_done()
+        manager.enabled = True
+        opening = house.async_create_task(manager.async_reconcile())
+        await asyncio.wait_for(began.wait(), 1)
+        assert not opening.done()
+        assert "switch.fixture_b" not in manager._command_faults
+        if outcome == "delayed":
+            await house.services.async_call(
+                "input_boolean", "turn_on", {"entity_id": "input_boolean.fixture_b"}, blocking=True
+            )
+        elif outcome == "global_off":
+            stop = house.async_create_task(manager.async_enable(False))
+            await asyncio.sleep(0)
+        elif outcome == "sensor_loss":
+            house.states.async_set("sensor.fixture_a", "unavailable")
+        elif outcome == "window_open":
+            house.states.async_set("binary_sensor.fixture_window", "on")
+        await asyncio.wait_for(opening, 1)
+        if outcome == "global_off":
+            await stop
+        if outcome == "delayed":
+            assert "switch.fixture_b" not in manager._command_faults
+            assert house.states.get("switch.fixture_b").state == "on"
+        else:
+            assert ("turn_off", "switch.fixture_a") in commands
+            assert ("turn_off", "switch.fixture_general") in commands
+            assert house.states.get("switch.fixture_a").state == "off"
+            assert house.states.get("switch.fixture_general").state == "off"
+        assert ("switch.fixture_b" in manager._command_faults) == (outcome == "missing")
+    if outcome == "missing":
+        errors = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
+        assert errors == ["Actuator command failed; opening inhibited and close recovery bounded"]
+        caplog.clear()
+    await manager.async_enable(False)
+    if outcome == "global_off":
+        # A delayed report arriving after cancellation must not reopen supply.
+        await service(house, "input_boolean", "turn_on", "input_boolean.fixture_b")
+        assert house.states.get("switch.fixture_b").state == "off"
+        assert house.states.get("switch.fixture_general").state == "off"
+
+
+@pytest.mark.parametrize(
+    "key,value", [("orientation", 90), ("solar_elevation", 30), ("solar_width", 40)]
+)
+async def test_geometry_edit_invalidates_confirmation_and_downgrades_solar(house, key, value):
+    entry, _ = await add_zone(house)
+    manager = house.data[DOMAIN]
+    await configure_sources(house, entry, solar_confirmed=True)
+    await manager.async_feature(entry.entry_id, "solar", "active")
+    await configure_sources(house, entry, **{key: value}, solar_confirmed=True)
+    zone = manager.zones[entry.entry_id]
+    assert not zone.config["solar_confirmed"]
+    assert zone.intelligence.features.solar == "observe"
+    with pytest.raises(ValueError, match="exposure"):
+        await manager.async_feature(entry.entry_id, "solar", "active")
+    await configure_sources(house, entry, solar_confirmed=True)
+    await manager.async_feature(entry.entry_id, "solar", "active")
+    assert zone.intelligence.features.solar == "active"
+    await configure_sources(house, entry, solar_confirmed=False)
+    assert zone.intelligence.features.solar == "observe"
+
+
+@pytest.mark.parametrize("mode", ["heat", "cool"])
+@pytest.mark.parametrize("profile", ["home", "eco", "sleep"])
+async def test_native_profile_keeps_its_name_during_manual_hold(house, mode, profile):
+    from custom_components.radiant_climate.core.control import Intent
+
+    entry, climate = await add_zone(house)
+    await add_schedule(house, entry)
+    await service(house, "switch", "turn_on", zone_entity(house, entry, "switch", "schedule"))
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode=mode)
+    await service(house, "climate", "set_preset_mode", climate, preset_mode=profile)
+    state = house.states.get(climate)
+    zone = house.data[DOMAIN].zones[entry.entry_id]
+    assert state.attributes["control_state"] == "manual"
+    assert state.attributes["preset_mode"] == profile
+    assert state.attributes["temperature"] == zone.program.profiles[mode][profile]
+    assert Intent.restore(zone.intent.dump()).hold.profile == profile
+    # A numeric intervention, even at the same temperature, has no profile.
+    await service(
+        house, "climate", "set_temperature", climate, temperature=state.attributes["temperature"]
+    )
+    assert house.states.get(climate).attributes["preset_mode"] == "none"
+    assert house.states.get(climate).attributes["control_state"] == "manual"
+    await service(house, "button", "press", zone_entity(house, entry, "button", "resume"))
+    assert house.states.get(climate).attributes["control_state"] == "scheduled"
+
+
+@pytest.mark.parametrize("change", ["sensor", "relay", "logical"])
+async def test_model_follows_sensor_but_not_relay_identity(house, change):
+    from custom_components.radiant_climate.core.intelligence import Statistics
+
+    entry, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    zone = manager.zones[entry.entry_id]
+    await manager.async_change(
+        lambda: zone.intelligence.model.statistics.update(
+            {"heat_on": Statistics(count=12, hours=6, delta=3, rate_square=1.5, episodes=3)}
+        )
+    )
+    await service(house, "climate", "set_temperature", climate, temperature=22.5)
+    if change == "logical":
+        await configure_sources(house, entry, orientation=100)
+    else:
+        flow = await house.config_entries.options.async_init(entry.entry_id)
+        flow = await house.config_entries.options.async_configure(
+            flow["flow_id"], {"next_step_id": "hardware"}
+        )
+        result = await house.config_entries.options.async_configure(
+            flow["flow_id"],
+            {
+                "sensor": "sensor.fixture_b" if change == "sensor" else "sensor.fixture_a",
+                "actuators": ["switch.fixture_b" if change == "relay" else "switch.fixture_a"],
+                "available_modes": "heat_cool",
+                "target": 21,
+                "minimum_on": 0,
+                "minimum_off": 0,
+            },
+        )
+        assert result["type"] == "create_entry", result
+        await settle(house)
+    restored = manager.zones[entry.entry_id]
+    assert restored.intelligence.model.response(restored.intent.last_mode).ready == (
+        change != "sensor"
+    )
+    assert house.states.get(climate).attributes["temperature"] == 22.5

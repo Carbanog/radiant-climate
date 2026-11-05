@@ -21,12 +21,13 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, STORAGE_VERSION
 from .core.control import Decision, Intent, Mode, Settings, temperature
-from .core.intelligence import window_pause
+from .core.intelligence import ThermalModel, window_pause
 from .core.program import Program
 from .environment import Environment
 from .intelligence import Intelligence
 
 _LOGGER = logging.getLogger(__name__)
+COMMAND_TIMEOUT = 5
 
 
 def indoor_temperature(state) -> float | None:
@@ -75,6 +76,7 @@ class Installation:
         self._closed = False
         self._dirty = False
         self._revision = 0
+        self._change_signal = asyncio.Event()
         self._last_command: dict[str, tuple[bool, object]] = {}
         self._command_faults: set[str] = set()
         self._close_recovery: dict[str, tuple[int, object]] = {}
@@ -193,9 +195,19 @@ class Installation:
                     self.zones[entry.entry_id].intelligence = Intelligence.restore(
                         self._saved[entry.entry_id].get("intelligence", {})
                     )
+                    if (
+                        self._saved[entry.entry_id].get("learning_sensor", data["sensor"])
+                        != data["sensor"]
+                    ):
+                        self.zones[entry.entry_id].intelligence.model = ThermalModel()
                 except (KeyError, TypeError, ValueError):
                     # Optional learning corruption must not destroy user setpoints.
                     self.zones[entry.entry_id].intelligence = Intelligence()
+            if (
+                not data.get("solar_confirmed", False)
+                and self.zones[entry.entry_id].intelligence.features.solar == "active"
+            ):
+                self.zones[entry.entry_id].intelligence.features.solar = "observe"
             raw_window = self._saved.get(entry.entry_id, {}).get("window_enabled", True)
             self.zones[entry.entry_id].window_enabled = (
                 raw_window if isinstance(raw_window, bool) else True
@@ -204,6 +216,8 @@ class Installation:
         self._refresh_weather()
 
     async def async_remove(self, entry_id: str) -> None:
+        self._change_signal.set()
+        self._change_signal = asyncio.Event()
         self._revision += 1
         async with self._lock:
             zone = self.zones.get(entry_id)
@@ -213,6 +227,7 @@ class Installation:
                     "program": zone.program.dump(),
                     "window_enabled": zone.window_enabled,
                     "intelligence": zone.intelligence.dump(),
+                    "learning_sensor": zone.config["sensor"],
                 }
                 for entity in zone.config["actuators"]:
                     self._retired[entity] = max(
@@ -250,6 +265,10 @@ class Installation:
         )
         removed = before - after
         if not removed:
+            if old.get("sensor") != data.get("sensor"):
+                # Stamp the previous model's sensor before options are committed,
+                # including the first reconfiguration after upgrading old storage.
+                await self.async_change(lambda: None)
             return
 
         def update():
@@ -278,6 +297,11 @@ class Installation:
             self.entries[entry.entry_id] = data
             if zone := self.zones.get(entry.entry_id):
                 zone.config = data
+                if (
+                    not data.get("solar_confirmed", False)
+                    and zone.intelligence.features.solar == "active"
+                ):
+                    zone.intelligence.features.solar = "observe"
                 zone.settings = Settings(
                     modes=tuple(Mode(m) for m in data["modes"]),
                     **{
@@ -339,6 +363,9 @@ class Installation:
     @callback
     def _state_changed(self, event) -> None:
         entity = event.data["entity_id"]
+        if any(entity in (z.config["sensor"], z.config.get("window")) for z in self.zones.values()):
+            self._change_signal.set()
+            self._change_signal = asyncio.Event()
         watched = {self.general, "sun.sun"} | {
             e
             for z in self.zones.values()
@@ -432,19 +459,55 @@ class Installation:
                 _LOGGER.error("Actuator did not report the requested state; manual review required")
             return False
         self._last_command[entity] = (wanted, now)
+        confirmed = asyncio.Event()
+        interrupted = self._change_signal
+
+        @callback
+        def reported(event):
+            if event.data["entity_id"] == entity:
+                current = event.data.get("new_state")
+                if (
+                    current is None
+                    or current.state not in ("on", "off")
+                    or current.state == ("on" if wanted else "off")
+                ):
+                    confirmed.set()
+
+        unsubscribe = (
+            self.hass.bus.async_listen(EVENT_STATE_CHANGED, reported) if wanted else lambda: None
+        )
         try:
-            async with asyncio.timeout(5):
+            async with asyncio.timeout(COMMAND_TIMEOUT):
                 await self.hass.services.async_call(
                     "switch",
                     "turn_on" if wanted else "turn_off",
                     {"entity_id": entity},
                     blocking=True,
                 )
+                state = self.hass.states.get(entity)
+                if wanted and (state is None or state.state != "on"):
+                    # An accepted service is not an acknowledgement. Allow a
+                    # short radio delay within the same five-second I/O budget,
+                    # while permitting queued user changes to cancel the wait.
+                    tasks = [
+                        asyncio.create_task(confirmed.wait()),
+                        asyncio.create_task(interrupted.wait()),
+                    ]
+                    try:
+                        await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                    finally:
+                        for task in tasks:
+                            task.cancel()
+                        await asyncio.gather(*tasks, return_exceptions=True)
+                    if interrupted.is_set():
+                        return False
         except (HomeAssistantError, TimeoutError):
             self._command_faults.add(entity)
             self._fault_dirty = True
             _LOGGER.error("Actuator command failed; opening inhibited and close recovery bounded")
             return False
+        finally:
+            unsubscribe()
         state = self.hass.states.get(entity)
         return state is not None and state.state == ("on" if wanted else "off")
 
@@ -574,8 +637,8 @@ class Installation:
                     if allowed and revision != self._revision:
                         self._request_update()
                         return
-                    await self._command(e, bool(allowed))
-                    if allowed and e in self._command_faults:
+                    confirmed = await self._command(e, bool(allowed))
+                    if allowed and not confirmed:
                         await self._abort_open(z)
                         return
 
@@ -603,6 +666,7 @@ class Installation:
                     "program": z.program.dump(),
                     "window_enabled": z.window_enabled,
                     "intelligence": z.intelligence.dump(),
+                    "learning_sensor": z.config["sensor"],
                 }
                 for k, z in self.zones.items()
             }
@@ -626,6 +690,8 @@ class Installation:
         self._fault_dirty = False
 
     async def async_change(self, change: Callable) -> None:
+        self._change_signal.set()
+        self._change_signal = asyncio.Event()
         self._revision += 1
         self._change_requested += 1
         ticket = self._change_requested
@@ -827,6 +893,7 @@ class Installation:
         if self._closed:
             return
         self._closed = True
+        self._change_signal.set()
         self._unsub_state()
         self._unsub_tick()
         self._unsub_stop()

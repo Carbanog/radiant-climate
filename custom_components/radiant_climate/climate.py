@@ -72,7 +72,7 @@ class RadiantThermostat(RadiantEntity, ClimateEntity):
     def preset_mode(self):
         z = self.zone
         if z.intent.hold:
-            return "none"
+            return z.intent.hold.profile or "none"
         return z.program.profile(dt_util.utcnow(), self.hass.config.time_zone) or "none"
 
     async def async_set_preset_mode(self, preset_mode):
@@ -92,6 +92,8 @@ class RadiantThermostat(RadiantEntity, ClimateEntity):
                 else z.program.profiles[mode.value][preset_mode]
             )
             z.program.set_manual(z.intent, z.settings, value, now, self.hass.config.time_zone)
+            if z.intent.hold:
+                z.intent.hold.profile = None if preset_mode == "none" else preset_mode
             if not z.program.enabled and not z.program.away:
                 z.program.selected = None if preset_mode == "none" else preset_mode
 

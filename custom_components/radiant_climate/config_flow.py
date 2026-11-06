@@ -11,6 +11,7 @@ from homeassistant.helpers import selector
 from .const import DOMAIN
 from .core.control import Settings, temperature
 from .core.program import PROFILES
+from .hydraulic import DEFAULTS, configuration
 
 
 def _entity(domain: str, multiple: bool = False):
@@ -177,10 +178,73 @@ class RadiantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class RadiantOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         if self.config_entry.data["kind"] == "installation":
-            return self.async_show_menu(step_id="init", menu_options=["hardware", "vacation"])
+            return self.async_show_menu(
+                step_id="init", menu_options=["hardware", "hydraulic", "vacation"]
+            )
         return self.async_show_menu(
             step_id="init",
             menu_options=["hardware", "schedule_add", "schedule_remove", "sources", "vacation"],
+        )
+
+    async def async_step_hydraulic(self, user_input=None):
+        if self.config_entry.data["kind"] != "installation":
+            return self.async_abort(reason="installation_only")
+        previous = configuration(self.config_entry)
+        errors = {}
+        if user_input is not None:
+            data = {**DEFAULTS, **user_input}
+            try:
+                if not isinstance(data["hydraulic_enabled"], bool):
+                    raise ValueError
+                for key in ("hydraulic_supply", "hydraulic_return"):
+                    entity = data[key]
+                    if entity and (
+                        not entity.startswith("sensor.") or self.hass.states.get(entity) is None
+                    ):
+                        raise ValueError
+                if data["hydraulic_enabled"] and (
+                    not data["hydraulic_supply"]
+                    or not data["hydraulic_return"]
+                    or data["hydraulic_supply"] == data["hydraulic_return"]
+                ):
+                    raise ValueError
+                for key, low, high in (
+                    ("hydraulic_stale", 60, 3600),
+                    ("hydraulic_settle", 5, 120),
+                    ("hydraulic_duration", 5, 240),
+                ):
+                    data[key] = temperature(data[key], low, high)
+                for key in ("hydraulic_heat_min", "hydraulic_cool_max"):
+                    if data[key] is not None:
+                        data[key] = temperature(data[key], 0, 90)
+            except (ValueError, TypeError, AttributeError):
+                errors["base"] = "invalid_configuration"
+            else:
+                return self.async_create_entry(title="", data={**self.config_entry.options, **data})
+        fields = {
+            vol.Required(
+                "hydraulic_enabled", default=previous["hydraulic_enabled"]
+            ): selector.BooleanSelector()
+        }
+        for key in ("hydraulic_supply", "hydraulic_return"):
+            fields[_optional_entity(key, previous)] = _entity("sensor")
+        for key, low, high in (
+            ("hydraulic_stale", 60, 3600),
+            ("hydraulic_settle", 5, 120),
+            ("hydraulic_duration", 5, 240),
+        ):
+            fields[vol.Required(key, default=previous[key])] = _number(low, high)
+        for key in ("hydraulic_heat_min", "hydraulic_cool_max"):
+            fields[
+                vol.Optional(
+                    key,
+                    description={"suggested_value": previous[key]}
+                    if previous[key] is not None
+                    else {},
+                )
+            ] = _number(0, 90, 0.1)
+        return self.async_show_form(
+            step_id="hydraulic", data_schema=vol.Schema(fields), errors=errors
         )
 
     async def async_step_sources(self, user_input=None):

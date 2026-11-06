@@ -4,7 +4,9 @@ from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.const import EntityCategory
 
 from .const import DOMAIN
+from .core.hydraulic import STATES
 from .entity import RadiantEntity
+from .hydraulic import HydraulicDiagnostic, configuration
 
 REASONS = [
     "retired_actuator_pending",
@@ -37,6 +39,45 @@ REASONS = [
 async def async_setup_entry(hass, entry, async_add_entities):
     if entry.data["kind"] == "zone":
         async_add_entities([ControlReason(hass.data[DOMAIN], entry)])
+    else:
+        added = False
+
+        async def discover(*_):
+            nonlocal added
+            cfg = configuration(entry)
+            if not added and (
+                cfg["hydraulic_enabled"] or (cfg["hydraulic_supply"] and cfg["hydraulic_return"])
+            ):
+                added = True
+                async_add_entities([HydraulicStatus(hass.data[DOMAIN], entry)])
+
+        entry.async_on_unload(entry.add_update_listener(discover))
+        await discover()
+
+
+class HydraulicStatus(RadiantEntity, SensorEntity):
+    _attr_translation_key = "hydraulic"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_options = STATES
+
+    def __init__(self, manager, entry):
+        super().__init__(manager, entry, "hydraulic")
+        self.diagnostic = HydraulicDiagnostic(manager, entry)
+
+    async def async_added_to_hass(self):
+        # Deliberately uses its own observer; there is no actuator/control update.
+        await SensorEntity.async_added_to_hass(self)
+        for unsubscribe in self.diagnostic.subscribe(self.async_write_ha_state):
+            self.async_on_remove(unsubscribe)
+
+    @property
+    def native_value(self):
+        return self.diagnostic.state
+
+    @property
+    def extra_state_attributes(self):
+        return self.diagnostic.attributes
 
 
 class ControlReason(RadiantEntity, SensorEntity):

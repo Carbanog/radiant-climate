@@ -51,3 +51,15 @@ Confirmación inicial diferida, ausente e interrumpida por Off, fallo interior o
 ## Auditoría propia y regresiones de v0.2.4
 
 Reproducciones de eventos ordinarios, atributos, otras zonas, ventanas deshabilitadas o retardadas y temperatura alcanzada durante una confirmación. Pérdida transitoria unknown/unavailable/ausente con y sin apagado; informe tardío y recuperación. Informes frecuentes no renuevan el plazo; parada del gestor durante espera. Cambios simultáneos de módulos, validación solar en cola, cambio de instancia y prioridad actual de Ausente al reanudar. Última temporada en cola y encendido con temporada vigente. Dos secuencias de 50 acciones (semillas 7 y 42) comprueban invariantes después de cada paso, sin presentarse como cobertura exhaustiva ni ensayos físicos.
+# Diagnóstico hidráulico (desarrollo posterior a v0.2.4)
+
+`tests/test_hydraulic.py` prueba el observador puro: calor/frío, diferencias
+invertidas, límites temporales, intermitencia, ausencia de referencias, pérdida
+de lecturas, cambios de contexto, huecos de ejecución y reinicio sin heredar
+evidencia. Se ejecuta en el trabajo core de CI.
+
+`tests/test_homeassistant.py` incluye flujo de opciones, conversión/unidades y
+caducidad, creación opcional de la entidad, pérdida/recuperación de fuentes,
+persistencia en recarga y cambios de diagnóstico durante una apertura pendiente.
+Comprueba que no cambia intención, modelo, revisión del control ni salidas.
+Los sensores y relés de estas pruebas son fixtures; no son una validación física.

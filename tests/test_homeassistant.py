@@ -1796,6 +1796,7 @@ async def test_model_follows_sensor_but_not_relay_identity(house, change):
         "window_delay",
         "target_reached",
         "same_season",
+        "hydraulic_options",
     ],
 )
 async def test_ordinary_reports_do_not_cancel_acknowledgment(house, event_kind):
@@ -1851,6 +1852,11 @@ async def test_ordinary_reports_do_not_cancel_acknowledgment(house, event_kind):
                 )
             elif event_kind == "same_season":
                 await manager.async_supply("heat")
+            elif event_kind == "hydraulic_options":
+                water_fixtures(house)
+                revision = manager._revision
+                result = await configure_hydraulic(house, hydraulic_heat_min=30 + index)
+                assert result["type"] == "create_entry", result
             elif event_kind == "other_zone_invalid":
                 house.states.async_set("sensor.fixture_b", "unavailable", {"sample": index})
             elif event_kind == "other_zone":
@@ -1864,6 +1870,8 @@ async def test_ordinary_reports_do_not_cancel_acknowledgment(house, event_kind):
                     {"sample": index},
                 )
             await asyncio.sleep(0.01)
+            if event_kind == "hydraulic_options":
+                assert manager._revision == revision
             assert not opening.done(), "Ordinary input cancelled the pending acknowledgment"
         assert not any(service == "turn_off" for service, _ in commands)
         await house.services.async_call(
@@ -2143,3 +2151,148 @@ async def test_control_invariants_across_mixed_user_and_sensor_sequences(house, 
             assert house.states.get("switch.fixture_general").state == "off"
         assert not manager._command_faults
     await manager.async_enable(False)
+
+
+async def configure_hydraulic(hass, **changes):
+    manager = hass.data[DOMAIN]
+    flow = await hass.config_entries.options.async_init(manager.hub)
+    flow = await hass.config_entries.options.async_configure(
+        flow["flow_id"], {"next_step_id": "hydraulic"}
+    )
+    data = {
+        "hydraulic_enabled": True,
+        "hydraulic_supply": "sensor.fixture_supply",
+        "hydraulic_return": "sensor.fixture_return",
+        "hydraulic_stale": 900,
+        "hydraulic_settle": 5,
+        "hydraulic_duration": 5,
+        **changes,
+    }
+    return await hass.config_entries.options.async_configure(flow["flow_id"], data)
+
+
+def water_fixtures(hass):
+    for key, value in (("supply", 30), ("return", 25)):
+        hass.states.async_set(f"sensor.fixture_{key}", str(value), {"unit_of_measurement": "°C"})
+
+
+@pytest.mark.parametrize(
+    "value,unit,expected",
+    [
+        ("32", "°F", 0),
+        ("303.15", "K", 30),
+        ("30", "°C", 30),
+        ("nan", "°C", None),
+        ("inf", "°C", None),
+        ("-1", "°C", None),
+        ("91", "°C", None),
+        ("unknown", "°C", None),
+        ("unavailable", "°C", None),
+        ("30", "%", None),
+        ("30", None, None),
+        ("True", "°C", None),
+    ],
+)
+async def test_water_reading_validates_units_range_and_freshness(house, value, unit, expected):
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+
+    from custom_components.radiant_climate.hydraulic import reading
+
+    house.states.async_set("sensor.fixture_water", value, {"unit_of_measurement": unit})
+    now = dt_util.utcnow()
+    assert reading(house, "sensor.fixture_water", now, 900) == expected
+    assert reading(house, "sensor.fixture_water", now + timedelta(seconds=901), 900) is None
+    assert reading(house, "sensor.fixture_water", now - timedelta(seconds=61), 900) is None
+    assert reading(house, "sensor.does_not_exist", now, 900) is None
+
+
+async def test_optional_hydraulic_lifecycle_is_read_only_and_preserves_control(house):
+    from unittest.mock import patch
+
+    from custom_components.radiant_climate.sensor import HydraulicStatus
+
+    entry, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    registry = er.async_get(house)
+    assert registry.async_get_entity_id("sensor", DOMAIN, f"{manager.hub}_hydraulic") is None
+    water_fixtures(house)
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await manager.async_enable(True)
+    await settle(house)
+    zone = manager.zones[entry.entry_id]
+    intent, model, revision = zone.intent.dump(), zone.intelligence.model.dump(), manager._revision
+    with patch.object(
+        manager, "async_update_options", side_effect=AssertionError("Control touched")
+    ):
+        result = await configure_hydraulic(house, hydraulic_heat_min=35)
+        assert result["type"] == "create_entry", result
+        await house.async_block_till_done()
+    assert manager._revision == revision
+    entity = registry.async_get_entity_id("sensor", DOMAIN, f"{manager.hub}_hydraulic")
+    assert entity is not None
+    assert house.states.get(entity).state == "stabilizing"
+    assert house.states.get(entity).attributes["delta_celsius"] == 5
+    # Retrieve the real platform entity; advance only this observer's monotonic clock.
+    component = house.data["sensor"]
+    diagnostic = next(e.diagnostic for e in component.entities if isinstance(e, HydraulicStatus))
+    with patch("custom_components.radiant_climate.hydraulic.monotonic", return_value=0):
+        diagnostic.observer.last = None
+        diagnostic.observer.signature = None
+        diagnostic.update()
+    with patch("custom_components.radiant_climate.hydraulic.monotonic") as clock:
+        for now in range(15, 601, 15):
+            clock.return_value = now
+            diagnostic.update()
+        assert diagnostic.state == "possible_low_supply"
+    revision = manager._revision
+    house.states.async_set("sensor.fixture_supply", "unavailable")
+    await house.async_block_till_done()
+    assert house.states.get(entity).state == "sensor_unavailable"
+    assert manager._revision == revision
+    assert zone.intent.dump() == intent
+    assert zone.intelligence.model.dump() == model
+    assert house.states.get("switch.fixture_a").state == "on"
+    assert house.states.get("switch.fixture_general").state == "on"
+    # Clearing references and disabling does not retire or reconcile hardware.
+    assert (await configure_hydraulic(house, hydraulic_enabled=False))["type"] == "create_entry"
+    await house.async_block_till_done()
+    assert house.states.get(entity).state == "disabled"
+    hub = house.config_entries.async_get_entry(manager.hub)
+    assert hub.options["hydraulic_heat_min"] is None
+    assert not manager._retired and not manager._command_faults
+    await manager.async_enable(False)
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"hydraulic_supply": "sensor.absent"},
+        {"hydraulic_return": "sensor.fixture_supply"},
+        {"hydraulic_supply": None},
+        {"hydraulic_heat_min": float("nan")},
+        {"hydraulic_duration": 0},
+    ],
+)
+async def test_hydraulic_options_reject_incomplete_or_invalid_configuration(house, changes):
+    water_fixtures(house)
+    result = await configure_hydraulic(house, **changes)
+    assert result["type"] == "form"
+    assert result["errors"]
+    assert not house.data[DOMAIN].enabled
+
+
+async def test_hydraulic_options_survive_unload_and_reload_without_enabling_control(house):
+    water_fixtures(house)
+    assert (await configure_hydraulic(house))["type"] == "create_entry"
+    await house.async_block_till_done()
+    manager = house.data[DOMAIN]
+    hub_id = manager.hub
+    entity = er.async_get(house).async_get_entity_id("sensor", DOMAIN, f"{hub_id}_hydraulic")
+    assert house.states.get(entity).state == "idle"
+    assert await house.config_entries.async_reload(hub_id)
+    await house.async_block_till_done()
+    assert house.states.get(entity).state == "idle"
+    assert not house.data[DOMAIN].enabled
+    assert house.states.get("switch.fixture_general").state == "off"

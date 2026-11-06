@@ -222,14 +222,22 @@ def complete_document(language):
             "profile": ("Profile", "Perfil")[language],
         },
     }
+    options["step"]["init"]["menu_options"]["hydraulic"] = (
+        "Hydraulic diagnostics",
+        "Diagnóstico hidráulico",
+    )[language]
     options["step"]["schedule_remove"] = {
         "title": ("Remove a block", "Eliminar un bloque")[language],
         "data": {"block": ("Block (1 = Monday)", "Bloque (1 = lunes)")[language]},
     }
     options["abort"] = {
+        "installation_only": (
+            "Configure this on the installation.",
+            "Configúralo en la instalación.",
+        )[language],
         "no_schedule": ("There are no schedule blocks.", "No hay bloques horarios configurados.")[
             language
-        ]
+        ],
     }
     result["selector"]["days"] = {
         "options": {
@@ -256,6 +264,70 @@ def complete_document(language):
         }
     }
     entities = result["entity"]
+    hydraulic_fields = {
+        "hydraulic_enabled": (
+            "Enable diagnostics (read only)",
+            "Activar diagnóstico (solo lectura)",
+        ),
+        "hydraulic_supply": ("Supply water temperature", "Sensor de impulsión"),
+        "hydraulic_return": ("Return water temperature", "Sensor de retorno"),
+        "hydraulic_stale": (
+            "Maximum report age (seconds)",
+            "Antigüedad máxima de lecturas (segundos)",
+        ),
+        "hydraulic_settle": ("Stabilisation time (minutes)", "Tiempo de estabilización (minutos)"),
+        "hydraulic_duration": ("Sustained deviation (minutes)", "Desviación sostenida (minutos)"),
+        "hydraulic_heat_min": (
+            "Optional heating supply minimum (°C)",
+            "Referencia mínima de impulsión en calor (°C, opcional)",
+        ),
+        "hydraulic_cool_max": (
+            "Optional cooling supply maximum (°C)",
+            "Referencia máxima de impulsión en frío (°C, opcional)",
+        ),
+    }
+    options["step"]["hydraulic"] = {
+        "title": ("Optional hydraulic diagnostics", "Diagnóstico hidráulico opcional")[language],
+        "description": (
+            "Read only; never changes thermostats or learning. References must come from your installation, not universal tables. No flow or valve position feedback: observations are not proof of a community fault. Blank references disable supply threshold warnings. No automatic notifications.",
+            "Solo lectura; nunca modifica termostatos ni aprendizaje. Las referencias deben corresponder a tu instalación, no a tablas universales. Sin caudal ni posición de válvulas medidos: las observaciones no prueban un fallo comunitario. Referencias vacías desactivan los avisos por umbral de impulsión. No envía notificaciones automáticas.",
+        )[language],
+        "data": {k: v[language] for k, v in hydraulic_fields.items()},
+    }
+    hydraulic_states = {
+        "disabled": ("Disabled", "Desactivado"),
+        "sensor_unavailable": (
+            "Missing, stale or invalid water readings",
+            "Lecturas de agua ausentes, caducadas o inválidas",
+        ),
+        "idle": ("No active demand", "Sin demanda activa"),
+        "waiting_relays": (
+            "Waiting for reported relay states",
+            "Esperando estados comunicados de relés",
+        ),
+        "stabilizing": ("Waiting for stabilisation", "Esperando estabilización"),
+        "observing": (
+            "Observation; no sustained deviation detected",
+            "Observación; sin desviación sostenida detectada",
+        ),
+        "reference_pending": ("Deviation under observation", "Desviación en observación"),
+        "possible_low_supply": (
+            "Supply below configured heating reference",
+            "Impulsión inferior a la referencia de calor",
+        ),
+        "possible_high_supply": (
+            "Supply above configured cooling reference",
+            "Impulsión superior a la referencia de frío",
+        ),
+        "unexpected_delta": (
+            "Unexpected temperature difference; check measurements",
+            "Diferencia de temperatura inesperada; revisar mediciones",
+        ),
+    }
+    entities["sensor"]["hydraulic"] = {
+        "name": ("Hydraulic diagnostics", "Diagnóstico hidráulico")[language],
+        "state": {k: v[language] for k, v in hydraulic_states.items()},
+    }
     entities["switch"]["schedule"] = {"name": ("Use schedule", "Usar horario")[language]}
     entities["switch"]["window_enabled"] = {
         "name": ("Pause for window", "Pausar por ventana")[language]

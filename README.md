@@ -8,6 +8,8 @@ Crea termostatos de Home Assistant a partir de tus sensores y relés. Utiliza un
 
 [Última release](https://github.com/Carbanog/radiant-climate/releases/latest) · [Instalación](#instalación) · [Primer arranque](#primer-arranque) · [Resolver problemas](docs/troubleshooting.md) · [Cambios y actualización](docs/release-notes.md) · [Licencia MIT](LICENSE)
 
+En desarrollo: [diagnóstico hidráulico opcional](docs/hydraulic-diagnostics.md) con sondas generales existentes; solo observación, independiente de la regulación y sin ayudantes externos. Aún no incluido en v0.2.4.
+
 [![Pruebas de software](https://github.com/Carbanog/radiant-climate/actions/workflows/ci.yml/badge.svg)](https://github.com/Carbanog/radiant-climate/actions/workflows/ci.yml)
 [![Metadatos de integración](https://github.com/Carbanog/radiant-climate/actions/workflows/metadata.yml/badge.svg)](https://github.com/Carbanog/radiant-climate/actions/workflows/metadata.yml)
 

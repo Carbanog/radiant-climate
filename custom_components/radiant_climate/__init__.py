@@ -6,6 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, PLATFORMS
+from .hydraulic import DEFAULTS
 from .runtime import Installation
 from .services import async_register_services
 
@@ -32,6 +33,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    manager = hass.data[DOMAIN]
+    data = {**entry.data, **entry.options}
+    old = manager.entries.get(entry.entry_id)
+    if (
+        old is not None
+        and data != old
+        and all(old.get(k) == data.get(k) for k in (old.keys() | data.keys()) - DEFAULTS.keys())
+    ):
+        # Purely observational changes must not invalidate an opening plan or
+        # reconcile actuators, even during a pending relay acknowledgment.
+        manager.entries[entry.entry_id] = data
+        return
     if await hass.data[DOMAIN].async_update_options(entry):
         return
     await hass.config_entries.async_reload(entry.entry_id)

@@ -40,7 +40,8 @@
           "schedule_add": "Add or replace schedule block",
           "schedule_remove": "Remove schedule block",
           "sources": "Environment, solar and anticipation",
-          "vacation": "Vacation and return"
+          "vacation": "Vacation and return",
+          "hydraulic": "Hydraulic diagnostics"
         }
       },
       "hardware": {
@@ -81,6 +82,20 @@
           "block": "Block (1 = Monday)"
         }
       },
+      "hydraulic": {
+        "title": "Optional hydraulic diagnostics",
+        "description": "Read only; never changes thermostats or learning. References must come from your installation, not universal tables. No flow or valve position feedback: observations are not proof of a community fault. Blank references disable supply threshold warnings. No automatic notifications.",
+        "data": {
+          "hydraulic_enabled": "Enable diagnostics (read only)",
+          "hydraulic_supply": "Supply water temperature",
+          "hydraulic_return": "Return water temperature",
+          "hydraulic_stale": "Maximum report age (seconds)",
+          "hydraulic_settle": "Stabilisation time (minutes)",
+          "hydraulic_duration": "Sustained deviation (minutes)",
+          "hydraulic_heat_min": "Optional heating supply minimum (°C)",
+          "hydraulic_cool_max": "Optional cooling supply maximum (°C)"
+        }
+      },
       "sources": {
         "title": "Optional sources and optimisation",
         "description": "Blank sources inherit installation defaults. Enable modules separately on the device. Geometry edits invalidate confirmation. Review and confirm the unchanged new values before Solar Active; geometry does not prove direct sun.",
@@ -113,6 +128,7 @@
       "invalid_configuration": "Check the values and required fields."
     },
     "abort": {
+      "installation_only": "Configure this on the installation.",
       "no_schedule": "There are no schedule blocks."
     }
   },
@@ -230,6 +246,21 @@
           "demand": "Temperature demand",
           "satisfied": "Target satisfied",
           "supply_not_ready": "Shared supply relay not ready"
+        }
+      },
+      "hydraulic": {
+        "name": "Hydraulic diagnostics",
+        "state": {
+          "disabled": "Disabled",
+          "sensor_unavailable": "Missing, stale or invalid water readings",
+          "idle": "No active demand",
+          "waiting_relays": "Waiting for reported relay states",
+          "stabilizing": "Waiting for stabilisation",
+          "observing": "Observation; no sustained deviation detected",
+          "reference_pending": "Deviation under observation",
+          "possible_low_supply": "Supply below configured heating reference",
+          "possible_high_supply": "Supply above configured cooling reference",
+          "unexpected_delta": "Unexpected temperature difference; check measurements"
         }
       }
     },

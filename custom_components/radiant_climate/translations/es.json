@@ -40,7 +40,8 @@
           "schedule_add": "Añadir o sustituir bloque horario",
           "schedule_remove": "Eliminar bloque horario",
           "sources": "Entorno, sol y anticipación",
-          "vacation": "Vacaciones y regreso"
+          "vacation": "Vacaciones y regreso",
+          "hydraulic": "Diagnóstico hidráulico"
         }
       },
       "hardware": {
@@ -81,6 +82,20 @@
           "block": "Bloque (1 = lunes)"
         }
       },
+      "hydraulic": {
+        "title": "Diagnóstico hidráulico opcional",
+        "description": "Solo lectura; nunca modifica termostatos ni aprendizaje. Las referencias deben corresponder a tu instalación, no a tablas universales. Sin caudal ni posición de válvulas medidos: las observaciones no prueban un fallo comunitario. Referencias vacías desactivan los avisos por umbral de impulsión. No envía notificaciones automáticas.",
+        "data": {
+          "hydraulic_enabled": "Activar diagnóstico (solo lectura)",
+          "hydraulic_supply": "Sensor de impulsión",
+          "hydraulic_return": "Sensor de retorno",
+          "hydraulic_stale": "Antigüedad máxima de lecturas (segundos)",
+          "hydraulic_settle": "Tiempo de estabilización (minutos)",
+          "hydraulic_duration": "Desviación sostenida (minutos)",
+          "hydraulic_heat_min": "Referencia mínima de impulsión en calor (°C, opcional)",
+          "hydraulic_cool_max": "Referencia máxima de impulsión en frío (°C, opcional)"
+        }
+      },
       "sources": {
         "title": "Fuentes opcionales y optimización",
         "description": "Fuentes vacías heredan las de instalación. Activa los módulos por separado en el dispositivo. Cambiar la geometría invalida la confirmación. Revisa y confirma los nuevos valores sin modificarlos antes de Solar Activo; la geometría no demuestra sol directo.",
@@ -113,6 +128,7 @@
       "invalid_configuration": "Comprueba los valores y campos obligatorios."
     },
     "abort": {
+      "installation_only": "Configúralo en la instalación.",
       "no_schedule": "No hay bloques horarios configurados."
     }
   },
@@ -230,6 +246,21 @@
           "demand": "Demanda térmica",
           "satisfied": "Consigna satisfecha",
           "supply_not_ready": "Relé de suministro compartido no preparado"
+        }
+      },
+      "hydraulic": {
+        "name": "Diagnóstico hidráulico",
+        "state": {
+          "disabled": "Desactivado",
+          "sensor_unavailable": "Lecturas de agua ausentes, caducadas o inválidas",
+          "idle": "Sin demanda activa",
+          "waiting_relays": "Esperando estados comunicados de relés",
+          "stabilizing": "Esperando estabilización",
+          "observing": "Observación; sin desviación sostenida detectada",
+          "reference_pending": "Desviación en observación",
+          "possible_low_supply": "Impulsión inferior a la referencia de calor",
+          "possible_high_supply": "Impulsión superior a la referencia de frío",
+          "unexpected_delta": "Diferencia de temperatura inesperada; revisar mediciones"
         }
       }
     },

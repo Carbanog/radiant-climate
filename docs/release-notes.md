@@ -6,6 +6,9 @@
 - Bloques agrupados y localizados, atajos Semana completa/Entre semana/Fin de semana,
   edición explícita precargada y eliminación parcial. Los cambios preservan excepciones
   y rechazan colisiones de edición; la agenda almacenada no cambia de formato.
+- Corregido un fallo reproducido: las pausas opcionales respetan el mínimo de
+  encendido incluso si el regulador básico todavía pide calor/frío. Las protecciones
+  y los apagados siguen pudiendo cerrar inmediatamente.
 - Manual indefinido se identifica como tal. Apagado individual sigue siendo persistente.
 - Fuente de posición solar compartida configurable: Sol de HA, entidad con atributos
   o sensores separados en grados. Fuente ausente/inválida degrada solo la optimización.

@@ -24,9 +24,9 @@ Crea termostatos de Home Assistant a partir de tus sensores y relés. Utiliza un
 | Un termostato normal | Calefacción, refrigeración, consigna fija y Apagado |
 | Temperaturas según el uso | Normal, Eco, Noche y Ausente, editables y separados por temporada |
 | Programar cada estancia | Agenda semanal por zona; copia de ajustes a otras zonas |
-| Cambiar de opinión | Manual por duración, hasta el siguiente bloque o hasta volver al programa |
+| Cambiar de opinión | Manual por duración, hasta el siguiente bloque o indefinido |
 | Ventilar | Pausa por contacto de ventana, con retardos configurables |
-| Aprovechar el entorno | Fuentes de meteo/exterior seleccionables y solar por orientación y elevación |
+| Aprovechar el entorno | Fuentes de meteo/exterior seleccionables y solar por orientación/elevación y adelanto preventivo opcional |
 | Tener en cuenta la inercia | Observación por temporada, adelanto de horario y pausa predictiva acotados |
 | Ausentarse | Vacaciones de toda la vivienda con fecha/hora de vuelta y excepciones por zona |
 | Compartir una entrada de agua | Válvula general opcional, gestionada por un único módulo de maniobras |
@@ -190,6 +190,7 @@ Las pruebas de software no acreditan precisión, ahorro ni respuesta térmica de
 | [Diagnóstico hidráulico](docs/hydraulic-diagnostics.md) | Sondas opcionales, avisos, activación y límites |
 | [Instalación y reversión](docs/installation.md) | Marketplace, HACS, ZIP, piloto y recuperación |
 | [Configuración y uso](docs/configuration.md) | Parámetros, perfiles, horarios, Manual y vacaciones |
+| [Panel por secciones](docs/dashboard.md) | Organizar controles con tarjetas nativas, sin ayudantes |
 | [Problemas y soluciones](docs/troubleshooting.md) | Diagnóstico por síntoma y motivos visibles |
 | [Módulos avanzados](docs/intelligence.md) | Fuentes, algoritmos, requisitos y degradación |
 | [Observación y ajuste](docs/tuning.md) | Qué medir y plantilla de diagnóstico local |

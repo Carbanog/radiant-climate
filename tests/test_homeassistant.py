@@ -2644,6 +2644,8 @@ async def test_selectable_solar_sources_and_optional_failure(house, mode):
         "missing",
         "cold",
         "minimum_cycle",
+        "schedule",
+        "zone_off",
     ],
 )
 async def test_solar_lead_before_exposure_keeps_regulation_priorities(house, monkeypatch, case):
@@ -2705,6 +2707,26 @@ async def test_solar_lead_before_exposure_keeps_regulation_priorities(house, mon
 
         zone.settings = replace(zone.settings, minimum_on=180)
         zone.switched_at = now
+    if case == "zone_off":
+        await service(house, "climate", "turn_off", climate)
+    if case == "schedule":
+        from custom_components.radiant_climate.core.intelligence import Statistics
+
+        local = dt_util.as_local(now)
+        later = local + timedelta(minutes=30)
+        await manager.async_edit_schedule(
+            entry.entry_id,
+            lambda p: (
+                p.set_blocks(list(range(7)), 0, "eco"),
+                p.set_blocks([later.weekday()], later.hour * 60 + later.minute, "home"),
+            ),
+        )
+        zone.program.profiles["heat"].update(eco=21, home=22)
+        await service(house, "switch", "turn_on", zone_entity(house, entry, "switch", "schedule"))
+        await manager.async_feature(entry.entry_id, "anticipation", True)
+        zone.intelligence.model.statistics["heat_on"] = Statistics(
+            count=12, hours=6, delta=3, rate_square=1.5, episodes=3
+        )
     zone.intelligence.model.points = [
         (now - timedelta(minutes=30), value - 0.1),
         (now - timedelta(minutes=15), value - 0.05),
@@ -2722,7 +2744,10 @@ async def test_solar_lead_before_exposure_keeps_regulation_priorities(house, mon
         assert attrs["solar_lead_candidate"]
         assert attrs["temperature"] == 21
         assert house.states.get("switch.fixture_a").state == "off"
-    if case in ("observe", "manual", "cloudy", "missing", "cold", "minimum_cycle"):
+    if case == "schedule":
+        assert attrs["reason"] == "anticipation"
+        assert attrs["control_target"] == 22
+    if case in ("observe", "manual", "cloudy", "missing", "cold", "minimum_cycle", "schedule"):
         assert house.states.get("switch.fixture_a").state == "on"
 
 
@@ -2821,11 +2846,24 @@ async def test_solar_angle_validation_fails_optional(house, case):
     house.states.async_set("sensor.fixture_az", "140", {"unit_of_measurement": "°"})
     now = dt_util.utcnow()
     if case == "skew":
-        from unittest.mock import patch
+        from types import SimpleNamespace
 
-        with patch("homeassistant.core.dt_util.utcnow", return_value=now + timedelta(minutes=6)):
-            house.states.async_set("sensor.fixture_az", "141", {"unit_of_measurement": "°"})
-        now += timedelta(minutes=6)
+        # Explicit synthetic timestamps: Core's state machine stamps reports
+        # from its own clock, independently of dt_util.utcnow.
+        states = {
+            name: SimpleNamespace(
+                state=value, attributes={"unit_of_measurement": "°"}, last_reported=when
+            )
+            for name, value, when in (
+                ("sensor.fixture_el", "26", now - timedelta(minutes=6)),
+                ("sensor.fixture_az", "140", now),
+            )
+        }
+        assert angles(SimpleNamespace(states=SimpleNamespace(get=states.get)), config, now) == (
+            None,
+            None,
+        )
+        return
     if case == "stale":
         now += timedelta(minutes=31)
     if case == "missing":

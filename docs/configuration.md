@@ -152,3 +152,8 @@ Una medición interior válida puede actualizar la demanda sin cancelar la confi
 La pérdida transitoria del estado de un relé provoca un aborto conservador. Volver a comunicar On no equivale a reconocer una avería ni a solicitar encendido: solo se puede recuperar si continúa autorizada la demanda; si existe Off o un bloqueo, se solicita cerrar. No se promete que una orden tardía pueda deshacerse físicamente.
 
 Los módulos, programación, reanudación y encendido leen el estado actual cuando se aplica la orden. Las selecciones manuales de temporada en cola respetan su orden; no se introduce ninguna selección automática del agua comunitaria. No hay controles ni ayudantes nuevos para estas correcciones.
+## Diagnóstico opcional del agua
+
+Si dispones de sondas generales, consulta [Diagnóstico hidráulico](hydraulic-diagnostics.md).
+Se configura en la instalación y se activa desde su propio interruptor del panel.
+No se necesita para crear termostatos ni interviene en regulación o aprendizaje.

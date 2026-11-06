@@ -1,5 +1,40 @@
 # Cambios y actualización
 
+## v0.2.5
+
+Diagnóstico hidráulico **opcional y de solo lectura**. No cambia regulación,
+perfiles, Manual, horarios, aprendizaje ni optimizaciones. No necesita ayudantes,
+automatizaciones externas ni nuevas dependencias. Las instalaciones sin sondas
+siguen funcionando y no reciben entidades hidráulicas hasta configurarlas.
+
+- Selección de impulsión y retorno generales desde Opciones de la instalación.
+  Un sensor enum de diagnóstico y un interruptor nativo para el panel.
+- Temperaturas convertidas a °C, ΔT firmado y número de zonas demandantes.
+  Valida unidades, valores finitos, rango, caducidad y ausencia de fuentes.
+- Calor y frío tienen referencias opcionales independientes. No se inventa una
+  curva climática ni se deduce energía sin caudal. Una diferencia de signo
+  inesperado se comunica como observación que requiere revisión.
+- Espera estabilización y desviación continua. Pierde la evidencia acumulada
+  ante reinicio, desconexión, cambio de contexto o pausa larga de ejecución.
+  Conserva eventos intermedios de pérdida/recuperación aunque lleguen en ráfaga.
+- Editar solo estas opciones no ejecuta regulación, cancela confirmaciones,
+  recarga termostatos ni retira salidas. Tampoco reconoce fallos de actuadores.
+
+Consulta la [guía de diagnóstico](hydraulic-diagnostics.md) para configuración,
+estados y límites. No envía notificaciones automáticas. Los estados On de relés
+no confirman apertura o caudal; el retorno mezclado no permite repartir energía
+por habitación ni identificar por sí solo un fallo comunitario.
+
+### Actualización y recuperación
+
+Con respaldo y Climatización apagada, actualiza a v0.2.5 y reinicia. El módulo
+empieza desactivado. Se conservan entidades, perfiles, programas, modelos y
+almacenamiento versión 1. No se requieren sondas para continuar usando los
+termostatos. Para retirar únicamente esta función, usa su interruptor; no es
+necesario desactivar la calefacción. Para revertir código, conserva v0.2.4 y el
+respaldo; mantén Climatización apagada y no restaures almacenamiento en caliente
+ni ignores retiradas o fallos pendientes.
+
 ## v0.2.4
 
 Corrección del manejo de eventos y revisión propia de concurrencia, sin nuevos ayudantes, automatizaciones ni dependencias.

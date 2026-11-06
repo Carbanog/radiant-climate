@@ -2361,3 +2361,99 @@ async def test_hydraulic_burst_preserves_intervening_loss_or_recovery(house, int
         )
         assert diagnostic.observer.concern_since in (None, 615)
     await manager.async_enable(False)
+
+
+async def test_hydraulic_cooling_observation_does_not_block_real_cooling_control(house):
+    from unittest.mock import patch
+
+    from custom_components.radiant_climate.sensor import HydraulicStatus
+
+    _, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    house.states.async_set("sensor.fixture_a", "28", {"unit_of_measurement": "°C"})
+    await manager.async_supply("cool")
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="cool")
+    await manager.async_enable(True)
+    await settle(house)
+    house.states.async_set("sensor.fixture_supply", "23", {"unit_of_measurement": "°C"})
+    house.states.async_set("sensor.fixture_return", "25", {"unit_of_measurement": "°C"})
+    assert (await configure_hydraulic(house, hydraulic_cool_max=20))["type"] == "create_entry"
+    await house.async_block_till_done()
+    diagnostic = next(
+        e.diagnostic for e in house.data["sensor"].entities if isinstance(e, HydraulicStatus)
+    )
+    with patch("custom_components.radiant_climate.hydraulic.monotonic") as clock:
+        diagnostic.observer.signature = None
+        diagnostic.observer.last = None
+        for now in range(0, 601, 15):
+            clock.return_value = now
+            diagnostic.update()
+        assert diagnostic.state == "possible_high_supply"
+        assert diagnostic.attributes["delta_celsius"] == -2
+    house.states.async_set("sensor.fixture_return", "unavailable")
+    await house.async_block_till_done()
+    assert diagnostic.state == "sensor_unavailable"
+    assert house.states.get(climate).state == "cool"
+    assert house.states.get("switch.fixture_a").state == "on"
+    assert house.states.get("switch.fixture_general").state == "on"
+    assert not manager._command_faults
+    await manager.async_enable(False)
+
+
+async def test_cancelled_global_off_waiting_for_lock_still_completes_and_persists(house):
+    import asyncio
+
+    _, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await manager.async_enable(True)
+    await settle(house)
+    await manager._lock.acquire()
+    try:
+        off = house.async_create_task(manager.async_enable(False))
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert manager._stop_requested
+        off.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await off
+    finally:
+        manager._lock.release()
+    await house.async_block_till_done()
+    await settle(house)
+    assert not manager.enabled
+    assert not manager._stop_requested
+    assert not (await manager._store.async_load())["enabled"]
+    assert house.states.get("switch.fixture_a").state == "off"
+    assert house.states.get("switch.fixture_general").state == "off"
+
+
+@pytest.mark.parametrize("mode", ["heat", "cool"])
+@pytest.mark.parametrize("confirmed,sun_visible", [(True, True), (False, True), (True, False)])
+async def test_learning_excludes_known_sun_even_when_solar_optimisation_is_off(
+    house, mode, confirmed, sun_visible
+):
+    from unittest.mock import patch
+
+    entry, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    if mode == "cool":
+        house.states.async_set("sensor.fixture_a", "28", {"unit_of_measurement": "°C"})
+        await manager.async_supply("cool")
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode=mode)
+    await manager.async_enable(True)
+    await manager.async_feature(entry.entry_id, "learning", True)
+    zone = manager.zones[entry.entry_id]
+    zone.config.update(
+        orientation=125, solar_elevation=20, solar_width=40, solar_confirmed=confirmed
+    )
+    house.states.async_set(
+        "sun.sun", "above_horizon", {"azimuth": 125 if sun_visible else 300, "elevation": 30}
+    )
+    await settle(house)
+    assert zone.intelligence.features.solar == "off"
+    with patch.object(zone.intelligence.model, "observe") as observe:
+        await manager.async_reconcile()
+        assert observe.called
+        assert observe.call_args.kwargs["learning"] is not (confirmed and sun_visible)
+    await manager.async_enable(False)

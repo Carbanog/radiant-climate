@@ -51,7 +51,7 @@ Confirmación inicial diferida, ausente e interrumpida por Off, fallo interior o
 ## Auditoría propia y regresiones de v0.2.4
 
 Reproducciones de eventos ordinarios, atributos, otras zonas, ventanas deshabilitadas o retardadas y temperatura alcanzada durante una confirmación. Pérdida transitoria unknown/unavailable/ausente con y sin apagado; informe tardío y recuperación. Informes frecuentes no renuevan el plazo; parada del gestor durante espera. Cambios simultáneos de módulos, validación solar en cola, cambio de instancia y prioridad actual de Ausente al reanudar. Última temporada en cola y encendido con temporada vigente. Dos secuencias de 50 acciones (semillas 7 y 42) comprueban invariantes después de cada paso, sin presentarse como cobertura exhaustiva ni ensayos físicos.
-# Diagnóstico hidráulico (desarrollo posterior a v0.2.4)
+## Diagnóstico hidráulico (v0.2.5)
 
 `tests/test_hydraulic.py` prueba el observador puro: calor/frío, diferencias
 invertidas, límites temporales, intermitencia, ausencia de referencias, pérdida

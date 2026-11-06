@@ -19,7 +19,7 @@
 - Cambiar la fuente solar requiere confirmar de nuevo la exposición antes de optimizar.
   Se utiliza la ubicación de HA para proyectar y se rechazan fuentes inconsistentes.
 - Textos de configuración y explicación de elevación, orientación y ángulo revisados.
-  La lista genérica del dispositivo la ordena HA; hay un ejemplo de panel por secciones.
+  La lista genérica del dispositivo la ordena HA; hay una guía de panel por secciones.
 
 Actualización: conserva perfiles, horarios, aprendizaje, IDs y caducidades existentes.
 No activa módulos ni instala ayudantes. El nuevo adelanto solar empieza a 0: revisa

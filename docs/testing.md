@@ -1,6 +1,6 @@
 # Validación
 
-Las pruebas separan cálculo, adaptación a Home Assistant y comportamiento físico. Una beta instalable no acredita calibración, apertura de válvulas ni ahorro.
+Las pruebas separan cálculo, adaptación a Home Assistant y comportamiento físico. Una release instalable no acredita calibración, apertura de válvulas ni ahorro.
 
 ## Comprobaciones automáticas
 
@@ -28,7 +28,7 @@ Consulta los comandos de la [guía de desarrollo](development.md) y `.github/wor
 
 CI no reproduce cortes eléctricos, fallos mecánicos, comunicaciones reales, caudal, condensación, impulsión ni respuesta térmica de la vivienda. Reconciliaciones repetidas con un estado unavailable acreditan software, no una desconexión de radio durante horas. La geometría solar no mide sombras ni demuestra ganancia térmica.
 
-El piloto doméstico y la calibración necesitan copia recuperable, circuitos comprobados, actores anteriores detenidos y aceptación del propietario. Las pruebas visuales y de instalación en su servidor deben documentarse separadamente. No se publican releases solo para ensayar: una beta entregada es una versión identificable para instalación voluntaria, sin aprobación de producción.
+El piloto doméstico y la calibración necesitan copia recuperable, circuitos comprobados, actores anteriores detenidos y aceptación del propietario. Las pruebas visuales y de instalación en su servidor deben documentarse separadamente. No se publican releases solo para ensayar: una release entregada es una versión identificable y reversible; la aceptación física de cada instalación sigue siendo independiente.
 
 ## Artefactos
 
@@ -63,3 +63,21 @@ caducidad, creación opcional de la entidad, pérdida/recuperación de fuentes,
 persistencia en recarga y cambios de diagnóstico durante una apertura pendiente.
 Comprueba que no cambia intención, modelo, revisión del control ni salidas.
 Los sensores y relés de estas pruebas son fixtures; no son una validación física.
+
+
+## Ampliación de regresiones en v0.2.6
+
+137 pruebas del núcleo y 186 pruebas del adaptador por versión de Core.
+Se verifica edición agrupada/localización, precarga de días/hora/perfil, excepciones
+no seleccionadas y colisiones sin mutación; fuente solar estándar, por atributos
+o por sensores, pérdida/recuperación, caducidad, unidades y coherencia temporal;
+proyección Astral compartida y rechazo de fuente incompatible con la ubicación;
+adelanto previo al sol frente a Observación, Manual coincidente con perfil, Off
+individual/global, ventana, sensor inválido, frío, nubes, previsión ausente, falta
+de confort, tiempos mínimos y un próximo perfil más exigente.
+
+Un caso nuevo reprodujo que las pausas opcionales podían eludir el mínimo On cuando
+el regulador básico seguía demandando. Hay regresiones para adelanto solar, solar
+actual e inercia en calor/frío. La prohibición de optimizar no inhibe el cierre por
+Off, ventana o sensor inválido. No se atribuye la predicción de sol a un aprendizaje
+que el modelo térmico actual no realiza.

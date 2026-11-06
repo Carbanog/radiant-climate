@@ -176,7 +176,7 @@ Para recuperar otro controlador, apaga y deshabilita primero Radiant Climate y d
 
 ## Validación y límites
 
-La v0.2.4 superó **95 pruebas del núcleo y 122 pruebas del adaptador en cada Core 2026.10.4 y 2026.11.0**, además de HACS y hassfest. Las ampliaciones se validan en Actions por commit; consulta la ejecución de la versión que vayas a instalar. Los adaptadores utilizan Core real con sensores, relés, previsiones y modelos de prueba explícitos. Se prueban, entre otros, reinicios completos, Manual coincidente con perfiles, apagados, pérdidas de fuentes y conflictos de salidas. [Alcance de las pruebas](docs/testing.md).
+La v0.2.6 superó **137 pruebas del núcleo y 186 pruebas del adaptador en cada Core 2026.10.4 y 2026.11.0**, además de HACS y hassfest. Se incluyen regresiones del editor agrupado, las fuentes solares, el adelanto previo al sol y los tiempos mínimos de las pausas opcionales. Las ampliaciones se validan en Actions por commit; consulta la ejecución de la versión que vayas a instalar. Los adaptadores utilizan Core real con sensores, relés, previsiones y modelos de prueba explícitos. Se prueban, entre otros, reinicios completos, Manual coincidente con perfiles, apagados, pérdidas de fuentes y conflictos de salidas. [Alcance de las pruebas](docs/testing.md).
 
 El estado de un relé y el transcurso de un tiempo estimado **no confirman posición de válvula ni caudal**. Las esperas de apertura general/cierre de zona se configuran según los actuadores. No se controla producción ni bombas comunitarias ni se utilizan persianas. Esta integración no implementa protección anticondensación: se mantienen las protecciones físicas de la instalación.
 

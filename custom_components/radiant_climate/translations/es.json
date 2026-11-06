@@ -168,6 +168,9 @@
       "schedule": {
         "name": "Usar horario"
       },
+      "hydraulic_enabled": {
+        "name": "Usar diagnóstico hidráulico"
+      },
       "window_enabled": {
         "name": "Pausar por ventana"
       },

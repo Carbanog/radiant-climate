@@ -5,6 +5,7 @@ from homeassistant.const import EntityCategory
 
 from .const import DOMAIN
 from .entity import RadiantEntity
+from .hydraulic import configuration, configured
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -12,6 +13,16 @@ async def async_setup_entry(hass, entry, async_add_entities):
         async_add_entities(
             [InstallationEnabled(hass.data[DOMAIN], entry), HouseholdAway(hass.data[DOMAIN], entry)]
         )
+        added = False
+
+        async def discover(*_):
+            nonlocal added
+            if not added and configured(entry):
+                added = True
+                async_add_entities([HydraulicEnabled(hass.data[DOMAIN], entry)])
+
+        entry.async_on_unload(entry.add_update_listener(discover))
+        await discover()
     else:
         manager = hass.data[DOMAIN]
         entities = [
@@ -25,6 +36,48 @@ async def async_setup_entry(hass, entry, async_add_entities):
         if manager.zones[entry.entry_id].config.get("window"):
             entities.append(WindowEnabled(manager, entry))
         async_add_entities(entities)
+
+
+class HydraulicEnabled(RadiantEntity, SwitchEntity):
+    _attr_translation_key = "hydraulic_enabled"
+    _attr_icon = "mdi:pipe"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, manager, entry):
+        super().__init__(manager, entry, "hydraulic_enabled")
+
+    async def async_added_to_hass(self):
+        await SwitchEntity.async_added_to_hass(self)
+
+        async def changed(*_):
+            self.async_write_ha_state()
+
+        self.async_on_remove(self.entry.add_update_listener(changed))
+
+    @property
+    def is_on(self):
+        return configuration(self.entry)["hydraulic_enabled"]
+
+    @property
+    def available(self):
+        cfg = configuration(self.entry)
+        return bool(
+            cfg["hydraulic_supply"]
+            and cfg["hydraulic_return"]
+            and cfg["hydraulic_supply"] != cfg["hydraulic_return"]
+        )
+
+    async def async_turn_on(self, **kwargs):
+        if not self.available:
+            raise ValueError("Configure distinct supply and return sensors first")
+        self.hass.config_entries.async_update_entry(
+            self.entry, options={**self.entry.options, "hydraulic_enabled": True}
+        )
+
+    async def async_turn_off(self, **kwargs):
+        self.hass.config_entries.async_update_entry(
+            self.entry, options={**self.entry.options, "hydraulic_enabled": False}
+        )
 
 
 class HouseholdAway(RadiantEntity, SwitchEntity):

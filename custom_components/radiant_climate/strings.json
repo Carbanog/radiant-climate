@@ -168,6 +168,9 @@
       "schedule": {
         "name": "Use schedule"
       },
+      "hydraulic_enabled": {
+        "name": "Use hydraulic diagnostics"
+      },
       "window_enabled": {
         "name": "Pause for window"
       },

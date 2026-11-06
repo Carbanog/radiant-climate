@@ -2258,6 +2258,17 @@ async def test_optional_hydraulic_lifecycle_is_read_only_and_preserves_control(h
     assert zone.intelligence.model.dump() == model
     assert house.states.get("switch.fixture_a").state == "on"
     assert house.states.get("switch.fixture_general").state == "on"
+    toggle = registry.async_get_entity_id("switch", DOMAIN, f"{manager.hub}_hydraulic_enabled")
+    assert toggle is not None
+    with patch.object(
+        manager, "async_update_options", side_effect=AssertionError("Control touched")
+    ):
+        for action, expected in (("turn_off", "disabled"), ("turn_on", "sensor_unavailable")):
+            await house.services.async_call("switch", action, {"entity_id": toggle}, blocking=True)
+            await house.async_block_till_done()
+            assert house.states.get(entity).state == expected
+            assert manager._revision == revision
+    assert house.config_entries.async_get_entry(manager.hub).options["hydraulic_heat_min"] == 35
     # Clearing references and disabling does not retire or reconcile hardware.
     assert (await configure_hydraulic(house, hydraulic_enabled=False))["type"] == "create_entry"
     await house.async_block_till_done()
@@ -2292,17 +2303,18 @@ async def test_hydraulic_options_reject_incomplete_or_invalid_configuration(hous
     assert not house.data[DOMAIN].enabled
 
 
-async def test_hydraulic_options_survive_unload_and_reload_without_enabling_control(house):
+@pytest.mark.parametrize("enabled", [False, True])
+async def test_hydraulic_options_survive_unload_and_reload_without_enabling_control(house, enabled):
     water_fixtures(house)
-    assert (await configure_hydraulic(house))["type"] == "create_entry"
+    assert (await configure_hydraulic(house, hydraulic_enabled=enabled))["type"] == "create_entry"
     await house.async_block_till_done()
     manager = house.data[DOMAIN]
     hub_id = manager.hub
     entity = er.async_get(house).async_get_entity_id("sensor", DOMAIN, f"{hub_id}_hydraulic")
-    assert house.states.get(entity).state == "idle"
+    assert house.states.get(entity).state == ("idle" if enabled else "disabled")
     assert await house.config_entries.async_reload(hub_id)
     await house.async_block_till_done()
-    assert house.states.get(entity).state == "idle"
+    assert house.states.get(entity).state == ("idle" if enabled else "disabled")
     assert not house.data[DOMAIN].enabled
     assert house.states.get("switch.fixture_general").state == "off"
 

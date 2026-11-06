@@ -29,6 +29,11 @@ def configuration(entry):
     return {k: {**entry.data, **entry.options}.get(k, v) for k, v in DEFAULTS.items()}
 
 
+def configured(entry):
+    cfg = configuration(entry)
+    return cfg["hydraulic_enabled"] or bool(cfg["hydraulic_supply"] and cfg["hydraulic_return"])
+
+
 def reading(hass, entity, now, maximum):
     state = hass.states.get(entity) if entity else None
     return state_reading(state, now, maximum)

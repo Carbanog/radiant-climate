@@ -33,15 +33,17 @@ variable, deja la referencia vacía hasta disponer de una comparación válida.
 Este módulo no usa ni depende de meteo o temperatura exterior; puedes contrastar
 sus históricos con el sensor exterior existente.
 
-Para desactivarlo, desmarca **Activar diagnóstico**. Se conservan sus fuentes y
-parámetros. Vaciar un selector o una referencia elimina esa asignación o umbral,
+Para activarlo o desactivarlo desde el panel, añade el interruptor nativo
+**Usar diagnóstico hidráulico**. También puedes desmarcar **Activar diagnóstico**
+en Opciones. Se conservan sus fuentes y parámetros. Vaciar un selector o una referencia elimina esa asignación o umbral,
 sin valores ocultos duplicados. Los datos y temperaturas originales siguen en
 sus sensores habituales.
 
 ## Entidad y estados
 
-Al configurar el módulo se añade **un sensor de diagnóstico** a la instalación.
-Si no lo configuras, no se crea esta entidad. Sus atributos contienen impulsión,
+Al configurar el módulo se añaden **un sensor de diagnóstico y un interruptor**
+a la instalación. Si no lo configuras, no se crean estas entidades. Los atributos
+del sensor contienen impulsión,
 retorno, ΔT firmado = impulsión − retorno, temporada declarada, referencia y
 número de zonas con demanda. Los sensores originales permiten consultar los
 históricos numéricos sin duplicarlos. El diagnóstico enumera estas situaciones:

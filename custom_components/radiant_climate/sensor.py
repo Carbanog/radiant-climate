@@ -6,7 +6,7 @@ from homeassistant.const import EntityCategory
 from .const import DOMAIN
 from .core.hydraulic import STATES
 from .entity import RadiantEntity
-from .hydraulic import HydraulicDiagnostic, configuration
+from .hydraulic import HydraulicDiagnostic, configured
 
 REASONS = [
     "retired_actuator_pending",
@@ -44,10 +44,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
         async def discover(*_):
             nonlocal added
-            cfg = configuration(entry)
-            if not added and (
-                cfg["hydraulic_enabled"] or (cfg["hydraulic_supply"] and cfg["hydraulic_return"])
-            ):
+            if not added and configured(entry):
                 added = True
                 async_add_entities([HydraulicStatus(hass.data[DOMAIN], entry)])
 

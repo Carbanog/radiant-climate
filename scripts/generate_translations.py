@@ -329,6 +329,9 @@ def complete_document(language):
         "state": {k: v[language] for k, v in hydraulic_states.items()},
     }
     entities["switch"]["schedule"] = {"name": ("Use schedule", "Usar horario")[language]}
+    entities["switch"]["hydraulic_enabled"] = {
+        "name": ("Use hydraulic diagnostics", "Usar diagnóstico hidráulico")[language]
+    }
     entities["switch"]["window_enabled"] = {
         "name": ("Pause for window", "Pausar por ventana")[language]
     }

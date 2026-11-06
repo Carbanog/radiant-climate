@@ -7,11 +7,14 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import selector
+from homeassistant.helpers.translation import async_get_translations
 
 from .const import DOMAIN
 from .core.control import Settings, temperature
 from .core.program import PROFILES
+from .core.schedule_editor import groups, replace_blocks, selection, weekdays
 from .hydraulic import DEFAULTS, configuration
+from .solar import source_entities, source_signature
 
 
 def _entity(domain: str, multiple: bool = False):
@@ -22,6 +25,16 @@ def _number(minimum, maximum, step=1):
     return selector.NumberSelector(
         selector.NumberSelectorConfig(
             min=minimum, max=maximum, step=step, mode=selector.NumberSelectorMode.BOX
+        )
+    )
+
+
+def _days_selector():
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=["week", "weekdays", "weekend", *map(str, range(7))],
+            multiple=True,
+            translation_key="days",
         )
     )
 
@@ -179,11 +192,52 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         if self.config_entry.data["kind"] == "installation":
             return self.async_show_menu(
-                step_id="init", menu_options=["hardware", "hydraulic", "vacation"]
+                step_id="init", menu_options=["hardware", "solar_source", "hydraulic", "vacation"]
             )
         return self.async_show_menu(
             step_id="init",
-            menu_options=["hardware", "schedule_add", "schedule_remove", "sources", "vacation"],
+            menu_options=[
+                "hardware",
+                "schedule_add",
+                "schedule_choose",
+                "schedule_remove",
+                "sources",
+                "vacation",
+            ],
+        )
+
+    async def async_step_solar_source(self, user_input=None):
+        if self.config_entry.data["kind"] != "installation":
+            return self.async_abort(reason="installation_only")
+        previous = {**self.config_entry.data, **self.config_entry.options}
+        errors = {}
+        if user_input is not None:
+            data = {**previous, **user_input}
+            for key in ("sun_entity", "sun_elevation", "sun_azimuth"):
+                data[key] = user_input.get(key)
+            entities = source_entities(data)
+            if (
+                not entities
+                or any(not e or self.hass.states.get(e) is None for e in entities)
+                or (data["solar_source"] == "sensors" and len(set(entities)) != 2)
+            ):
+                errors["base"] = "invalid_configuration"
+            else:
+                return self.async_create_entry(title="", data=data)
+        fields = {
+            vol.Required(
+                "solar_source", default=previous.get("solar_source", "standard")
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=["standard", "entity", "sensors"], translation_key="solar_source"
+                )
+            )
+        }
+        fields[_optional_entity("sun_entity", previous)] = selector.EntitySelector()
+        for key in ("sun_elevation", "sun_azimuth"):
+            fields[_optional_entity(key, previous)] = _entity("sensor")
+        return self.async_show_form(
+            step_id="solar_source", data_schema=vol.Schema(fields), errors=errors
         )
 
     async def async_step_hydraulic(self, user_input=None):
@@ -257,6 +311,9 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
                 "weather": user_input.get("weather"),
                 "outdoor": user_input.get("outdoor"),
             }
+            data["solar_source_signature"] = source_signature(
+                self.hass.data[DOMAIN].environment.solar_config
+            )
             if any(
                 data.get(key, default) != previous.get(key, default)
                 for key, default in (
@@ -281,6 +338,7 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
             ("solar_width", 75, 1, 90),
             ("max_advance", 120, 0, 360),
             ("residual_minutes", 15, 5, 60),
+            ("solar_lead", 0, 0, 180),
         ]:
             fields[vol.Required(key, default=previous.get(key, default))] = _number(
                 minimum, maximum
@@ -339,7 +397,7 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
                 from datetime import time
 
                 clock = time.fromisoformat(user_input["time"])
-                days = [int(d) for d in user_input["days"]]
+                days = weekdays(user_input["days"])
                 manager = self.hass.data[DOMAIN]
                 await manager.async_edit_schedule(
                     self.config_entry.entry_id,
@@ -355,15 +413,118 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
             step_id="schedule_add",
             data_schema=vol.Schema(
                 {
-                    vol.Required("days"): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=[str(n) for n in range(7)],
-                            multiple=True,
-                            translation_key="days",
-                        )
-                    ),
+                    vol.Required("days"): _days_selector(),
                     vol.Required("time"): selector.TimeSelector(),
                     vol.Required("profile", default="home"): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=list(PROFILES), translation_key="profile"
+                        )
+                    ),
+                }
+            ),
+            errors=errors,
+        )
+
+    async def _schedule_selection(self, step_id, errors):
+        program = self.hass.data[DOMAIN].zones[self.config_entry.entry_id].program
+        labels = await async_get_translations(
+            self.hass, self.hass.config.language, "selector", {DOMAIN}
+        )
+
+        def label(selector_key, value):
+            return labels.get(f"component.{DOMAIN}.selector.{selector_key}.options.{value}", value)
+
+        options = []
+        for key, days, minute, profile in groups(program.blocks):
+            group = next(
+                (
+                    name
+                    for name, values in (
+                        ("week", list(range(7))),
+                        ("weekdays", list(range(5))),
+                        ("weekend", [5, 6]),
+                    )
+                    if days == values
+                ),
+                None,
+            )
+            day_label = (
+                label("days", group) if group else ", ".join(label("days", str(d)) for d in days)
+            )
+            options.append(
+                {
+                    "value": key,
+                    "label": f"{day_label} · {minute // 60:02d}:{minute % 60:02d} · {label('profile', profile)}",
+                }
+            )
+        return self.async_show_form(
+            step_id=step_id,
+            data_schema=vol.Schema(
+                {
+                    vol.Required("block"): selector.SelectSelector(
+                        selector.SelectSelectorConfig(options=options)
+                    ),
+                    vol.Optional("scope"): _days_selector(),
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_schedule_choose(self, user_input=None):
+        program = self.hass.data[DOMAIN].zones[self.config_entry.entry_id].program
+        if not program.blocks:
+            return self.async_abort(reason="no_schedule")
+        errors = {}
+        if user_input is not None:
+            try:
+                self._editing = selection(
+                    program.blocks, user_input["block"], user_input.get("scope", [])
+                )
+            except ValueError:
+                errors["base"] = "schedule_changed"
+            else:
+                return await self.async_step_schedule_edit()
+        return await self._schedule_selection("schedule_choose", errors)
+
+    async def async_step_schedule_edit(self, user_input=None):
+        errors = {}
+        if user_input is not None:
+            try:
+                from datetime import time
+
+                clock = time.fromisoformat(user_input["time"])
+                days = weekdays(user_input["days"])
+                await self.hass.data[DOMAIN].async_edit_schedule(
+                    self.config_entry.entry_id,
+                    lambda current: replace_blocks(
+                        current,
+                        self._editing,
+                        days,
+                        clock.hour * 60 + clock.minute,
+                        user_input["profile"],
+                    ),
+                )
+            except ValueError as exc:
+                errors["base"] = (
+                    str(exc)
+                    if str(exc) in {"schedule_changed", "schedule_conflict"}
+                    else "invalid_configuration"
+                )
+            else:
+                return self.async_create_entry(title="", data=dict(self.config_entry.options))
+        first = self._editing[0]
+        defaults = user_input or {
+            "days": [str(b.day) for b in self._editing],
+            "time": f"{first.minute // 60:02d}:{first.minute % 60:02d}:00",
+            "profile": first.profile,
+        }
+        return self.async_show_form(
+            step_id="schedule_edit",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("days", default=defaults["days"]): _days_selector(),
+                    vol.Required("time", default=defaults["time"]): selector.TimeSelector(),
+                    vol.Required("profile", default=defaults["profile"]): selector.SelectSelector(
                         selector.SelectSelectorConfig(
                             options=list(PROFILES), translation_key="profile"
                         )
@@ -379,39 +540,21 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
             return self.async_abort(reason="no_schedule")
         errors = {}
         if user_input is not None:
-            day, minute = map(int, user_input["block"].split(":"))
-
             try:
+                original = selection(
+                    program.blocks, user_input["block"], user_input.get("scope", [])
+                )
                 await self.hass.data[DOMAIN].async_edit_schedule(
                     self.config_entry.entry_id,
-                    lambda current: setattr(
-                        current,
-                        "blocks",
-                        [b for b in current.blocks if (b.day, b.minute) != (day, minute)],
-                    ),
+                    lambda current: replace_blocks(current, original),
                 )
-            except ValueError:
-                errors["base"] = "schedule_in_use"
+            except ValueError as exc:
+                errors["base"] = (
+                    "schedule_changed" if str(exc) == "schedule_changed" else "schedule_in_use"
+                )
             else:
                 return self.async_create_entry(title="", data=dict(self.config_entry.options))
-        options = [
-            {
-                "value": f"{b.day}:{b.minute}",
-                "label": f"{b.day + 1} · {b.minute // 60:02d}:{b.minute % 60:02d} · {b.profile}",
-            }
-            for b in program.blocks
-        ]
-        return self.async_show_form(
-            step_id="schedule_remove",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("block"): selector.SelectSelector(
-                        selector.SelectSelectorConfig(options=options)
-                    )
-                }
-            ),
-            errors=errors,
-        )
+        return await self._schedule_selection("schedule_remove", errors)
 
     async def async_step_hardware(self, user_input=None):
         previous = {**self.config_entry.data, **self.config_entry.options}

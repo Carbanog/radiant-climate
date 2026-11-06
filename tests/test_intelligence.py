@@ -262,3 +262,28 @@ def test_training_exclusion_resets_anchor_even_without_a_new_temperature_report(
     assert model.anchor is None
     assert model.cohort is None
     assert model.points == previous_points
+
+
+@pytest.mark.parametrize(
+    "mode,current,trend,minutes,sunny,expected",
+    [
+        (Mode.HEAT, 21, 0, 60, True, True),
+        (Mode.HEAT, 20.9, -0.05, 90, True, True),
+        (Mode.HEAT, 20.5, 0.1, 60, True, False),
+        (Mode.HEAT, 20.85, -0.1, 180, True, False),
+        (Mode.HEAT, 21, None, 60, True, False),
+        (Mode.HEAT, 21, 0, 60, None, False),
+        (Mode.HEAT, 21, 0, 60, False, False),
+        (Mode.HEAT, 21, 0, 0, True, False),
+        (Mode.HEAT, 21, -0.5, 60, True, False),
+        (Mode.COOL, 21, 0, 60, True, False),
+        (Mode.OFF, 21, 0, 60, True, False),
+        (Mode.HEAT, float("nan"), 0, 60, True, False),
+    ],
+)
+def test_pre_sun_pause_respects_comfort_and_requires_forecast(
+    mode, current, trend, minutes, sunny, expected
+):
+    from core.intelligence import before_sun_pause
+
+    assert before_sun_pause(mode, current, 21, trend, minutes, sunny) == expected

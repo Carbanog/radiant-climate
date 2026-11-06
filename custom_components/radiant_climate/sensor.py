@@ -13,6 +13,7 @@ REASONS = [
     "zone_closing_estimated",
     "general_opening_estimated",
     "solar_pause",
+    "solar_anticipation",
     "predictive_pause",
     "anticipation",
     "setup_not_ready",

@@ -11,6 +11,7 @@ from homeassistant.util.unit_conversion import TemperatureConverter
 
 from .core.control import temperature
 from .core.intelligence import solar_weather
+from .solar import SolarProjection, angles, source_entities
 
 
 def fresh(state, now, maximum=3600):
@@ -44,6 +45,18 @@ class Environment:
         self.forecasts: dict[str, Forecast] = {}
         self.status: dict[str, str] = {}
         self.attempted: dict[str, datetime] = {}
+        self.projection = SolarProjection(hass)
+
+    @property
+    def solar_config(self):
+        from .const import DOMAIN
+
+        manager = self.hass.data.get(DOMAIN)
+        return manager.entries.get(manager.hub, {}) if manager else {}
+
+    @property
+    def sun_entities(self):
+        return source_entities(self.solar_config)
 
     def weather_temperature(self, entity, now):
         state = self.hass.states.get(entity) if entity else None
@@ -94,16 +107,7 @@ class Environment:
 
     @property
     def sun(self):
-        state = self.hass.states.get("sun.sun")
-        if not fresh(state, dt_util.utcnow(), 900):
-            return None, None
-        try:
-            az, el = float(state.attributes["azimuth"]), float(state.attributes["elevation"])
-            if not 0 <= az <= 360 or not -90 <= el <= 90:
-                return None, None
-            return az, el
-        except (ValueError, TypeError, KeyError):
-            return None, None
+        return angles(self.hass, self.solar_config, dt_util.utcnow())
 
     def opportunity(self, weather_entity, now):
         _, elevation = self.sun

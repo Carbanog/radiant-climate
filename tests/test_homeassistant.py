@@ -2530,3 +2530,218 @@ async def test_services_and_issue_strings_exist_in_shipped_languages(house, lang
         if language == "en"
         else "Reconocer fallos de relés tras revisión"
     )
+
+
+async def test_grouped_schedule_editor_localised_partial_edit_and_collision(house):
+    from homeassistant.util import dt as dt_util
+
+    house.config.language = "es"
+    entry, _ = await add_zone(house)
+    manager = house.data[DOMAIN]
+    await add_schedule(house, entry)
+    await manager.async_edit_schedule(
+        entry.entry_id, lambda p: p.set_blocks(list(range(7)), 1380, "sleep")
+    )
+    flow = await house.config_entries.options.async_init(entry.entry_id)
+    flow = await house.config_entries.options.async_configure(
+        flow["flow_id"], {"next_step_id": "schedule_choose"}
+    )
+    schema = flow["data_schema"].schema
+    selected = next(v for k, v in schema.items() if str(k) == "block")
+    options = selected.config["options"]
+    assert len(options) == 2
+    assert any("Semana completa" in o["label"] and "Noche" in o["label"] for o in options)
+    block = next(o["value"] for o in options if "23:00" in o["label"])
+    flow = await house.config_entries.options.async_configure(
+        flow["flow_id"], {"block": block, "scope": ["weekdays"]}
+    )
+    assert flow["step_id"] == "schedule_edit"
+    defaults = {
+        str(k): k.default()
+        for k in flow["data_schema"].schema
+        if k.default is not __import__("voluptuous").UNDEFINED
+    }
+    assert defaults["time"] == "23:00:00"
+    assert defaults["days"] == ["0", "1", "2", "3", "4"]
+    before = manager.zones[entry.entry_id].program.dump()
+    conflict = await house.config_entries.options.async_configure(
+        flow["flow_id"], {"days": ["weekdays"], "time": "00:00:00", "profile": "eco"}
+    )
+    assert conflict["errors"] == {"base": "schedule_conflict"}
+    assert manager.zones[entry.entry_id].program.dump() == before
+    result = await house.config_entries.options.async_configure(
+        flow["flow_id"], {"days": ["weekdays"], "time": "22:00:00", "profile": "sleep"}
+    )
+    assert result["type"] == "create_entry"
+    await settle(house)
+    program = manager.zones[entry.entry_id].program
+    assert len(program.blocks) == 14
+    assert all(
+        b.minute == (1320 if b.day < 5 else 1380) for b in program.blocks if b.profile == "sleep"
+    )
+    assert manager.retired_actuators == ()
+    assert not manager.enabled
+    assert program.next_change(dt_util.utcnow(), house.config.time_zone) is not None
+
+
+@pytest.mark.parametrize("mode", ["standard", "entity", "sensors"])
+async def test_selectable_solar_sources_and_optional_failure(house, mode):
+    entry, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    house.states.async_set("sun.sun", "above_horizon", {"azimuth": 140, "elevation": 26})
+    house.states.async_set("sensor.fixture_sun", "ok", {"azimuth": 140, "elevation": 26})
+    for name, value in (("elevation", 26), ("azimuth", 140)):
+        house.states.async_set(f"sensor.fixture_{name}", str(value), {"unit_of_measurement": "°"})
+    flow = await house.config_entries.options.async_init(manager.hub)
+    flow = await house.config_entries.options.async_configure(
+        flow["flow_id"], {"next_step_id": "solar_source"}
+    )
+    result = await house.config_entries.options.async_configure(
+        flow["flow_id"],
+        {
+            "solar_source": mode,
+            "sun_entity": "sensor.fixture_sun",
+            "sun_elevation": "sensor.fixture_elevation",
+            "sun_azimuth": "sensor.fixture_azimuth",
+        },
+    )
+    assert result["type"] == "create_entry"
+    await settle(house)
+    assert manager.environment.sun == (140, 26)
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    source = manager.environment.sun_entities[0]
+    house.states.async_set(source, "unavailable")
+    await settle(house)
+    assert manager.environment.sun == (None, None)
+    assert house.states.get("switch.fixture_a").state == "on"
+    assert manager.enabled
+    house.states.async_set(
+        source,
+        "26" if mode == "sensors" else "above_horizon",
+        {"unit_of_measurement": "°", "azimuth": 140, "elevation": 26},
+    )
+    await settle(house)
+    assert manager.environment.sun == (140, 26)
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "active",
+        "observe",
+        "manual",
+        "off",
+        "window",
+        "sensor",
+        "cool",
+        "cloudy",
+        "missing",
+        "cold",
+        "minimum_cycle",
+    ],
+)
+async def test_solar_lead_before_exposure_keeps_regulation_priorities(house, monkeypatch, case):
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+
+    entry, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    house.states.async_set("weather.fixture_solar", "sunny")
+    house.states.async_set("sun.sun", "above_horizon", {"azimuth": 130, "elevation": 10})
+    await configure_sources(
+        house,
+        entry,
+        weather="weather.fixture_solar",
+        orientation=133.5,
+        solar_elevation=26,
+        solar_lead=90,
+    )
+    await configure_sources(house, entry, weather="weather.fixture_solar", solar_confirmed=True)
+    await manager.async_feature(entry.entry_id, "weather", True)
+    await manager.async_feature(
+        entry.entry_id, "solar", "observe" if case == "observe" else "active"
+    )
+    await service(
+        house, "climate", "set_hvac_mode", climate, hvac_mode="cool" if case == "cool" else "heat"
+    )
+    if case == "cool":
+        await manager.async_supply("cool")
+    await service(house, "switch", "turn_on", global_entity(house))
+    zone = manager.zones[entry.entry_id]
+    now = dt_util.utcnow()
+    monkeypatch.setattr(
+        manager.environment.projection, "arrival", lambda *_: now + timedelta(minutes=60)
+    )
+    monkeypatch.setattr(
+        manager.environment,
+        "future",
+        lambda *_: None
+        if case == "missing"
+        else {"condition": "cloudy" if case == "cloudy" else "sunny"},
+    )
+    value = 20 if case == "cold" else 20.9
+    house.states.async_set("sensor.fixture_a", str(value), {"unit_of_measurement": "°C"})
+    await settle(house)
+    if case == "manual":
+        await service(house, "climate", "set_temperature", climate, temperature=21)
+    if case == "off":
+        await service(house, "switch", "turn_off", global_entity(house))
+    if case == "window":
+        zone.config["window"] = "binary_sensor.fixture_solar_window"
+        house.states.async_set("binary_sensor.fixture_solar_window", "on")
+    if case == "sensor":
+        house.states.async_set("sensor.fixture_a", "unavailable")
+    if case == "minimum_cycle":
+        from dataclasses import replace
+
+        zone.settings = replace(zone.settings, minimum_on=180)
+        zone.switched_at = now
+    zone.intelligence.model.points = [
+        (now - timedelta(minutes=30), value - 0.1),
+        (now - timedelta(minutes=15), value - 0.05),
+        (now, value),
+    ]
+    await settle(house)
+    attrs = house.states.get(climate).attributes
+    assert (
+        attrs["reason"] == "solar_anticipation"
+        if case == "active"
+        else attrs["reason"] != "solar_anticipation"
+    )
+    if case == "active":
+        assert not attrs["solar_candidate"]
+        assert attrs["solar_lead_candidate"]
+        assert attrs["temperature"] == 21
+        assert house.states.get("switch.fixture_a").state == "off"
+    if case in ("observe", "manual", "cloudy", "missing", "cold", "minimum_cycle"):
+        assert house.states.get("switch.fixture_a").state == "on"
+
+
+async def test_solar_projection_matches_location_and_rejects_inconsistent_source(house):
+    from datetime import UTC, datetime, timedelta
+
+    from astral.sun import azimuth, elevation
+    from homeassistant.helpers.sun import get_astral_observer
+
+    from custom_components.radiant_climate.solar import SolarProjection
+
+    projection = SolarProjection(house)
+    now = datetime(2026, 11, 6, 10, tzinfo=UTC)
+    observer = get_astral_observer(house)
+    current = (azimuth(observer, now), elevation(observer, now))
+    points = projection.positions(now, current)
+    assert len(points) == 91
+    assert projection.positions(now + timedelta(seconds=1), current) is points
+    assert not projection.positions(now, ((current[0] + 90) % 360, current[1]))
+    assert not projection.positions(now, (None, None))
+    config = {
+        "solar_lead": 90,
+        "orientation": (current[0] + 5) % 360,
+        "solar_width": 1,
+        "solar_elevation": 0,
+    }
+    arrival = projection.arrival(now, current, config)
+    if arrival is not None:
+        assert now < arrival <= now + timedelta(minutes=90)

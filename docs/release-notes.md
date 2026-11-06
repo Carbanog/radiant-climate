@@ -1,5 +1,29 @@
 # Cambios y actualización
 
+
+## v0.2.6 — edición de horarios y anticipación solar opcional
+
+- Bloques agrupados y localizados, atajos Semana completa/Entre semana/Fin de semana,
+  edición explícita precargada y eliminación parcial. Los cambios preservan excepciones
+  y rechazan colisiones de edición; la agenda almacenada no cambia de formato.
+- Manual indefinido se identifica como tal. Apagado individual sigue siendo persistente.
+- Fuente de posición solar compartida configurable: Sol de HA, entidad con atributos
+  o sensores separados en grados. Fuente ausente/inválida degrada solo la optimización.
+- Adelanto solar por zona, desactivado por defecto: hasta 180 minutos antes de una
+  incidencia estimada, solo en calor, con previsión explícitamente favorable, tendencia
+  interior y temperatura próxima a consigna. Observación no cambia salidas; Manual,
+  Apagado, ventanas, averías y mínimos de maniobra conservan prioridad.
+- Cambiar la fuente solar requiere confirmar de nuevo la exposición antes de optimizar.
+  Se utiliza la ubicación de HA para proyectar y se rechazan fuentes inconsistentes.
+- Textos de configuración y explicación de elevación, orientación y ángulo revisados.
+  La lista genérica del dispositivo la ordena HA; hay un ejemplo de panel por secciones.
+
+Actualización: conserva perfiles, horarios, aprendizaje, IDs y caducidades existentes.
+No activa módulos ni instala ayudantes. El nuevo adelanto solar empieza a 0: revisa
+sombras y previsión en Observación antes de Optimizar. Copia de seguridad y versión
+anterior conservadas; no restaures almacenamiento en caliente ni reviertas con
+averías/salidas retiradas pendientes.
+
 ## v0.2.5
 
 Diagnóstico hidráulico **opcional y de solo lectura**. No cambia regulación,

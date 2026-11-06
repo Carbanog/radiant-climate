@@ -107,3 +107,62 @@ def test_editing_schedule_recalculates_next_block_and_no_blocks_keeps_manual():
 def test_corrupt_calendar_rejected(day, minute):
     with pytest.raises(ValueError):
         Block(day, minute, "home")
+
+
+@pytest.mark.parametrize(
+    "tokens,expected",
+    [
+        (["week"], list(range(7))),
+        (["weekdays", "6"], [0, 1, 2, 3, 4, 6]),
+        (["weekend", "5"], [5, 6]),
+    ],
+)
+def test_editor_day_shortcuts(tokens, expected):
+    from core.schedule_editor import weekdays
+
+    assert weekdays(tokens) == expected
+
+
+def test_editor_groups_partial_edit_and_storage_compatibility():
+    from core.schedule_editor import groups, replace_blocks, selection
+
+    p = plan()
+    grouped = groups(p.blocks)
+    assert len(grouped) == 2
+    key = next(key for key, _, _, profile in grouped if profile == "sleep")
+    chosen = selection(p.blocks, key, ["weekdays"])
+    replace_blocks(p, chosen, list(range(5)), 23 * 60, "eco")
+    assert Block(5, 22 * 60, "sleep") in p.blocks
+    assert Block(0, 22 * 60, "sleep") not in p.blocks
+    assert Block(0, 23 * 60, "eco") in p.blocks
+    assert len(p.blocks) == 14
+    assert Program.restore(p.dump()).dump() == p.dump()
+
+
+def test_editor_collision_and_stale_selection_are_atomic():
+    from core.schedule_editor import replace_blocks
+
+    p = plan()
+    original = [Block(0, 22 * 60, "sleep")]
+    before = p.dump()
+    with pytest.raises(ValueError, match="schedule_conflict"):
+        replace_blocks(p, original, [0], 7 * 60, "eco")
+    assert p.dump() == before
+    p.set_blocks([0], 22 * 60, "away")
+    before = p.dump()
+    with pytest.raises(ValueError, match="schedule_changed"):
+        replace_blocks(p, original)
+    assert p.dump() == before
+
+
+def test_partial_remove_preserves_exceptions_and_next_manual_boundary():
+    from core.schedule_editor import groups, replace_blocks, selection
+
+    p, i = plan(), Intent(mode=Mode.HEAT)
+    p.policy = HoldPolicy.NEXT_CHANGE
+    p.set_manual(i, Settings(), 22, NOW, TZ)
+    key = next(key for key, _, _, profile in groups(p.blocks) if profile == "sleep")
+    replace_blocks(p, selection(p.blocks, key, ["0"]))
+    p.reconcile_edit(i, NOW, TZ)
+    assert len(p.blocks) == 13
+    assert i.hold.until > NOW + timedelta(hours=6)

@@ -199,7 +199,7 @@ def solar_geometry(azimuth, elevation, orientation, minimum_elevation, width=75)
 
 
 def solar_weather(condition: str | None, clouds: float | None) -> bool | None:
-    if clouds is not None and math.isfinite(clouds) and 0 <= clouds <= 100:
+    if type(clouds) in (int, float) and math.isfinite(clouds) and 0 <= clouds <= 100:
         return clouds <= 50
     if condition == "sunny":
         return True
@@ -216,6 +216,20 @@ def solar_weather(condition: str | None, clouds: float | None) -> bool | None:
     ):
         return False
     return None
+
+
+def before_sun_pause(mode, current, target, trend, minutes, forecast_sunny):
+    """Bounded preventive heat pause, never a reason to accept an unmet comfort need."""
+    if mode != Mode.HEAT or forecast_sunny is not True or trend is None:
+        return False
+    if not all(math.isfinite(v) for v in (current, target, trend, minutes)):
+        return False
+    return (
+        0 < minutes <= 180
+        and -0.1 <= trend <= 3
+        and target - current <= 0.2
+        and current + min(trend, 0) * minutes / 60 >= target - 0.3
+    )
 
 
 def lead_minutes(

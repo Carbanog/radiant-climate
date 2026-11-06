@@ -25,6 +25,7 @@ from .core.intelligence import ThermalModel, window_pause
 from .core.program import Program
 from .environment import Environment
 from .intelligence import Intelligence
+from .solar import confirmed
 
 _LOGGER = logging.getLogger(__name__)
 COMMAND_TIMEOUT = 5
@@ -295,6 +296,12 @@ class Installation:
 
         def update():
             self.entries[entry.entry_id] = data
+            if entry.entry_id == self.hub:
+                for current in self.zones.values():
+                    if current.intelligence.features.solar == "active" and not confirmed(
+                        current.config, data
+                    ):
+                        current.intelligence.features.solar = "observe"
             if zone := self.zones.get(entry.entry_id):
                 zone.config = data
                 if (
@@ -399,7 +406,7 @@ class Installation:
         if unsafe:
             self._change_signal.set()
             self._change_signal = asyncio.Event()
-        watched = {self.general, "sun.sun"} | {
+        watched = {self.general, *self.environment.sun_entities} | {
             e
             for z in self.zones.values()
             for e in [
@@ -818,7 +825,11 @@ class Installation:
             and not self.source(z, "weather" if key == "weather" else "outdoor")
         ):
             raise ValueError("Choose the corresponding optional source in Settings first")
-        if key == "solar" and value == "active" and not z.config.get("solar_confirmed", False):
+        if (
+            key == "solar"
+            and value == "active"
+            and not confirmed(z.config, self.environment.solar_config)
+        ):
             raise ValueError(
                 "Observe and confirm window exposure thresholds before enabling solar control"
             )

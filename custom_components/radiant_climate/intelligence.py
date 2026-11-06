@@ -7,11 +7,13 @@ from .core.control import Decision, Mode, decide
 from .core.intelligence import (
     Features,
     ThermalModel,
+    before_sun_pause,
     lead_minutes,
     should_pause,
     solar_geometry,
     solar_weather,
 )
+from .solar import confirmed
 
 
 @dataclass
@@ -54,6 +56,7 @@ class Intelligence:
         mode = z.intent.mode
         config = z.config
         environment = manager.environment
+        exposure_confirmed = confirmed(config, environment.solar_config)
         weather = manager.source(z, "weather")
         outdoor = environment.outdoor(manager.source(z, "outdoor"), now) if f.outside else None
         if outdoor is None and f.weather:
@@ -70,7 +73,7 @@ class Intelligence:
         # Turning off an optimisation must not make known solar exposure into
         # training evidence for the emitter. Unconfirmed default geometry is
         # insufficient to exclude samples when no solar module is configured.
-        learning_exposure = exposure and (f.solar != "off" or config.get("solar_confirmed", False))
+        learning_exposure = exposure and (f.solar != "off" or exposure_confirmed)
         condition, clouds = environment.weather(weather, now) if f.weather else (None, None)
         weather_solar = solar_weather(condition, clouds)
         solar = geometry and weather_solar is not False
@@ -102,9 +105,41 @@ class Intelligence:
             "model_episodes": response.episodes,
             "model_rejected": self.model.rejected,
             "advance_minutes": None,
+            "solar_arrival": None,
+            "solar_lead_candidate": False,
         }
         if not allowed or measured is None or manual:
             return base
+        # Observation reports candidates but cannot alter the regulator. A
+        # forecast is mandatory before exposure; current clear sky is not one.
+        if mode == Mode.HEAT and not exposure and f.solar != "off" and f.weather:
+            arrival = environment.projection.arrival(now, (azimuth, elevation), config)
+            forecast = environment.future(weather, arrival, now) if arrival else None
+            predicted_sun = (
+                solar_weather(forecast.get("condition"), forecast.get("cloud_coverage"))
+                if forecast
+                else None
+            )
+            candidate = bool(
+                arrival
+                and before_sun_pause(
+                    mode,
+                    measured,
+                    base.target,
+                    trend,
+                    (arrival - now).total_seconds() / 60,
+                    predicted_sun,
+                )
+            )
+            self.diagnostics["solar_arrival"] = arrival.isoformat() if arrival else None
+            self.diagnostics["solar_lead_candidate"] = candidate
+            if (
+                candidate
+                and f.solar == "active"
+                and exposure_confirmed
+                and base.reason != "minimum_cycle"
+            ):
+                return Decision(False, "solar_anticipation", base.target)
         next_time = (
             z.program.next_change(now, timezone)
             if z.program.enabled and not z.program.away
@@ -141,7 +176,7 @@ class Intelligence:
             base.target,
             trend,
             config.get("residual_minutes", 15),
-            solar=solar and f.solar == "active" and config.get("solar_confirmed", False),
+            solar=solar and f.solar == "active" and exposure_confirmed,
             predictive=f.predictive,
             ready=response.ready,
             manual=manual,

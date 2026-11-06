@@ -79,6 +79,9 @@ class HydraulicDiagnostic:
         if manager.general:
             outputs.add(manager.general)
         ready = all((s := hass.states.get(a)) is not None and s.state == "on" for a in outputs)
+        if _event is not None and _event.data["entity_id"] in outputs:
+            state = _event.data.get("new_state")
+            ready &= state is not None and state.state == "on"
         ready &= not bool(manager._retired or manager._command_faults or manager._stop_requested)
         mode = manager.supply_mode.value
         self.state = self.observer.evaluate(
@@ -136,8 +139,12 @@ class HydraulicDiagnostic:
 
         @callback
         def source_changed(event):
+            if not active:
+                return
             cfg = configuration(self.entry)
-            if event.data["entity_id"] in (cfg["hydraulic_supply"], cfg["hydraulic_return"]):
+            watched = {cfg["hydraulic_supply"], cfg["hydraulic_return"], self.manager.general}
+            watched.update(a for z in self.manager.zones.values() for a in z.config["actuators"])
+            if event.data["entity_id"] in watched:
                 self.update(event)
                 notify()
 

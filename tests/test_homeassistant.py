@@ -545,7 +545,7 @@ async def test_household_vacation_return_form_and_expiry_preserve_control(house)
     manager = house.data[DOMAIN]
     until = dt_util.as_local(dt_util.utcnow() + timedelta(days=2)).replace(microsecond=0)
     flow = await house.config_entries.options.async_init(manager.hub)
-    assert flow["type"] == "menu" and flow["menu_options"] == ["hardware", "vacation"]
+    assert flow["type"] == "menu" and flow["menu_options"] == ["hardware", "hydraulic", "vacation"]
     flow = await house.config_entries.options.async_configure(
         flow["flow_id"], {"next_step_id": "vacation"}
     )
@@ -2168,7 +2168,10 @@ async def configure_hydraulic(hass, **changes):
         "hydraulic_duration": 5,
         **changes,
     }
-    return await hass.config_entries.options.async_configure(flow["flow_id"], data)
+    # Cleared optional HA selectors are omitted, rather than submitted as None.
+    return await hass.config_entries.options.async_configure(
+        flow["flow_id"], {key: value for key, value in data.items() if value is not None}
+    )
 
 
 def water_fixtures(hass):
@@ -2276,7 +2279,13 @@ async def test_optional_hydraulic_lifecycle_is_read_only_and_preserves_control(h
     ],
 )
 async def test_hydraulic_options_reject_incomplete_or_invalid_configuration(house, changes):
+    from homeassistant.data_entry_flow import InvalidData
+
     water_fixtures(house)
+    if changes.get("hydraulic_duration") == 0:
+        with pytest.raises(InvalidData):
+            await configure_hydraulic(house, **changes)
+        return
     result = await configure_hydraulic(house, **changes)
     assert result["type"] == "form"
     assert result["errors"]
@@ -2296,3 +2305,47 @@ async def test_hydraulic_options_survive_unload_and_reload_without_enabling_cont
     assert house.states.get(entity).state == "idle"
     assert not house.data[DOMAIN].enabled
     assert house.states.get("switch.fixture_general").state == "off"
+
+
+@pytest.mark.parametrize("intermediate", ["sensor_loss", "reference_recovered", "relay_off"])
+async def test_hydraulic_burst_preserves_intervening_loss_or_recovery(house, intermediate):
+    from unittest.mock import patch
+
+    from custom_components.radiant_climate.sensor import HydraulicStatus
+
+    _, climate = await add_zone(house)
+    water_fixtures(house)
+    manager = house.data[DOMAIN]
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await manager.async_enable(True)
+    await settle(house)
+    assert (await configure_hydraulic(house, hydraulic_heat_min=35))["type"] == "create_entry"
+    await house.async_block_till_done()
+    diagnostic = next(
+        e.diagnostic for e in house.data["sensor"].entities if isinstance(e, HydraulicStatus)
+    )
+    with patch("custom_components.radiant_climate.hydraulic.monotonic") as clock:
+        diagnostic.observer.signature = None
+        diagnostic.observer.last = None
+        for now in range(0, 601, 15):
+            clock.return_value = now
+            diagnostic.update()
+        assert diagnostic.state == "possible_low_supply"
+        clock.return_value = 615
+        if intermediate == "relay_off":
+            entity, first, final, attrs = "switch.fixture_a", "off", "on", {}
+        else:
+            entity, first, final, attrs = (
+                "sensor.fixture_supply",
+                "unavailable" if intermediate == "sensor_loss" else "36",
+                "30",
+                {"unit_of_measurement": "°C"},
+            )
+        house.states.async_set(entity, first, attrs)
+        house.states.async_set(entity, final, attrs)
+        await house.async_block_till_done()
+        assert diagnostic.state == (
+            "reference_pending" if intermediate == "reference_recovered" else "stabilizing"
+        )
+        assert diagnostic.observer.concern_since in (None, 615)
+    await manager.async_enable(False)

@@ -37,7 +37,8 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     data = {**entry.data, **entry.options}
     old = manager.entries.get(entry.entry_id)
     if (
-        old is not None
+        entry.data["kind"] == "installation"
+        and old is not None
         and data != old
         and all(old.get(k) == data.get(k) for k in (old.keys() | data.keys()) - DEFAULTS.keys())
     ):

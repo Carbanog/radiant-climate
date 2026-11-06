@@ -43,7 +43,7 @@ class HydraulicObserver:
         reference: float | None,
     ) -> str:
         # Monotonic time avoids clock adjustments extending/shortening a warning.
-        signature = (active, mode, config)
+        signature = (active, mode, config, settle, duration, reference)
         reset = signature != self.signature or (self.last is not None and now - self.last > 60)
         reset |= self.last is not None and now < self.last
         self.last = now

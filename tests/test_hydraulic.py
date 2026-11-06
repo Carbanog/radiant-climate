@@ -67,6 +67,9 @@ def test_invalid_evidence_clears_all_timing(change, status):
         {"active": ("b",)},
         {"mode": "cool"},
         {"config": ("replacement",)},
+        {"settle": 600},
+        {"duration": 600},
+        {"reference": 32},
     ],
 )
 def test_context_change_starts_fresh(changes):
@@ -113,3 +116,15 @@ def test_warning_timer_does_not_accumulate_intermittent_deviations():
     assert observe(observer, 600) == "reference_pending"
     assert observe(observer, 615, returning=40) == "reference_pending"
     assert observer.concern_since == 615
+
+
+def test_native_enum_is_translated_in_all_shipped_languages():
+    import json
+    from pathlib import Path
+
+    from core.hydraulic import STATES
+
+    component = Path(__file__).resolve().parents[1] / "custom_components/radiant_climate"
+    for relative in ("strings.json", "translations/en.json", "translations/es.json"):
+        document = json.loads((component / relative).read_text(encoding="utf-8"))
+        assert set(document["entity"]["sensor"]["hydraulic"]["state"]) == set(STATES)

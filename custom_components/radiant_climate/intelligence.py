@@ -110,6 +110,11 @@ class Intelligence:
         }
         if not allowed or measured is None or manual:
             return base
+        # Optional policies introduce their own demand transition. The base
+        # regulator may still demand heat, so its reason alone cannot enforce
+        # the minimum ON time for a pause introduced here.
+        can_pause = not on or (now - z.switched_at).total_seconds() >= z.settings.minimum_on
+        solar_pre_pause = False
         # Observation reports candidates but cannot alter the regulator. A
         # forecast is mandatory before exposure; current clear sky is not one.
         if mode == Mode.HEAT and not exposure and f.solar != "off" and f.weather:
@@ -138,8 +143,9 @@ class Intelligence:
                 and f.solar == "active"
                 and exposure_confirmed
                 and base.reason != "minimum_cycle"
+                and can_pause
             ):
-                return Decision(False, "solar_anticipation", base.target)
+                solar_pre_pause = True
         next_time = (
             z.program.next_change(now, timezone)
             if z.program.enabled and not z.program.away
@@ -170,6 +176,10 @@ class Intelligence:
                     else advanced.reason,
                     advanced.target,
                 )
+        # A due, higher-comfort schedule advance takes priority over solar gain
+        # that has not arrived yet. Do not suppress an actual comfort request.
+        if solar_pre_pause:
+            return Decision(False, "solar_anticipation", base.target)
         pause = should_pause(
             mode,
             measured,
@@ -181,6 +191,6 @@ class Intelligence:
             ready=response.ready,
             manual=manual,
         )
-        if pause and base.reason != "minimum_cycle":
+        if pause and can_pause and base.reason != "minimum_cycle":
             return Decision(False, pause, base.target)
         return base

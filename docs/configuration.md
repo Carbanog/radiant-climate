@@ -20,13 +20,13 @@ El sensor interior debe informar grados Celsius. Una unidad ausente o incompatib
 - Ausente: activa el perfil prolongado. Elegir away en los presets también activa ausencia indefinida. Terminar Ausente no anula una retención manual posterior.
 - Vacaciones de la vivienda: encender aplica Ausente a todas las zonas cargadas; apagar termina esas ausencias. No enciende zonas apagadas ni activa Climatización. Cada zona utiliza su propia temperatura Ausente para la temporada.
 
-Los ajustes avanzados y temperaturas aparecen agrupados en Configuración del dispositivo; no es necesario mostrarlos todos en el panel principal. Se pueden añadir individualmente a un panel nativo.
+La ficha genérica del dispositivo ordena los controles según Home Assistant; la integración no puede imponer secciones allí. Para separar perfiles, Manual, horarios y funciones opcionales utiliza el [panel nativo por secciones](dashboard.md). No necesita tarjetas externas ni nuevas entidades.
 
 ## Perfiles y Manual
 
 Normal, Eco, Noche y Ausente tienen temperaturas independientes para calor y frío, almacenadas una sola vez. Sus controles number los crea la integración; no son input_number externos. Los valores iniciales son orientativos. Ajusta Noche por estancia e inercia; no se obliga a aplicar la misma reducción a todas.
 
-En Comportamiento de Manual elige duración, próximo bloque o hasta volver expresamente al programa. La duración inicial es 240 minutos, editable entre 1 y 1440; no representa un tiempo térmico aprendido. Cambiar la preferencia no modifica una retención ya iniciada.
+En Comportamiento de Manual elige duración, próximo bloque o **Manual indefinido (sin límite de tiempo)**. Este último se mantiene hasta una reanudación explícita; un cambio real de temporada también cancela la retención. Apagar la zona es independiente: permanece apagada hasta encenderla expresamente, aunque cambie el horario o venza Manual. La duración inicial es 240 minutos, editable entre 1 y 1440; no representa un tiempo térmico aprendido. Cambiar la preferencia no modifica una retención ya iniciada.
 
 Con programación o vacaciones activas, cualquier orden climate de temperatura inicia Manual, incluida una consigna igual al perfil. Repetirla renueva la duración. La integración no utiliza context.user_id ni deducciones por preset_mode: la entidad propia recibe la orden y la lógica interna no se llama a sí misma a través de servicios climate.
 
@@ -34,7 +34,9 @@ Durante Manual no actúan anticipación, solar ni pausa predictiva. Editar un pe
 
 ## Agenda semanal
 
-Configurar → Añadir o sustituir bloque horario permite seleccionar días, hora y perfil. Cada bloque continúa hasta el siguiente, también entre días. Repetir día/hora sustituye el bloque. Eliminar bloque muestra los existentes. Utiliza la zona horaria de HA.
+Configurar → Añadir bloque horario permite seleccionar Semana completa, Entre semana, Fin de semana o días individuales, hora y perfil. Los atajos se expanden a los mismos bloques diarios almacenados; no crean otra agenda. Cada bloque continúa hasta el siguiente, también entre días. Repetir día/hora al añadir sustituye el perfil. Utiliza la zona horaria de HA.
+
+**Editar bloque horario** muestra una fila por hora/perfil con los días agrupados y traducidos. Puedes limitar los días afectados; vacío significa todos los del bloque. El siguiente formulario muestra días, hora y perfil precargados. Mover la hora elimina la antigua solo de esos días, preservando el resto. Un destino ocupado produce un error sin cambiar nada. **Eliminar bloque horario** utiliza la misma agrupación y alcance opcional; comprueba los días antes de enviar. Si otra operación cambia el bloque mientras editas, vuelve a seleccionarlo.
 
 Para eliminar el último bloque debes desactivar antes **Usar horario**. Esto conserva la consigna vigente como fija; después puedes vaciar la agenda y seguir haciendo cambios manuales. La interfaz impide dejar una agenda habilitada sin transiciones.
 
@@ -45,7 +47,7 @@ En primavera una hora inexistente se desplaza al primer minuto válido; en otoñ
 Para Normal de día y Noche al dormir en una habitación:
 
 1. Ajusta las temperaturas **Calor · Normal** y **Calor · Noche** de ese termostato; para refrigeración existen valores separados de Frío.
-2. En Configurar → Añadir o sustituir bloque horario, selecciona los días deseados, **07:00** y **Normal**. Guarda.
+2. En Configurar → Añadir bloque horario, selecciona los días deseados, **07:00** y **Normal**. Guarda.
 3. Añade otro bloque para esos días: **23:00**, **Noche**. Guarda y activa **Usar horario** en esa zona.
 
 Normal rige desde las 07:00 hasta las 23:00; Noche desde las 23:00 hasta las 07:00 del siguiente día programado. No necesitas bloques separados de inicio y fin. Son ejemplos, no horas ni temperaturas prescritas para un suelo radiante.
@@ -157,3 +159,28 @@ Los módulos, programación, reanudación y encendido leen el estado actual cuan
 Si dispones de sondas generales, consulta [Diagnóstico hidráulico](hydraulic-diagnostics.md).
 Se configura en la instalación y se activa desde su propio interruptor del panel.
 No se necesita para crear termostatos ni interviene en regulación o aprendizaje.
+
+
+## Fuente solar y adelanto antes del sol
+
+En la instalación, **Fuente de posición solar (compartida)** permite mantener Sol de HA
+(predeterminado), elegir una entidad con atributos `azimuth` y `elevation`, o dos sensores
+en grados (`°` o `deg`). No basta con elevación: el azimut solar distingue la dirección.
+Ambos sensores deben estar vigentes y sus informes separados por un máximo de cinco
+minutos. Las fuentes solares caducan a los treinta minutos; no cambian la caducidad interior.
+Si cambias la fuente, las zonas que optimizaban pasan a Observación y requieren guardar
+la confirmación de incidencia de nuevo. No cambian consignas ni se retiran actuadores.
+
+En cada zona, Entorno, sol y anticipación ofrece **Adelanto antes de entrar el sol**:
+0 desactiva; 1–180 minutos limita la ventana preventiva. Es distinto de **Adelanto máximo
+del horario**, que adelanta un perfil más exigente mediante el modelo térmico.
+No actives Optimizar hasta comprobar orientación y sombras reales. El nuevo ajuste
+no se rellena desde un horario antiguo ni deduce obstáculos automáticamente.
+
+## Caducidad y sensores MQTT
+
+Antigüedad máxima del dato interior cuenta desde `last_reported` de la entidad elegida.
+Una temperatura sin cambios no demuestra desconexión; tampoco garantiza que la entidad
+esté recibiendo informes. Revisa la cadencia real de la fuente y configura un margen
+adecuado. Aumentarlo retrasa la protección si el sensor deja de comunicar. La integración
+no transforma mensajes de batería o un valor almacenado en una medición nueva de temperatura.

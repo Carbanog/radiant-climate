@@ -545,7 +545,12 @@ async def test_household_vacation_return_form_and_expiry_preserve_control(house)
     manager = house.data[DOMAIN]
     until = dt_util.as_local(dt_util.utcnow() + timedelta(days=2)).replace(microsecond=0)
     flow = await house.config_entries.options.async_init(manager.hub)
-    assert flow["type"] == "menu" and flow["menu_options"] == ["hardware", "hydraulic", "vacation"]
+    assert flow["type"] == "menu" and flow["menu_options"] == [
+        "hardware",
+        "solar_source",
+        "hydraulic",
+        "vacation",
+    ]
     flow = await house.config_entries.options.async_configure(
         flow["flow_id"], {"next_step_id": "vacation"}
     )
@@ -2685,6 +2690,8 @@ async def test_solar_lead_before_exposure_keeps_regulation_priorities(house, mon
     house.states.async_set("sensor.fixture_a", str(value), {"unit_of_measurement": "°C"})
     await settle(house)
     if case == "manual":
+        await add_schedule(house, entry)
+        await service(house, "switch", "turn_on", zone_entity(house, entry, "switch", "schedule"))
         await service(house, "climate", "set_temperature", climate, temperature=21)
     if case == "off":
         await service(house, "switch", "turn_off", global_entity(house))
@@ -2745,3 +2752,116 @@ async def test_solar_projection_matches_location_and_rejects_inconsistent_source
     arrival = projection.arrival(now, current, config)
     if arrival is not None:
         assert now < arrival <= now + timedelta(minutes=90)
+
+
+@pytest.mark.parametrize("policy", ["solar", "predictive_heat", "predictive_cool"])
+async def test_all_optional_pauses_preserve_minimum_on_even_when_base_demands(house, policy):
+    from dataclasses import replace
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+
+    from custom_components.radiant_climate.core.intelligence import Statistics
+
+    entry, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    cool = policy == "predictive_cool"
+    if cool:
+        await manager.async_supply("cool")
+        house.states.async_set("sensor.fixture_a", "28", {"unit_of_measurement": "°C"})
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="cool" if cool else "heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    if policy == "solar":
+        house.states.async_set("sun.sun", "above_horizon", {"azimuth": 135, "elevation": 30})
+        await configure_sources(house, entry, orientation=135, solar_elevation=20)
+        await configure_sources(house, entry, solar_confirmed=True)
+        await manager.async_feature(entry.entry_id, "solar", "active")
+    else:
+        await manager.async_feature(entry.entry_id, "predictive", True)
+    z = manager.zones[entry.entry_id]
+    z.settings = replace(z.settings, minimum_on=180)
+    now = dt_util.utcnow()
+    z.switched_at = now
+    current = 25.1 if cool else 20.9
+    house.states.async_set("sensor.fixture_a", str(current), {"unit_of_measurement": "°C"})
+    direction = -1 if cool else 1
+    z.intelligence.model.points = [
+        (now - timedelta(minutes=30), current - 0.6 * direction),
+        (now - timedelta(minutes=15), current - 0.3 * direction),
+        (now, current),
+    ]
+    z.intelligence.model.statistics["cool_on" if cool else "heat_on"] = Statistics(
+        count=12, hours=6, delta=3, rate_square=1.5, episodes=3
+    )
+    await settle(house)
+    assert house.states.get("switch.fixture_a").state == "on"
+    assert house.states.get(climate).attributes["reason"] not in ("solar_pause", "predictive_pause")
+    z.switched_at = now - timedelta(seconds=181)
+    await settle(house)
+    assert house.states.get("switch.fixture_a").state == "off"
+    assert house.states.get(climate).attributes["reason"] == (
+        "solar_pause" if policy == "solar" else "predictive_pause"
+    )
+
+
+@pytest.mark.parametrize("case", ["nan", "range", "unit", "stale", "skew", "missing"])
+async def test_solar_angle_validation_fails_optional(house, case):
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+
+    from custom_components.radiant_climate.solar import angles
+
+    config = {
+        "solar_source": "sensors",
+        "sun_elevation": "sensor.fixture_el",
+        "sun_azimuth": "sensor.fixture_az",
+    }
+    house.states.async_set("sensor.fixture_el", "26", {"unit_of_measurement": "°"})
+    house.states.async_set("sensor.fixture_az", "140", {"unit_of_measurement": "°"})
+    now = dt_util.utcnow()
+    if case == "skew":
+        from unittest.mock import patch
+
+        with patch("homeassistant.core.dt_util.utcnow", return_value=now + timedelta(minutes=6)):
+            house.states.async_set("sensor.fixture_az", "141", {"unit_of_measurement": "°"})
+        now += timedelta(minutes=6)
+    if case == "stale":
+        now += timedelta(minutes=31)
+    if case == "missing":
+        house.states.async_remove("sensor.fixture_el")
+    if case in ("nan", "range", "unit"):
+        house.states.async_set(
+            "sensor.fixture_el",
+            "nan" if case == "nan" else "100" if case == "range" else "26",
+            {"unit_of_measurement": "radians" if case == "unit" else "°"},
+        )
+    assert angles(house, config, now) == (None, None)
+
+
+async def test_source_change_requires_new_confirmation_and_preserves_running_output(house):
+    entry, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    house.states.async_set("sun.sun", "above_horizon", {"azimuth": 135, "elevation": 30})
+    house.states.async_set("sensor.fixture_sun", "ok", {"azimuth": 135, "elevation": 30})
+    await configure_sources(house, entry, solar_confirmed=True)
+    await manager.async_feature(entry.entry_id, "solar", "active")
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    flow = await house.config_entries.options.async_init(manager.hub)
+    flow = await house.config_entries.options.async_configure(
+        flow["flow_id"], {"next_step_id": "solar_source"}
+    )
+    result = await house.config_entries.options.async_configure(
+        flow["flow_id"], {"solar_source": "entity", "sun_entity": "sensor.fixture_sun"}
+    )
+    assert result["type"] == "create_entry"
+    await settle(house)
+    assert house.states.get("switch.fixture_a").state == "on"
+    assert manager.retired_actuators == ()
+    assert manager.zones[entry.entry_id].intelligence.features.solar == "observe"
+    with pytest.raises(ValueError, match="exposure"):
+        await manager.async_feature(entry.entry_id, "solar", "active")
+    await configure_sources(house, entry, solar_confirmed=True)
+    await manager.async_feature(entry.entry_id, "solar", "active")
+    assert manager.zones[entry.entry_id].intelligence.features.solar == "active"

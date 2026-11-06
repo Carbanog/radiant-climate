@@ -16,11 +16,27 @@ Fuentes: [acciones meteorológicas de HA](https://www.home-assistant.io/integrat
 
 Una entidad binaria de instalación muestra la oportunidad compartida a partir de la posición solar y las condiciones actuales cuando se habilita la meteorología. Sin meteo utiliza solo la posición solar e indica esa base; no demuestra sol directo.
 
-Cada zona tiene azimut de ventanas, elevación mínima observada y amplitud angular. La elevación se refiere al horizonte local, pero la incidencia depende también del azimut y los obstáculos. No se usan persianas. Una zona sin ganancias directas puede mantener Solar desactivado.
+Cada zona tiene azimut de ventanas, elevación mínima observada y amplitud angular. La elevación se refiere al horizonte astronómico calculado para la ubicación, sin incluir edificios ni terrazas; pero la incidencia depende también del azimut y los obstáculos. No se usan persianas. Una zona sin ganancias directas puede mantener Solar desactivado.
 
 El selector permite Desactivado, Observación y Optimizar. Observación muestra candidatos sin modificar salidas. Optimizar exige confirmar previamente los umbrales de incidencia y sombra. La regla inicial solo pausa calefacción cerca del objetivo (hasta 0,3 °C por debajo), con tendencia interior ascendente que proyecta alcanzar la consigna. Si falla la meteo, sigue exigiendo geometría y tendencia interior. Manual impide esa pausa. No se invierte esta regla para refrigeración, no se atribuye al sol toda subida y no se promete conocer sombras no medidas.
 
-No hay una predicción causal de ganancias solares de varias horas. La combinación inicial es deliberadamente acotada: posición solar, contexto meteorológico y calentamiento observado, con degradación al termostato base.
+Desde v0.2.6 existe además un **adelanto antes de entrar el sol**, opcional por zona y
+con 0 minutos inicialmente. Proyecta la posición astronómica en la ubicación de HA con
+Astral, compartiendo una trayectoria de tres horas y resolución de dos minutos. Solo
+utiliza esa proyección si la fuente actual coincide dentro de 3° en elevación y azimut.
+La primera entrada en los límites configurados estima el comienzo; no mide sombras reales.
+No es un aprendizaje de la geometría ni una predicción causal de ganancias solares.
+
+Antes de la incidencia se exige previsión horaria vigente y explícitamente favorable
+(cobertura de nubes válida de hasta 50 % o condición sunny), una tendencia interior
+calculable entre −0,1 y 3 °C/h, temperatura como máximo 0,2 °C bajo consigna y una
+proyección conservadora hasta la llegada que no baje más de 0,3 °C bajo ella. Solo actúa
+en calor, con Solar Optimizar, exposición confirmada y fuera de Manual. Respeta mínimos
+de maniobra, ventanas, Off, fallos y suministro. No cambia la consigna. En Observación
+muestra `solar_arrival` y `solar_lead_candidate`, sin modificar relés. No actúa sin
+previsión ni con una fuente solar ausente/inconsistente. Se reevalúa normalmente; no
+mantiene un corte fijo si empeoran las condiciones. Una previsión favorable puede fallar:
+calibra el adelanto con observación real antes de confiar en él para evitar sobrecalentamiento.
 
 ## Observación y anticipación
 

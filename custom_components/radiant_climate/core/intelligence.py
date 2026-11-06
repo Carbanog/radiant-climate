@@ -99,6 +99,11 @@ class ThermalModel:
         if not eligible or mode == Mode.OFF:
             self.reset_period()
             return
+        if not learning:
+            # Eligibility can change on a sun/module event without a new indoor
+            # timestamp. Never bridge that excluded period with a training anchor.
+            self.anchor = None
+            self.cohort = None
         if self.points and when <= self.points[-1][0]:
             return
         if self.points:
@@ -110,8 +115,6 @@ class ThermalModel:
         self.points = [(t, v) for t, v in self.points[-96:] if (when - t).total_seconds() <= 3600]
         key = f"{mode.value}_{'on' if active else 'off'}"
         if not learning:
-            self.anchor = None
-            self.cohort = None
             return
         if self.cohort != key:
             self.anchor = None
@@ -145,7 +148,7 @@ class ThermalModel:
         mean_x, mean_y = sum(xs) / len(xs), sum(ys) / len(ys)
         denominator = sum((x - mean_x) ** 2 for x in xs)
         return (
-            sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys)) / denominator
+            sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys, strict=True)) / denominator
             if denominator
             else None
         )

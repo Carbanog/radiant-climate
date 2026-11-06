@@ -186,6 +186,8 @@ Las pruebas de software no acreditan precisión, ahorro ni respuesta térmica de
 
 | Guía | Contenido |
 |---|---|
+| [Seguridad](SECURITY.md) | Límites físicos y comunicación de vulnerabilidades |
+| [Diagnóstico hidráulico](docs/hydraulic-diagnostics.md) | Sondas opcionales, avisos, activación y límites |
 | [Instalación y reversión](docs/installation.md) | Marketplace, HACS, ZIP, piloto y recuperación |
 | [Configuración y uso](docs/configuration.md) | Parámetros, perfiles, horarios, Manual y vacaciones |
 | [Problemas y soluciones](docs/troubleshooting.md) | Diagnóstico por síntoma y motivos visibles |

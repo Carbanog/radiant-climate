@@ -245,3 +245,20 @@ def test_program_old_storage_migrates_away_profile_additively():
 def test_invalid_module_storage_rejected(raw):
     with pytest.raises(ValueError):
         Features.restore(raw)
+
+
+def test_training_exclusion_resets_anchor_even_without_a_new_temperature_report():
+    from datetime import UTC, datetime
+
+    from core.control import Mode
+    from core.intelligence import ThermalModel
+
+    model = ThermalModel()
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    model.observe(now, 20, Mode.HEAT, True, eligible=True, learning=True)
+    assert model.anchor is not None
+    previous_points = list(model.points)
+    model.observe(now, 20, Mode.HEAT, True, eligible=True, learning=False)
+    assert model.anchor is None
+    assert model.cohort is None
+    assert model.points == previous_points

@@ -20,6 +20,7 @@ def main():
     files = [
         ROOT / "LICENSE",
         ROOT / "README.md",
+        ROOT / "SECURITY.md",
         *sorted((ROOT / "docs").glob("*.md")),
         *sorted((ROOT / "custom_components/radiant_climate").rglob("*")),
     ]

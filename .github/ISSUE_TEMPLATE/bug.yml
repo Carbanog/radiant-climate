@@ -1,0 +1,26 @@
+name: Problema de funcionamiento / Bug report
+description: Describe una reproducción y sus resultados sin datos privados.
+body:
+  - type: markdown
+    attributes:
+      value: No adjuntes credenciales, copias completas, direcciones personales ni registros sin revisar. Para vulnerabilidades, consulta SECURITY.md. No pruebes maniobras peligrosas en equipos activos.
+  - type: input
+    id: version
+    attributes:
+      label: Versiones de Radiant Climate y Home Assistant Core
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Pasos para reproducir y comportamiento esperado
+      description: Indica calor/frío, módulos activos y si el banco usa salidas simuladas o reales.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Resultado observado
+      description: Incluye motivos de regulación, estados comunicados y horarios relevantes. Revisa y anonimiza los diagnósticos antes de adjuntarlos.
+    validations:
+      required: true

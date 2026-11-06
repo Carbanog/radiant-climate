@@ -87,6 +87,38 @@ Busca automatizaciones anteriores, otra integración, mandos físicos o el compo
 
 Desde v0.2.2, apagar **Climatización** conserva los fallos enclavados. Después de corregir la causa y confirmar apagado comunicado, utiliza **Reconocer fallos de relés tras revisión** antes de reactivar. Consulta el procedimiento de [configuración](configuration.md#fiabilidad-y-recuperación-desde-v022). Un corte de red o de alimentación puede impedir cualquier orden software; no se promete cierre físico.
 
+Desde v0.2.5, **Revisión de relés pendiente** permite ver estos estados en el
+panel y Reparaciones presenta el procedimiento. La acción de reconocimiento
+ofrece un selector; dejar **Relés con fallo** vacío selecciona todos los fallos
+revisados. No necesitas escribir sus identificadores. Confirmar una salida
+retirada y desconectada físicamente sigue siendo una acción separada. Descartar
+el aviso no rearma ni habilita control.
+
+La detección observa discrepancias de estado, no sabe si alguien pulsó un botón.
+Dos discrepancias contrarias al plan en cinco minutos pueden enclavar un fallo;
+revisa otros controladores o mandos físicos. No uses la pulsación directa de un
+relé para cambiar una consigna: utiliza el termostato.
+
+### HA se detiene o pierde conexión
+
+La parada normal solicita cierre, pero un proceso terminado abruptamente,
+una pérdida de radio o un corte pueden impedirlo. El estado físico puede
+permanecer como estaba. Revisa las protecciones hidráulicas independientes y
+el comportamiento de los dispositivos sin HA. Un watchdog o corte independiente
+solo aporta protección si está diseñado y probado para el conjunto real.
+
+**No actives un autoapagado corto genérico en los relés**: esta integración no
+implementa un latido periódico para renovar ese temporizador. Podría cortar una
+demanda legítima y provocar discrepancias. Un watchdog con renovación requiere
+diseño y pruebas específicos; no se considera resuelto por estas actualizaciones.
+
+### Solar apagado y aprendizaje
+
+Desactivar Solar detiene su optimización, pero no convierte una exposición solar
+ya confirmada en muestras válidas del emisor. Desde v0.2.5 se excluyen esos periodos
+en calor y frío. Sin orientación confirmada ni datos solares no se puede reconocer
+toda ganancia ajena al suelo: el modelo sigue siendo estadístico, no causal.
+
 ## Manual, perfiles y vacaciones
 
 ### Manual termina antes de lo esperado

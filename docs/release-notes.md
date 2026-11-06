@@ -20,6 +20,29 @@ siguen funcionando y no reciben entidades hidráulicas hasta configurarlas.
 - Editar solo estas opciones no ejecuta regulación, cancela confirmaciones,
   recarga termostatos ni retira salidas. Tampoco reconoce fallos de actuadores.
 
+La revisión adicional de v0.2.4 reproduce y corrige dos casos en ambos Core:
+
+- Una petición de apagado global aceptada termina y persiste aunque quien llamó
+  al servicio cancele mientras espera el bloqueo. No queda una parada transitoria
+  indefinida. Un encendido explícito posterior conserva su orden y prioridad.
+- El aprendizaje excluye exposición solar ya confirmada aunque la optimización
+  Solar esté apagada. Una geometría predeterminada sin confirmar no se considera
+  evidencia de exposición. Se mantiene la limitación de modelo descriptivo: no
+  se separan causalmente todas las cargas internas o ganancias desconocidas.
+
+Se añade un sensor binario nativo **Revisión de relés pendiente** y un aviso en
+Reparaciones, con las acciones existentes para revisión y recuperación. Descartar
+el aviso o apagar no reconoce averías. La selección de relés es opcional: vacía
+reconoce todos los fallos revisados, manteniendo las comprobaciones y permisos.
+Servicios y selectores traducidos al inglés/español; textos históricos del README
+corregidos. La configuración avisa de la protección anticondensación externa,
+sin bloquear frío ni convertir sondas de diagnóstico en protecciones.
+
+El filtro de aprendizaje también descarta el anclaje anterior si cambia la
+elegibilidad sin que llegue una nueva medición interior; conserva la tendencia
+observada. Se amplían las reglas de análisis estático, se fijan las Actions por
+commit y se incorporan política de seguridad y plantilla de incidencias.
+
 Consulta la [guía de diagnóstico](hydraulic-diagnostics.md) para configuración,
 estados y límites. No envía notificaciones automáticas. Los estados On de relés
 no confirman apertura o caudal; el retorno mezclado no permite repartir energía
@@ -34,6 +57,11 @@ termostatos. Para retirar únicamente esta función, usa su interruptor; no es
 necesario desactivar la calefacción. Para revertir código, conserva v0.2.4 y el
 respaldo; mantén Climatización apagada y no restaures almacenamiento en caliente
 ni ignores retiradas o fallos pendientes.
+
+No se borran estadísticas aprendidas. Si el modelo anterior se entrenó durante
+ganancias solares conocidas sin filtrarlas, revisa sus datos y utiliza
+**Restablecer aprendizaje térmico** en esa zona si procede. No se restablece
+automáticamente el modelo de otras estancias.
 
 ## v0.2.4
 

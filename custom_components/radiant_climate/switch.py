@@ -2,6 +2,7 @@
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import EntityCategory
+from homeassistant.exceptions import ServiceValidationError
 
 from .const import DOMAIN
 from .entity import RadiantEntity
@@ -69,7 +70,7 @@ class HydraulicEnabled(RadiantEntity, SwitchEntity):
 
     async def async_turn_on(self, **kwargs):
         if not self.available:
-            raise ValueError("Configure distinct supply and return sensors first")
+            raise ServiceValidationError("Configure distinct supply and return sensors first")
         self.hass.config_entries.async_update_entry(
             self.entry, options={**self.entry.options, "hydraulic_enabled": True}
         )

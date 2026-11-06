@@ -45,7 +45,7 @@ La versión está probada automáticamente con **Home Assistant Core 2026.10.4 y
 | Funcionamiento | Calor, frío o ambos; consigna inicial |
 | Opcional | General compartida, contacto `binary_sensor`, exterior, entidad `weather` y posición solar de HA |
 
-Un termostato básico funciona sin meteo, exterior, ventanas ni horario. Las fuentes exteriores opcionales admiten conversión desde °C, °F y K; el sensor interior de esta beta debe exponer °C. Una zona puede agrupar varios circuitos que compartan objetivo de temperatura.
+Un termostato básico funciona sin meteo, exterior, ventanas ni horario. Las fuentes exteriores opcionales admiten conversión desde °C, °F y K; el sensor interior de esta versión debe exponer °C. Una zona puede agrupar varios circuitos que compartan objetivo de temperatura.
 
 El control básico es local y no solicita cuentas ni credenciales. La integración meteorológica que elijas puede depender de un proveedor externo. No se añade telemetría propia.
 
@@ -163,7 +163,7 @@ Empieza por **Motivo de regulación** y por el estado comunicado de sensores y a
 | No actúa Solar | Distingue Observación de Optimizar; revisa umbrales, incidencia y tendencia |
 | Falta meteo o exterior | El control interior debe continuar; revisa fuente y diagnóstico del módulo |
 | Manual termina antes de lo esperado | Comprueba política, plazo, cambio real de temporada y acciones explícitas |
-| Aparece «7056482» al instalar | Es el commit de la primera beta; selecciona su etiqueta para fijar la versión |
+| Aparece «7056482» al instalar | Es un identificador histórico de la primera beta; selecciona la última release etiquetada. No implica que falten releases |
 | No hay miniatura en Marketplace | El icono local existe; la miniatura depende del índice externo del catálogo |
 
 La [guía de problemas y soluciones](docs/troubleshooting.md) explica cada caso, las comprobaciones y qué información compartir si persiste. No hace falta editar archivos internos para el diagnóstico habitual.
@@ -176,9 +176,9 @@ Para recuperar otro controlador, apaga y deshabilita primero Radiant Climate y d
 
 ## Validación y límites
 
-La primera beta superó **90 pruebas del núcleo y 41 pruebas en cada versión de Core: 2026.10.4 y 2026.11.0**, además de HACS y hassfest. Los adaptadores utilizan Core real con sensores, relés, previsiones y modelos de prueba explícitos. Se prueban, entre otros, reinicios completos, Manual coincidente con perfiles, apagados, pérdidas de fuentes y conflictos de salidas. [Alcance de las pruebas](docs/testing.md).
+La v0.2.4 superó **95 pruebas del núcleo y 122 pruebas del adaptador en cada Core 2026.10.4 y 2026.11.0**, además de HACS y hassfest. Las ampliaciones se validan en Actions por commit; consulta la ejecución de la versión que vayas a instalar. Los adaptadores utilizan Core real con sensores, relés, previsiones y modelos de prueba explícitos. Se prueban, entre otros, reinicios completos, Manual coincidente con perfiles, apagados, pérdidas de fuentes y conflictos de salidas. [Alcance de las pruebas](docs/testing.md).
 
-El estado de un relé y el transcurso de un tiempo estimado **no confirman posición de válvula ni caudal**. Las esperas de apertura general/cierre de zona se configuran según los actuadores. No se controla producción ni bombas comunitarias ni se utilizan persianas. Esta beta no implementa protección anticondensación: se mantienen las protecciones físicas de la instalación.
+El estado de un relé y el transcurso de un tiempo estimado **no confirman posición de válvula ni caudal**. Las esperas de apertura general/cierre de zona se configuran según los actuadores. No se controla producción ni bombas comunitarias ni se utilizan persianas. Esta integración no implementa protección anticondensación: se mantienen las protecciones físicas de la instalación.
 
 Las pruebas de software no acreditan precisión, ahorro ni respuesta térmica de un edificio. La validación física y la calibración son parte de la puesta en servicio.
 

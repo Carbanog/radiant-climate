@@ -11,7 +11,7 @@
       },
       "zone": {
         "title": "Añadir termostato",
-        "description": "Selecciona los dispositivos y la temperatura inicial. El termostato se crea apagado. Los perfiles, horarios y funciones opcionales están disponibles en su configuración y controles.",
+        "description": "Selecciona los dispositivos y la temperatura inicial. El termostato se crea apagado. Los perfiles, horarios y funciones opcionales están disponibles en su configuración y controles. El frío requiere protección anticondensación independiente. Ni la integración ni su diagnóstico opcional del agua la proporcionan.",
         "data": {
           "sensor": "Sensor de temperatura interior",
           "actuators": "Relé o relés",
@@ -46,7 +46,7 @@
       },
       "hardware": {
         "title": "Configuración",
-        "description": "Los cambios recargan esta entrada. Editar la instalación desactiva el control general; reactívalo expresamente tras revisar las salidas.",
+        "description": "Los cambios recargan esta entrada. Editar la instalación desactiva el control general; reactívalo expresamente tras revisar las salidas. El frío requiere protección anticondensación independiente. Ni la integración ni su diagnóstico opcional del agua la proporcionan.",
         "data": {
           "weather": "Fuente meteorológica (opcional)",
           "outdoor": "Sensor exterior (opcional)",
@@ -157,6 +157,15 @@
         "eco": "Eco",
         "sleep": "Noche",
         "away": "Ausente"
+      }
+    },
+    "copy_parts": {
+      "options": {
+        "temperatures": "Temperaturas de los perfiles",
+        "manual": "Política y duración de Manual",
+        "schedule": "Bloques y activación del horario",
+        "modules": "Activación de módulos (sin fuentes, orientación ni aprendizaje)",
+        "vacation": "Ausencia y fecha de vuelta"
       }
     }
   },
@@ -305,8 +314,58 @@
       }
     },
     "binary_sensor": {
+      "actuator_problem": {
+        "name": "Revisión de relés pendiente"
+      },
       "solar_opportunity": {
         "name": "Oportunidad solar compartida"
+      }
+    }
+  },
+  "issues": {
+    "actuator_attention": {
+      "title": "Revisión de relés pendiente",
+      "description": "Fallos enclavados: {faults}. Salidas retiradas pendientes: {retired}. Apaga Climatización y revisa la causa y los estados comunicados. Usa Reconocer fallos de relés tras revisión; deja Relés vacío para todos los fallos o elige con su selector. Confirmar una retirada física es una acción distinta y exige comprobar la desconexión. Descartar este aviso no reconoce fallos ni habilita salidas."
+    }
+  },
+  "services": {
+    "copy_settings": {
+      "name": "Copiar ajustes entre termostatos",
+      "description": "Copia los ajustes elegidos. Sin destinos, se aplica al resto de zonas. No copia dispositivos ni enciende zonas apagadas.",
+      "fields": {
+        "source": {
+          "name": "Termostato de origen"
+        },
+        "targets": {
+          "name": "Destinos (vacío para todas las demás zonas)"
+        },
+        "parts": {
+          "name": "Ajustes que copiar"
+        }
+      }
+    },
+    "reset_actuator_faults": {
+      "name": "Reconocer fallos de relés tras revisión",
+      "description": "Con Climatización apagada, reconoce los fallos revisados. Las salidas seleccionadas deben comunicar apagado y no tener una retirada pendiente. No enciende la instalación.",
+      "fields": {
+        "actuators": {
+          "name": "Relés con fallo (vacío para todos)"
+        },
+        "confirmed_review": {
+          "name": "He revisado la causa del fallo y los estados comunicados"
+        }
+      }
+    },
+    "acknowledge_retired_actuator": {
+      "name": "Confirmar retirada física de un relé antiguo",
+      "description": "Solo con Climatización apagada y tras comprobar la desconexión física. Libera una salida retirada pendiente que ya no está asignada; no acredita el cierre de una válvula.",
+      "fields": {
+        "actuator": {
+          "name": "Entidad antigua de retired_actuators"
+        },
+        "confirmed_disconnected": {
+          "name": "He comprobado que está físicamente desconectado"
+        }
       }
     }
   }

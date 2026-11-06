@@ -194,8 +194,14 @@ def document(language: int) -> dict:
 
 def complete_document(language):
     result = document(language)
+    cooling_notice = (
+        " Cooling requires independent condensation protection. This integration and optional water diagnostics do not provide it.",
+        " El frío requiere protección anticondensación independiente. Ni la integración ni su diagnóstico opcional del agua la proporcionan.",
+    )[language]
+    result["config"]["step"]["zone"]["description"] += cooling_notice
     options = result["options"]
     options["step"]["hardware"] = options["step"]["init"].copy()
+    options["step"]["hardware"]["description"] += cooling_notice
     options["step"]["init"] = {
         "title": ("Climate settings", "Configuración de climatización")[language],
         "menu_options": {
@@ -418,12 +424,101 @@ def complete_document(language):
         },
     }
     entities["binary_sensor"] = {
+        "actuator_problem": {
+            "name": ("Actuator review needed", "Revisión de relés pendiente")[language]
+        },
         "solar_opportunity": {
             "name": ("Shared solar opportunity", "Oportunidad solar compartida")[language]
-        }
+        },
     }
     entities["button"]["reset_learning"] = {
         "name": ("Reset thermal learning", "Restablecer aprendizaje térmico")[language]
+    }
+    result["issues"] = {
+        "actuator_attention": {
+            "title": ("Actuator review needed", "Revisión de relés pendiente")[language],
+            "description": (
+                "Latched faults: {faults}. Retired outputs pending: {retired}. Switch Climate enabled off and inspect the cause and reported states. Use Reset actuator faults after review; leave actuators blank to select all faults, or use its entity selector. Physical removal acknowledgement is separate and requires checking disconnection. Dismissing this issue does not reset faults or enable outputs.",
+                "Fallos enclavados: {faults}. Salidas retiradas pendientes: {retired}. Apaga Climatización y revisa la causa y los estados comunicados. Usa Reconocer fallos de relés tras revisión; deja Relés vacío para todos los fallos o elige con su selector. Confirmar una retirada física es una acción distinta y exige comprobar la desconexión. Descartar este aviso no reconoce fallos ni habilita salidas.",
+            )[language],
+        }
+    }
+    service_text = {
+        "copy_settings": (
+            ("Copy thermostat settings", "Copiar ajustes entre termostatos"),
+            (
+                "Copies selected settings. Blank targets selects the other zones. Does not copy hardware or enable off zones.",
+                "Copia los ajustes elegidos. Sin destinos, se aplica al resto de zonas. No copia dispositivos ni enciende zonas apagadas.",
+            ),
+            {
+                "source": ("Source thermostat", "Termostato de origen"),
+                "targets": (
+                    "Targets (blank for all other zones)",
+                    "Destinos (vacío para todas las demás zonas)",
+                ),
+                "parts": ("Settings to copy", "Ajustes que copiar"),
+            },
+        ),
+        "reset_actuator_faults": (
+            ("Reset actuator faults after review", "Reconocer fallos de relés tras revisión"),
+            (
+                "With Climate enabled off, acknowledge reviewed faults. Selected outputs must report off and not be pending retirement. Does not enable control.",
+                "Con Climatización apagada, reconoce los fallos revisados. Las salidas seleccionadas deben comunicar apagado y no tener una retirada pendiente. No enciende la instalación.",
+            ),
+            {
+                "actuators": (
+                    "Faulty actuators (blank for all)",
+                    "Relés con fallo (vacío para todos)",
+                ),
+                "confirmed_review": (
+                    "I reviewed the cause and reported states",
+                    "He revisado la causa del fallo y los estados comunicados",
+                ),
+            },
+        ),
+        "acknowledge_retired_actuator": (
+            (
+                "Confirm physical removal of a retired actuator",
+                "Confirmar retirada física de un relé antiguo",
+            ),
+            (
+                "Only with Climate enabled off after checking physical disconnection. Releases an unassigned retired output; does not prove valve closure.",
+                "Solo con Climatización apagada y tras comprobar la desconexión física. Libera una salida retirada pendiente que ya no está asignada; no acredita el cierre de una válvula.",
+            ),
+            {
+                "actuator": (
+                    "Old entity ID from retired_actuators",
+                    "Entidad antigua de retired_actuators",
+                ),
+                "confirmed_disconnected": (
+                    "I checked it is physically disconnected",
+                    "He comprobado que está físicamente desconectado",
+                ),
+            },
+        ),
+    }
+    result["services"] = {
+        key: {
+            "name": name[language],
+            "description": description[language],
+            "fields": {field: {"name": label[language]} for field, label in fields.items()},
+        }
+        for key, (name, description, fields) in service_text.items()
+    }
+    result["selector"]["copy_parts"] = {
+        "options": {
+            key: label[language]
+            for key, label in {
+                "temperatures": ("Profile temperatures", "Temperaturas de los perfiles"),
+                "manual": ("Manual policy and duration", "Política y duración de Manual"),
+                "schedule": ("Schedule blocks and activation", "Bloques y activación del horario"),
+                "modules": (
+                    "Module switches (not sources, geometry or learning)",
+                    "Activación de módulos (sin fuentes, orientación ni aprendizaje)",
+                ),
+                "vacation": ("Absence and return", "Ausencia y fecha de vuelta"),
+            }.items()
+        }
     }
     return result
 

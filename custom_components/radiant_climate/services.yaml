@@ -1,65 +1,47 @@
 copy_settings:
-  name: Copiar ajustes entre termostatos
-  description: Copia los ajustes elegidos. Sin destinos, se aplica al resto de zonas. No copia dispositivos ni enciende zonas apagadas.
   fields:
     source:
-      name: Termostato de origen
       required: true
       selector:
         entity:
           domain: climate
           integration: radiant_climate
     targets:
-      name: Destinos (vacío para todas las demás zonas)
       selector:
         entity:
           domain: climate
           integration: radiant_climate
           multiple: true
     parts:
-      name: Ajustes que copiar
       required: true
       selector:
         select:
           multiple: true
+          translation_key: copy_parts
           options:
-            - value: temperatures
-              label: Temperaturas de los perfiles
-            - value: manual
-              label: Política y duración de Manual
-            - value: schedule
-              label: Bloques y activación del horario
-            - value: modules
-              label: Activación de módulos (sin fuentes, orientación ni aprendizaje)
-            - value: vacation
-              label: Ausencia y fecha de vuelta
+            - temperatures
+            - manual
+            - schedule
+            - modules
+            - vacation
 reset_actuator_faults:
-  name: Reconocer fallos de relés tras revisión
-  description: Con Climatización apagada, reconoce los fallos seleccionados después de revisar su causa. Todos deben comunicar apagado y no tener una retirada pendiente. No enciende la instalación.
   fields:
     actuators:
-      name: Relés con fallo (vacío para todos)
       selector:
         entity:
           domain: switch
           multiple: true
     confirmed_review:
-      name: He revisado la causa del fallo y los estados comunicados
       required: true
       selector:
         boolean:
 acknowledge_retired_actuator:
-  name: Confirmar retirada física de un relé antiguo
-  description: Solo con Climatización apagada y tras comprobar la desconexión física. Libera una salida retirada pendiente que ya no está asignada; no acredita el cierre de una válvula.
   fields:
     actuator:
-      name: Entidad antigua pendiente
-      description: Copia el identificador exacto de retired_actuators en los atributos de Climatización.
       required: true
       selector:
         text:
     confirmed_disconnected:
-      name: He comprobado que está físicamente desconectado
       required: true
       selector:
         boolean:

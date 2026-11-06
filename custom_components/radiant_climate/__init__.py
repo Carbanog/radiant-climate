@@ -7,6 +7,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, PLATFORMS
 from .hydraulic import DEFAULTS
+from .repairs import async_setup_repairs
 from .runtime import Installation
 from .services import async_register_services
 
@@ -28,6 +29,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass.data[DOMAIN] = manager
     await manager.async_add(entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    if entry.data["kind"] == "installation":
+        async_setup_repairs(manager, entry)
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
     return True
 
@@ -60,3 +63,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         manager.async_stop()
         del hass.data[DOMAIN]
     return True
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    if entry.data["kind"] == "installation":
+        from homeassistant.helpers import issue_registry as ir
+
+        ir.async_delete_issue(hass, DOMAIN, f"actuator_attention_{entry.entry_id}")

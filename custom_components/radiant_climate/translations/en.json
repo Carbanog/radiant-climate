@@ -11,7 +11,7 @@
       },
       "zone": {
         "title": "Add thermostat",
-        "description": "Select the devices and initial temperature. The thermostat is created off. Profiles, schedules and optional features are available in its settings and controls.",
+        "description": "Select the devices and initial temperature. The thermostat is created off. Profiles, schedules and optional features are available in its settings and controls. Cooling requires independent condensation protection. This integration and optional water diagnostics do not provide it.",
         "data": {
           "sensor": "Indoor temperature sensor",
           "actuators": "Actuator switches",
@@ -46,7 +46,7 @@
       },
       "hardware": {
         "title": "Settings",
-        "description": "Changes reload this entry. Editing the installation disables global control; explicitly enable it after reviewing outputs.",
+        "description": "Changes reload this entry. Editing the installation disables global control; explicitly enable it after reviewing outputs. Cooling requires independent condensation protection. This integration and optional water diagnostics do not provide it.",
         "data": {
           "weather": "Weather source (optional)",
           "outdoor": "Outdoor sensor (optional)",
@@ -157,6 +157,15 @@
         "eco": "Eco",
         "sleep": "Sleep",
         "away": "Away"
+      }
+    },
+    "copy_parts": {
+      "options": {
+        "temperatures": "Profile temperatures",
+        "manual": "Manual policy and duration",
+        "schedule": "Schedule blocks and activation",
+        "modules": "Module switches (not sources, geometry or learning)",
+        "vacation": "Absence and return"
       }
     }
   },
@@ -305,8 +314,58 @@
       }
     },
     "binary_sensor": {
+      "actuator_problem": {
+        "name": "Actuator review needed"
+      },
       "solar_opportunity": {
         "name": "Shared solar opportunity"
+      }
+    }
+  },
+  "issues": {
+    "actuator_attention": {
+      "title": "Actuator review needed",
+      "description": "Latched faults: {faults}. Retired outputs pending: {retired}. Switch Climate enabled off and inspect the cause and reported states. Use Reset actuator faults after review; leave actuators blank to select all faults, or use its entity selector. Physical removal acknowledgement is separate and requires checking disconnection. Dismissing this issue does not reset faults or enable outputs."
+    }
+  },
+  "services": {
+    "copy_settings": {
+      "name": "Copy thermostat settings",
+      "description": "Copies selected settings. Blank targets selects the other zones. Does not copy hardware or enable off zones.",
+      "fields": {
+        "source": {
+          "name": "Source thermostat"
+        },
+        "targets": {
+          "name": "Targets (blank for all other zones)"
+        },
+        "parts": {
+          "name": "Settings to copy"
+        }
+      }
+    },
+    "reset_actuator_faults": {
+      "name": "Reset actuator faults after review",
+      "description": "With Climate enabled off, acknowledge reviewed faults. Selected outputs must report off and not be pending retirement. Does not enable control.",
+      "fields": {
+        "actuators": {
+          "name": "Faulty actuators (blank for all)"
+        },
+        "confirmed_review": {
+          "name": "I reviewed the cause and reported states"
+        }
+      }
+    },
+    "acknowledge_retired_actuator": {
+      "name": "Confirm physical removal of a retired actuator",
+      "description": "Only with Climate enabled off after checking physical disconnection. Releases an unassigned retired output; does not prove valve closure.",
+      "fields": {
+        "actuator": {
+          "name": "Old entity ID from retired_actuators"
+        },
+        "confirmed_disconnected": {
+          "name": "I checked it is physically disconnected"
+        }
       }
     }
   }

@@ -59,13 +59,18 @@ class Intelligence:
         if outdoor is None and f.weather:
             outdoor = environment.weather_temperature(weather, now)
         azimuth, elevation = environment.sun
-        geometry = f.solar != "off" and solar_geometry(
+        exposure = solar_geometry(
             azimuth,
             elevation,
             config.get("orientation", 180),
             config.get("solar_elevation", 15),
             config.get("solar_width", 75),
         )
+        geometry = f.solar != "off" and exposure
+        # Turning off an optimisation must not make known solar exposure into
+        # training evidence for the emitter. Unconfirmed default geometry is
+        # insufficient to exclude samples when no solar module is configured.
+        learning_exposure = exposure and (f.solar != "off" or config.get("solar_confirmed", False))
         condition, clouds = environment.weather(weather, now) if f.weather else (None, None)
         weather_solar = solar_weather(condition, clouds)
         solar = geometry and weather_solar is not False
@@ -76,7 +81,7 @@ class Intelligence:
                 mode,
                 on,
                 eligible=allowed,
-                learning=f.learning and not geometry,
+                learning=f.learning and not learning_exposure,
                 outside=outdoor,
             )
         elif not allowed:
@@ -90,6 +95,7 @@ class Intelligence:
             "solar_candidate": bool(solar),
             "solar_basis": "weather_and_geometry" if condition else "geometry_only",
             "solar_mode": f.solar,
+            "learning_solar_exclusion": bool(learning_exposure),
             "trend_c_per_hour": round(trend, 3) if trend is not None else None,
             "model_ready": response.ready,
             "model_hours": round(response.hours, 2),

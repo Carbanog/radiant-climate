@@ -2457,3 +2457,76 @@ async def test_learning_excludes_known_sun_even_when_solar_optimisation_is_off(
         assert observe.called
         assert observe.call_args.kwargs["learning"] is not (confirmed and sun_visible)
     await manager.async_enable(False)
+
+
+async def test_actuator_problem_and_repairs_follow_existing_latches_without_resetting(house):
+    from homeassistant.helpers import issue_registry as ir
+
+    await add_zone(house)
+    manager = house.data[DOMAIN]
+    problem = er.async_get(house).async_get_entity_id(
+        "binary_sensor", DOMAIN, f"{manager.hub}_actuator_problem"
+    )
+    issue_id = f"actuator_attention_{manager.hub}"
+    assert house.states.get(problem).state == "off"
+    assert ir.async_get(house).async_get_issue(DOMAIN, issue_id) is None
+
+    def simulated_latches():
+        manager._command_faults.add("switch.fixture_a")
+        manager._retired["switch.fixture_b"] = 900
+
+    await manager.async_change(simulated_latches)
+    await house.async_block_till_done()
+    assert house.states.get(problem).state == "on"
+    issue = ir.async_get(house).async_get_issue(DOMAIN, issue_id)
+    assert issue.translation_placeholders == {"faults": "1", "retired": "1"}
+    await manager.async_enable(False)
+    await house.async_block_till_done()
+    assert manager.actuator_faults == ("switch.fixture_a",)
+    await manager.async_reset_actuator_faults([])  # Existing empty selection = all faults.
+    await house.async_block_till_done()
+    assert house.states.get(problem).state == "on"
+    assert ir.async_get(house).async_get_issue(DOMAIN, issue_id).translation_placeholders == {
+        "faults": "0",
+        "retired": "1",
+    }
+    await manager.async_acknowledge_retired("switch.fixture_b")
+    await house.async_block_till_done()
+    assert house.states.get(problem).state == "off"
+    assert ir.async_get(house).async_get_issue(DOMAIN, issue_id) is None
+    assert not manager.enabled
+    assert house.states.get("switch.fixture_a").state == "off"
+
+
+async def test_cancelled_off_does_not_override_a_later_explicit_on(house):
+    import asyncio
+
+    manager = house.data[DOMAIN]
+    await manager._lock.acquire()
+    try:
+        off = house.async_create_task(manager.async_enable(False))
+        await asyncio.sleep(0)
+        off.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await off
+        on = house.async_create_task(manager.async_enable(True))
+        await asyncio.sleep(0)
+    finally:
+        manager._lock.release()
+    await on
+    await house.async_block_till_done()
+    assert manager.enabled
+    assert not manager._stop_requested
+    await manager.async_enable(False)
+
+
+@pytest.mark.parametrize("language", ["en", "es"])
+async def test_services_and_issue_strings_exist_in_shipped_languages(house, language):
+    from homeassistant.helpers import translation
+
+    translated = await translation.async_get_translations(house, language, "services", {DOMAIN})
+    assert translated[f"component.{DOMAIN}.services.reset_actuator_faults.name"] == (
+        "Reset actuator faults after review"
+        if language == "en"
+        else "Reconocer fallos de relés tras revisión"
+    )

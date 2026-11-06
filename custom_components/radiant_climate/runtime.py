@@ -318,6 +318,14 @@ class Installation:
     def general(self) -> str | None:
         return self.entries.get(self.hub, {}).get("general")
 
+    @property
+    def actuator_faults(self) -> tuple[str, ...]:
+        return tuple(sorted(self._command_faults))
+
+    @property
+    def retired_actuators(self) -> tuple[str, ...]:
+        return tuple(sorted(self._retired))
+
     def source(self, zone, key):
         return zone.config.get(key) or self.entries.get(self.hub, {}).get(key)
 
@@ -744,7 +752,18 @@ class Installation:
             self.enabled = value
             self._stop_requested = False
 
-        await self.async_change(update)
+        if value:
+            await self.async_change(update)
+        else:
+            # An accepted Off must finish/persist even if the service caller
+            # disconnects while waiting for a lock or a physical command.
+            # Eager start registers its queue ticket before another user action.
+            task = self.hass.async_create_task(
+                self.async_change(update),
+                name="Radiant Climate accepted global off",
+                eager_start=True,
+            )
+            await asyncio.shield(task)
 
     async def async_reset_actuator_faults(self, entities: list[str]) -> None:
         def update():

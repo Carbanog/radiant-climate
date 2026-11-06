@@ -4,6 +4,7 @@ import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 
+from homeassistant.components.weather import WeatherEntityFeature
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import TemperatureConverter
@@ -124,7 +125,7 @@ class Environment:
                 continue
             # Unsupported providers must not prevent base thermostat regulation.
             if not (
-                state.attributes.get("supported_features", 0) & 2
+                state.attributes.get("supported_features", 0) & WeatherEntityFeature.FORECAST_HOURLY
             ) or not self.hass.services.has_service("weather", "get_forecasts"):
                 self.forecasts.pop(entity, None)
                 self.status[entity] = "hourly_not_supported"

@@ -42,6 +42,42 @@ calibra el adelanto con observación real antes de confiar en él para evitar so
 
 Aprender respuesta térmica recopila periodos válidos por zona, temporada y estado comunicado de actuación. Excluye paradas, ventanas, fallos y periodos de incidencia solar candidata; no cose muestras a través de reinicios. Solo procesa nuevos informes, limita memoria y rechaza saltos incompatibles. Las estadísticas se guardan periódicamente y al parar ordenadamente.
 
+### Lecturas irregulares — desarrollo posterior a v0.2.7
+
+Esta mejora está en `main`, todavía no en una release nueva. v0.2.7 mantiene el
+límite anterior de veinte minutos entre informes para el aprendizaje.
+
+La respuesta térmica lenta admite ventanas de 30 a 90 minutos construidas solo
+con informes reales. Cada separación entre informes debe ser como máximo el menor
+de 90 minutos y la caducidad interior configurada. El límite de 90 minutos es una
+cota conservadora de este algoritmo, no una cadencia recomendada para sensores ni
+un parámetro aprendido. No se rellena el hueco con copias del último valor. Más de
+90 minutos, una discontinuidad conocida o una velocidad incompatible descartan la
+continuidad; una temperatura nueva permite iniciar otro periodo.
+
+Se interrumpe el entrenamiento al cambiar los relés de zona/general y ante ventanas
+habilitadas o datos interiores inválidos, incluso si varios eventos llegan antes
+de la siguiente reconciliación. Una lectura anterior a la interrupción no sirve
+como inicio de otro periodo. Los estados parciales de una zona multicanal y una
+general indisponible o aún en apertura estimada no entrenan respuesta activa.
+Esto comprueba estados comunicados y eventos observados por HA, nunca posiciones,
+caudal ni sucesos físicos que los dispositivos no hayan comunicado.
+
+La tendencia reciente mantiene su requisito de al menos tres puntos, un tramo de
+quince minutos y separaciones no mayores de veinte minutos. Lecturas cada 45 minutos
+pueden permitir aprender y anticipar horarios, pero no justifican por sí solas una
+pausa solar o por inercia inmediata. Sin tendencia reciente, esas pausas no actúan.
+
+La caducidad de seguridad y el modelo siguen separados: la mejora no aumenta el
+margen interior ni utiliza batería, disponibilidad o `last_seen` para renovar una
+temperatura. Se usa el `last_reported` registrado por HA, que tampoco garantiza
+por sí solo una medición física nueva si la integración de origen republica datos.
+
+El almacenamiento de estadísticas mantiene su formato; los modelos existentes no
+se borran y los límites de periodo no se conservan a través de reinicios. Los nuevos
+atributos de diagnóstico son `model_intervals`, `model_rate_c_per_hour` y
+`learning_max_gap_minutes`; se suman a horas, episodios, rechazos y disponibilidad.
+
 Se requieren al menos doce intervalos, seis horas y tres episodios, respuesta entre 0,05 y 3 °C/h y dispersión acotada para declarar un modelo utilizable. Son umbrales de calidad del algoritmo inicial, no garantía de aprendizaje en un número de días. La resolución, cadencia y condiciones de la instalación pueden impedir alcanzar esa calidad. Se muestran horas, episodios, tendencia, rechazos y disponibilidad. Restablecer aprendizaje elimina las estadísticas propias de esa zona y obliga a volver a observar.
 
 Anticipar horario calcula el tiempo para alcanzar un perfil próximo más exigente con el ritmo observado y un límite de adelanto configurable. No actúa sin agenda o modelo válido, durante Manual o Ausente, ni vence Apagado. No aprende preferencias de las modificaciones manuales. El adelanto y el objetivo de regulación se muestran separados del bloque actual.

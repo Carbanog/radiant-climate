@@ -915,6 +915,7 @@ def test_optional_temperature_conversion_rejects_invalid_data(value, unit, expec
         "household_away",
         "retired",
         "preset",
+        "sparse_learning",
     ],
 )
 async def test_full_core_restart_restores_control_without_bypassing_off(house, scenario):
@@ -955,6 +956,26 @@ async def test_full_core_restart_restores_control_without_bypassing_off(house, s
     if scenario == "individual_off":
         await service(house, "climate", "turn_off", climate)
         await service(house, "switch", "turn_on", global_entity(house))
+    if scenario == "sparse_learning":
+        from custom_components.radiant_climate.core.control import Mode
+        from custom_components.radiant_climate.core.intelligence import ThermalModel
+
+        # An explicit synthetic response, persisted by Core's real Store.
+        model = ThermalModel()
+        now = dt_util.utcnow()
+        for minutes, value in ((-45, 20), (0, 20.375)):
+            model.observe(
+                now + timedelta(minutes=minutes),
+                value,
+                Mode.HEAT,
+                True,
+                eligible=True,
+                learning=True,
+            )
+        zone = house.data[DOMAIN].zones[entry.entry_id]
+        zone.intelligence.model = model
+        zone.intelligence.features.learning = True
+        assert model.statistics["heat_on"].count == 1 and model.anchor is not None
     config = house.data["radiant_fixture_boot_config"]
     config_dir = house.config.config_dir
     await house.async_stop()
@@ -987,6 +1008,13 @@ async def test_full_core_restart_restores_control_without_bypassing_off(house, s
             assert state.attributes["preset_mode"] == "eco"
         assert restarted.states.get("switch.fixture_a").state == "off"
         assert restarted.states.get("switch.fixture_general").state == "off"
+        if scenario == "sparse_learning":
+            zone = restarted.data[DOMAIN].zones[entry.entry_id]
+            model = zone.intelligence.model
+            assert zone.intelligence.features.learning
+            assert model.statistics["heat_on"].count == 1
+            assert model.statistics["heat_on"].hours == pytest.approx(0.75)
+            assert model.anchor is None and not model.points
         if scenario == "retired":
             assert restarted.data[DOMAIN]._retired == {"switch.fixture_disconnected": 120}
             assert state.attributes["reason"] == "retired_actuator_pending"
@@ -3257,3 +3285,62 @@ async def test_learning_does_not_extend_temperature_safety_expiry(house, monkeyp
     assert house.states.get("switch.fixture_general").state == "off"
     assert model.anchor is None
     assert model.statistics["heat_on"].count == 1
+
+
+@pytest.mark.parametrize("entity", ["switch.fixture_a", "switch.fixture_general"])
+async def test_relay_attribute_changes_do_not_discard_stable_training(house, monkeypatch, entity):
+    from datetime import timedelta
+
+    entry, _, clock = await sparse_learning_zone(house, monkeypatch)
+    model = house.data[DOMAIN].zones[entry.entry_id].intelligence.model
+    anchor = model.anchor
+    clock.now += timedelta(minutes=15)
+    state = house.states.get(entity)
+    house.states.async_set(
+        entity,
+        state.state,
+        {**state.attributes, "fixture_signal": 80},
+        timestamp=clock.now.timestamp(),
+    )
+    await settle(house)
+    assert model.anchor == anchor
+    clock.now += timedelta(minutes=30)
+    house.states.async_set(
+        "sensor.fixture_a", "19.375", {"unit_of_measurement": "°C"}, timestamp=clock.now.timestamp()
+    )
+    await settle(house)
+    assert model.statistics["heat_on"].count == 1
+    assert model.statistics["heat_on"].hours == pytest.approx(0.75)
+
+
+async def test_transient_invalid_measurement_cannot_be_hidden_from_learning(house, monkeypatch):
+    import asyncio
+    from datetime import timedelta
+
+    entry, _, clock = await sparse_learning_zone(house, monkeypatch)
+    manager = house.data[DOMAIN]
+    model = manager.zones[entry.entry_id].intelligence.model
+    clock.now += timedelta(minutes=20)
+    async with manager._lock:
+        house.states.async_set("sensor.fixture_a", "unavailable", timestamp=clock.now.timestamp())
+        house.states.async_set(
+            "sensor.fixture_a",
+            str(19 + 20 / 120),
+            {"unit_of_measurement": "°C"},
+            timestamp=clock.now.timestamp(),
+        )
+        await asyncio.sleep(0)
+        assert model.anchor is None
+    await settle(house)
+    assert not model.statistics
+    assert model.anchor[0] == clock.now
+    clock.now += timedelta(minutes=45)
+    house.states.async_set(
+        "sensor.fixture_a",
+        str(19 + 65 / 120),
+        {"unit_of_measurement": "°C"},
+        timestamp=clock.now.timestamp(),
+    )
+    await settle(house)
+    assert model.statistics["heat_on"].count == 1
+    assert model.statistics["heat_on"].hours == pytest.approx(0.75)

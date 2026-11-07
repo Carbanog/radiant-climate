@@ -28,6 +28,9 @@ En Herramientas → Plantilla puedes pegar lo siguiente. Produce una instantáne
   proximo_cambio: {{ state_attr(entity, 'next_schedule_change') }}
   modelo_listo: {{ state_attr(entity, 'model_ready') }}
   horas_validas: {{ state_attr(entity, 'model_hours') }}
+  intervalos_validos: {{ state_attr(entity, 'model_intervals') }}
+  velocidad_observada: {{ state_attr(entity, 'model_rate_c_per_hour') }}
+  separacion_maxima_informes_min: {{ state_attr(entity, 'learning_max_gap_minutes') }}
   episodios: {{ state_attr(entity, 'model_episodes') }}
   tendencia: {{ state_attr(entity, 'trend_c_per_hour') }}
   solar: {{ state_attr(entity, 'solar_mode') }}
@@ -40,3 +43,18 @@ En Herramientas → Plantilla puedes pegar lo siguiente. Produce una instantáne
 Para evaluar semanas o meses utiliza Historial de HA con esas entidades y los sensores originales. La instantánea no sustituye una serie temporal. Retén resolución y tiempo suficientes en Recorder y comprueba que no se excluyen esas entidades. Un diagnóstico de modelo listo indica que pasó los filtros del algoritmo; no acredita por sí solo mejor confort o eficiencia.
 
 Si una optimización no mejora el resultado, desactívala en su zona o copia los módulos desactivados al resto. Se recupera la regulación básica sin dejar una consigna artificial. Restablece aprendizaje cuando cambien de forma importante sensores, circuitos o emisores; revisa de nuevo la respuesta por temporada.
+
+
+## Sensores a pilas y cadencia
+
+En el desarrollo posterior a v0.2.7 se han ampliado las ventanas de aprendizaje
+sin ampliar la caducidad de seguridad; véase [lecturas irregulares](intelligence.md#lecturas-irregulares--desarrollo-posterior-a-v027).
+Los atributos nuevos de la plantilla aparecerán como `None` en versiones anteriores.
+Comprueba la cadencia de los informes durante demandas reales, no solo en una sala
+estable. No aumentes la caducidad únicamente para obtener un modelo: también retrasa
+el cierre por pérdida de datos. Puedes dejar Aprender activado y mantener Anticipar
+horario y Aprovechar inercia desactivados mientras observas si se acumulan intervalos.
+Un modelo listo con tendencia no disponible permite ciertas anticipaciones de agenda,
+pero no las pausas inmediatas que dependen de tendencia. No es necesario aumentar
+la frecuencia de transmisión para aparentar muestras ni renovar datos con mensajes
+de batería.

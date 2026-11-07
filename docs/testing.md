@@ -81,3 +81,15 @@ el regulador básico seguía demandando. Hay regresiones para adelanto solar, so
 actual e inercia en calor/frío. La prohibición de optimizar no inhibe el cierre por
 Off, ventana o sensor inválido. No se atribuye la predicción de sol a un aprendizaje
 que el modelo térmico actual no realiza.
+
+
+## Desarrollo posterior a v0.2.7: informes irregulares
+
+Regresiones puras para calor/frío con intervalos de30/45/60/90min, huecos demasiado
+largos o superiores a caducidad, muestras repetidas, cambios de cohorte/exclusión,
+reinicio y separación respecto a tendencia reciente. Flujos Core con relojes y
+lecturas explícitamente simulados: tres episodios aprendidos con informes cada45min,
+modelos recuperados mediante Store tras reinicio completo, interrupciones de ventana,
+relé de zona/general y sensor inválido antes de reconciliar, atributos de relé sin
+cambio físico comunicado y cierre por dato caducado. Los ensayos no sustituyen
+históricos reales ni garantizan calidad térmica en una vivienda.

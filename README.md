@@ -210,6 +210,10 @@ Después activa únicamente los controles que necesites en el dispositivo de cad
 
 El aprendizaje no se desactiva automáticamente al alcanzar calidad: continúa observando mientras esté habilitado. Puedes desactivarlo conservando el modelo o usar **Restablecer aprendizaje térmico** para borrarlo. No se garantiza un modelo válido tras un número fijo de días.
 
+> **En desarrollo, posterior a v0.2.7:** aprendizaje con lecturas irregulares,
+> sin ampliar la caducidad de seguridad ni inventar muestras entre informes.
+> No está incluido en la release v0.2.7. Consulta los [límites y diagnósticos](docs/intelligence.md#lecturas-irregulares--desarrollo-posterior-a-v027).
+
 Puedes aplicar módulos a varias zonas con **Copiar ajustes**. No copia relés, sensores, orientación ni modelos aprendidos. [Cómo funcionan los algoritmos](docs/intelligence.md) · [Qué observar para ajustarlos](docs/tuning.md).
 
 ## 6. Configurar el aporte solar

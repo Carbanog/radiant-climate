@@ -1,6 +1,32 @@
 # Cambios y actualización
 
 
+## v0.2.7
+
+Correcciones de fiabilidad, sin cambiar la regulación térmica básica, los perfiles,
+los identificadores de entidades ni el esquema de almacenamiento.
+
+- La confirmación solar solo certifica la fuente mostrada al revisar la zona.
+  Guardar una confirmación obsoleta no la renueva; cambiar la fuente con el formulario
+  abierto obliga a revisarla. El motor aplica el mismo criterio incluso al arrancar
+  con las zonas cargadas antes de la configuración general.
+- Los bloques horarios de un solo día también detectan cambios concurrentes de perfil.
+  El borrado distingue un bloque obsoleto del último bloque de una agenda habilitada.
+- Las fuentes solares caducan a los quince minutos. Perderlas omite su optimización,
+  sin bloquear la regulación interior ni cambiar la caducidad de los sensores interiores.
+- Errores de validación de entidades presentados mediante ServiceValidationError;
+  diagnósticos y mandos utilizan propiedades públicas del gestor.
+
+Validación: 139 pruebas del núcleo y 199 pruebas del adaptador por cada Core
+2026.10.4 y 2026.11.0, con dispositivos simulados, además de formato, metadatos y
+privacidad. No equivalen a pruebas físicas de válvulas ni a certificación de la instalación.
+
+Actualización desde v0.2.6: realiza una copia recuperable, apaga **Climatización**,
+actualiza y reinicia cuando lo solicite HA. Revisa fuentes y motivos antes de reactivar.
+No requiere ayudantes ni automatizaciones nuevos. Si habías cambiado la fuente solar,
+revisa la exposición antes de confirmar y activar Optimizar. Conserva la versión anterior
+para reversión; no restaures almacenamiento en caliente.
+
 ## v0.2.6 — edición de horarios y anticipación solar opcional
 
 - Bloques agrupados y localizados, atajos Semana completa/Entre semana/Fin de semana,

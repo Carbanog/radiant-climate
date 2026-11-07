@@ -13,7 +13,7 @@ Crea termostatos de Home Assistant a partir de tus sensores y relés. Utiliza un
 [![Pruebas de software](https://github.com/Carbanog/radiant-climate/actions/workflows/ci.yml/badge.svg)](https://github.com/Carbanog/radiant-climate/actions/workflows/ci.yml)
 [![Metadatos de integración](https://github.com/Carbanog/radiant-climate/actions/workflows/metadata.yml/badge.svg)](https://github.com/Carbanog/radiant-climate/actions/workflows/metadata.yml)
 
-> **Versión: v0.2.6.** Release normal de un proyecto personal, original y de código abierto. Incluye correcciones para cierres tras fallo y sustitución de actuadores; actualiza antes de cambiar salidas respecto a v0.2.0. El software tiene pruebas automatizadas; su respuesta térmica necesita ajuste en cada instalación. No se presenta como un controlador certificado ni como ahorro demostrado.
+> **Versión: v0.2.7.** Release normal de un proyecto personal, original y de código abierto. Incluye correcciones para cierres tras fallo y sustitución de actuadores; actualiza antes de cambiar salidas respecto a v0.2.0. El software tiene pruebas automatizadas; su respuesta térmica necesita ajuste en cada instalación. No se presenta como un controlador certificado ni como ahorro demostrado.
 
 ¿Ya lo has instalado? Consulta los [cambios y la actualización desde las betas](docs/release-notes.md) y continúa en [Primer arranque](#primer-arranque).
 
@@ -55,7 +55,7 @@ El control básico es local y no solicita cuentas ni credenciales. La integraci�
 
 1. Abre **Configuración → Marketplace → Añadir desde enlace**.
 2. Introduce `https://github.com/Carbanog/radiant-climate`.
-3. Selecciona **v0.2.6**. Añadir un repositorio personalizado puede requerir la conexión con GitHub que gestiona Marketplace; esta release no necesita mostrar versiones preliminares.
+3. Selecciona **v0.2.7**. Añadir un repositorio personalizado puede requerir la conexión con GitHub que gestiona Marketplace; esta release no necesita mostrar versiones preliminares.
 4. Instala. Marketplace abre directamente el asistente de configuración de una integración nueva, sin reinicio intermedio.
 
 No se instala HACS por separado en 2026.11. Las actualizaciones pueden solicitar un reinicio aunque la primera instalación no lo necesite.
@@ -64,7 +64,7 @@ No se instala HACS por separado en 2026.11. Las actualizaciones pueden solicitar
 
 1. Con HACS ya configurado, abre su menú → **Repositorios personalizados**.
 2. Añade `https://github.com/Carbanog/radiant-climate`, categoría **Integración**.
-3. Descarga **v0.2.6**; esta release no necesita mostrar versiones preliminares.
+3. Descarga **v0.2.7**; esta release no necesita mostrar versiones preliminares.
 4. Reinicia HA y abre **Dispositivos y servicios → Añadir integración → Radiant Climate**.
 
 El repositorio se añade mediante enlace; no se afirma su inclusión en el catálogo oficial. Para instalación mediante ZIP, comprobación de integridad y reversión, consulta la [guía de instalación](docs/installation.md). Utiliza primero un entorno de pruebas y conserva una copia recuperable.
@@ -176,7 +176,7 @@ Para recuperar otro controlador, apaga y deshabilita primero Radiant Climate y d
 
 ## Validación y límites
 
-La v0.2.6 superó **137 pruebas del núcleo y 186 pruebas del adaptador en cada Core 2026.10.4 y 2026.11.0**, además de HACS y hassfest. Se incluyen regresiones del editor agrupado, las fuentes solares, el adelanto previo al sol y los tiempos mínimos de las pausas opcionales. Las ampliaciones se validan en Actions por commit; consulta la ejecución de la versión que vayas a instalar. Los adaptadores utilizan Core real con sensores, relés, previsiones y modelos de prueba explícitos. Se prueban, entre otros, reinicios completos, Manual coincidente con perfiles, apagados, pérdidas de fuentes y conflictos de salidas. [Alcance de las pruebas](docs/testing.md).
+La v0.2.7 superó **139 pruebas del núcleo y 199 pruebas del adaptador en cada Core 2026.10.4 y 2026.11.0**, además de HACS y hassfest. Se incluyen regresiones del editor agrupado, las fuentes solares, el adelanto previo al sol y los tiempos mínimos de las pausas opcionales. Las ampliaciones se validan en Actions por commit; consulta la ejecución de la versión que vayas a instalar. Los adaptadores utilizan Core real con sensores, relés, previsiones y modelos de prueba explícitos. Se prueban, entre otros, reinicios completos, Manual coincidente con perfiles, apagados, pérdidas de fuentes y conflictos de salidas. [Alcance de las pruebas](docs/testing.md).
 
 El estado de un relé y el transcurso de un tiempo estimado **no confirman posición de válvula ni caudal**. Las esperas de apertura general/cierre de zona se configuran según los actuadores. No se controla producción ni bombas comunitarias ni se utilizan persianas. Esta integración no implementa protección anticondensación: se mantienen las protecciones físicas de la instalación.
 

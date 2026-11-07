@@ -3,6 +3,7 @@
 from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import ClimateEntityFeature, HVACAction, HVACMode
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
@@ -77,7 +78,7 @@ class RadiantThermostat(RadiantEntity, ClimateEntity):
 
     async def async_set_preset_mode(self, preset_mode):
         if preset_mode not in self.preset_modes:
-            raise ValueError("Unsupported profile")
+            raise ServiceValidationError("Unsupported profile")
         if preset_mode == "away":
             await self.manager.async_away(self.entry.entry_id, True)
             return
@@ -144,7 +145,7 @@ class RadiantThermostat(RadiantEntity, ClimateEntity):
             and requested_mode != Mode.OFF
             and requested_mode not in self.zone.settings.modes
         ):
-            raise ValueError("Unsupported operating mode")
+            raise ServiceValidationError("Unsupported operating mode")
 
         def update():
             candidate = Intent.restore(self.zone.intent.dump())

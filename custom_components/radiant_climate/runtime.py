@@ -22,7 +22,7 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN, STORAGE_VERSION
 from .core.control import Decision, Intent, Mode, Settings, temperature
 from .core.intelligence import ThermalModel, window_pause
-from .core.program import Program
+from .core.program import Program, ScheduleInUseError
 from .environment import Environment
 from .intelligence import Intelligence
 from .solar import confirmed
@@ -204,17 +204,23 @@ class Installation:
                 except (KeyError, TypeError, ValueError):
                     # Optional learning corruption must not destroy user setpoints.
                     self.zones[entry.entry_id].intelligence = Intelligence()
-            if (
-                not data.get("solar_confirmed", False)
-                and self.zones[entry.entry_id].intelligence.features.solar == "active"
-            ):
-                self.zones[entry.entry_id].intelligence.features.solar = "observe"
             raw_window = self._saved.get(entry.entry_id, {}).get("window_enabled", True)
             self.zones[entry.entry_id].window_enabled = (
                 raw_window if isinstance(raw_window, bool) else True
             )
         self.entries[entry.entry_id] = data
+        self._normalise_solar_confirmations()
         self._refresh_weather()
+
+    def _normalise_solar_confirmations(self):
+        # Entries can load in either order. Wait for the actual hub sources
+        # rather than comparing a restored zone against temporary defaults.
+        if self.hub not in self.entries:
+            return
+        source = self.entries[self.hub]
+        for zone in self.zones.values():
+            if zone.intelligence.features.solar == "active" and not confirmed(zone.config, source):
+                zone.intelligence.features.solar = "observe"
 
     async def async_remove(self, entry_id: str) -> None:
         self._change_signal.set()
@@ -296,19 +302,8 @@ class Installation:
 
         def update():
             self.entries[entry.entry_id] = data
-            if entry.entry_id == self.hub:
-                for current in self.zones.values():
-                    if current.intelligence.features.solar == "active" and not confirmed(
-                        current.config, data
-                    ):
-                        current.intelligence.features.solar = "observe"
             if zone := self.zones.get(entry.entry_id):
                 zone.config = data
-                if (
-                    not data.get("solar_confirmed", False)
-                    and zone.intelligence.features.solar == "active"
-                ):
-                    zone.intelligence.features.solar = "observe"
                 zone.settings = Settings(
                     modes=tuple(Mode(m) for m in data["modes"]),
                     **{
@@ -317,6 +312,7 @@ class Installation:
                         if k in data
                     },
                 )
+            self._normalise_solar_confirmations()
 
         await self.async_change(update)
         return True
@@ -332,6 +328,14 @@ class Installation:
     @property
     def retired_actuators(self) -> tuple[str, ...]:
         return tuple(sorted(self._retired))
+
+    @property
+    def stop_requested(self) -> bool:
+        return self._stop_requested
+
+    @property
+    def setup_ready(self) -> bool:
+        return self._ready()
 
     def source(self, zone, key):
         return zone.config.get(key) or self.entries.get(self.hub, {}).get(key)
@@ -909,7 +913,7 @@ class Installation:
             program.target(intent, now, self.hass.config.time_zone)
             edit(program)
             if program.enabled and not program.blocks:
-                raise ValueError("Disable the schedule before removing its last block")
+                raise ScheduleInUseError("Disable the schedule before removing its last block")
             program.reconcile_edit(intent, now, self.hass.config.time_zone)
             z.program, z.intent = program, intent
 

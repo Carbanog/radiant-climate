@@ -105,7 +105,7 @@
       },
       "sources": {
         "title": "Optional sources and optimisation",
-        "description": "Empty sources inherit the installation. Orientation is the fixed window direction; azimuth is the changing sun direction. Angular allowance applies on both sides. Elevation excludes buildings: calibrate shadows per zone. Geometry edits clear confirmation; save, then confirm without changing it. Solar lead differs from schedule advance: heating only, active confirmed solar, favourable forecast and temperature close to comfort. Observation never acts. No forecast means no preventive solar pause.",
+        "description": "Shared solar source: {solar_source}. Empty sources inherit the installation. Orientation is the fixed window direction; azimuth is the changing sun direction. Angular allowance applies on both sides. Elevation excludes buildings: calibrate shadows per zone. Geometry edits clear confirmation; save, then confirm without changing it. Solar lead differs from schedule advance: heating only, active confirmed solar, favourable forecast and temperature close to comfort. Observation never acts. No forecast means no preventive solar pause.",
         "data": {
           "weather": "Weather source (optional)",
           "outdoor": "Outdoor sensor (optional)",
@@ -162,7 +162,8 @@
       "entity_missing": "A selected entity does not exist.",
       "invalid_configuration": "Check the values and required fields.",
       "schedule_changed": "The block changed or does not include those days. Select it again.",
-      "schedule_conflict": "Another block already occupies a destination day/time. The agenda has not changed."
+      "schedule_conflict": "Another block already occupies a destination day/time. The agenda has not changed.",
+      "solar_source_changed": "The solar source changed while editing. Review the displayed source and confirm again."
     },
     "abort": {
       "installation_only": "Configure this on the installation.",

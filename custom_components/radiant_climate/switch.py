@@ -90,7 +90,7 @@ class HouseholdAway(RadiantEntity, SwitchEntity):
 
     @property
     def available(self):
-        return bool(self.manager.zones) and self.manager._ready()
+        return bool(self.manager.zones) and self.manager.setup_ready
 
     @property
     def is_on(self):
@@ -222,9 +222,9 @@ class InstallationEnabled(RadiantEntity, SwitchEntity):
     @property
     def extra_state_attributes(self):
         return {
-            "retired_actuators": sorted(self.manager._retired),
-            "command_faults": sorted(self.manager._command_faults),
-            "stop_requested": self.manager._stop_requested,
+            "retired_actuators": list(self.manager.retired_actuators),
+            "command_faults": list(self.manager.actuator_faults),
+            "stop_requested": self.manager.stop_requested,
         }
 
     async def async_turn_on(self, **kwargs):

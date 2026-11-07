@@ -166,3 +166,15 @@ def test_partial_remove_preserves_exceptions_and_next_manual_boundary():
     p.reconcile_edit(i, NOW, TZ)
     assert len(p.blocks) == 13
     assert i.hold.until > NOW + timedelta(hours=6)
+
+
+@pytest.mark.parametrize("days", [[0], [0, 1]])
+def test_displayed_schedule_token_rejects_profile_changed_before_selection(days):
+    from core.schedule_editor import groups, selection
+
+    p = Program()
+    p.set_blocks(days, 420, "home")
+    displayed = groups(p.blocks)[0][0]
+    p.set_blocks([days[0]], 420, "eco")
+    with pytest.raises(ValueError, match="schedule_changed"):
+        selection(p.blocks, displayed)

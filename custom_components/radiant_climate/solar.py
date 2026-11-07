@@ -8,6 +8,7 @@ from homeassistant.helpers.sun import get_astral_observer
 from .core.intelligence import solar_geometry
 
 SOURCE_KEYS = ("solar_source", "sun_entity", "sun_elevation", "sun_azimuth")
+MAX_SOLAR_AGE = 900
 
 
 def source_signature(config):
@@ -37,7 +38,7 @@ def angles(hass, config, now):
     if not states or any(
         s is None
         or s.state in ("unknown", "unavailable")
-        or not -60 <= (now - s.last_reported).total_seconds() <= 1800
+        or not -60 <= (now - s.last_reported).total_seconds() <= MAX_SOLAR_AGE
         for s in states
     ):
         return None, None

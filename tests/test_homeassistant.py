@@ -2903,3 +2903,184 @@ async def test_source_change_requires_new_confirmation_and_preserves_running_out
     await configure_sources(house, entry, solar_confirmed=True)
     await manager.async_feature(entry.entry_id, "solar", "active")
     assert manager.zones[entry.entry_id].intelligence.features.solar == "active"
+
+
+async def solar_source_options(hass, entity):
+    manager = hass.data[DOMAIN]
+    flow = await hass.config_entries.options.async_init(manager.hub)
+    flow = await hass.config_entries.options.async_configure(
+        flow["flow_id"], {"next_step_id": "solar_source"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        flow["flow_id"], {"solar_source": "entity", "sun_entity": entity}
+    )
+    assert result["type"] == "create_entry", result
+    await settle(hass)
+
+
+def confirmation_default(flow):
+    return next(
+        key.default() for key in flow["data_schema"].schema if str(key) == "solar_confirmed"
+    )
+
+
+@pytest.mark.parametrize("timing", ["before_open", "while_open", "queued_runtime"])
+async def test_source_confirmation_requires_review_of_the_displayed_source(house, timing):
+    import asyncio
+
+    from custom_components.radiant_climate.solar import confirmed
+
+    entry, _ = await add_zone(house)
+    manager = house.data[DOMAIN]
+    alternative = "sensor.fixture_reviewed_sun"
+    house.states.async_set(alternative, "ok", {"azimuth": 135, "elevation": 30})
+    await configure_sources(house, entry, solar_confirmed=True)
+    await manager.async_feature(entry.entry_id, "solar", "active")
+    if timing == "before_open":
+        await solar_source_options(house, alternative)
+    flow = await house.config_entries.options.async_init(entry.entry_id)
+    flow = await house.config_entries.options.async_configure(
+        flow["flow_id"], {"next_step_id": "sources"}
+    )
+    assert confirmation_default(flow) == (timing != "before_open")
+    if timing == "while_open":
+        await solar_source_options(house, alternative)
+    if timing == "queued_runtime":
+        async with manager._lock:
+            hub = house.config_entries.async_get_entry(manager.hub)
+            house.config_entries.async_update_entry(
+                hub, options={**hub.options, "solar_source": "entity", "sun_entity": alternative}
+            )
+            async with asyncio.timeout(3):
+                result = await house.config_entries.options.async_configure(
+                    flow["flow_id"], {"solar_confirmed": True}
+                )
+        await settle(house)
+    elif timing == "while_open":
+        result = await house.config_entries.options.async_configure(
+            flow["flow_id"], {"solar_confirmed": True}
+        )
+    else:
+        result = flow
+    if timing != "before_open":
+        assert result["type"] == "form" and result["errors"] == {"base": "solar_source_changed"}
+        assert not confirmation_default(result)
+    result = await house.config_entries.options.async_configure(
+        flow["flow_id"], {"solar_confirmed": False}
+    )
+    assert result["type"] == "create_entry", result
+    await settle(house)
+    assert not confirmed(manager.zones[entry.entry_id].config, manager.environment.solar_config)
+    assert manager.zones[entry.entry_id].intelligence.features.solar == "observe"
+    with pytest.raises(ValueError, match="exposure"):
+        await manager.async_feature(entry.entry_id, "solar", "active")
+    await configure_sources(house, entry, solar_confirmed=True)
+    assert confirmed(manager.zones[entry.entry_id].config, manager.environment.solar_config)
+    assert manager.zones[entry.entry_id].intelligence.features.solar == "observe"
+    await manager.async_feature(entry.entry_id, "solar", "active")
+    assert manager.zones[entry.entry_id].intelligence.features.solar == "active"
+
+
+async def test_unchanged_confirmed_source_remains_valid_and_does_not_copy_entry_data(house):
+    from custom_components.radiant_climate.solar import confirmed
+
+    entry, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    await configure_sources(house, entry, solar_confirmed=True)
+    await manager.async_feature(entry.entry_id, "solar", "active")
+    await configure_sources(house, entry, solar_confirmed=True)
+    assert confirmed(manager.zones[entry.entry_id].config, manager.environment.solar_config)
+    assert manager.zones[entry.entry_id].intelligence.features.solar == "active"
+    assert house.states.get(climate).state == "off"
+    house.states.async_set("sensor.fixture_settings_sun", "ok", {"azimuth": 135, "elevation": 30})
+    await solar_source_options(house, "sensor.fixture_settings_sun")
+    hub = house.config_entries.async_get_entry(manager.hub)
+    assert "general" not in hub.options and "kind" not in hub.options
+    assert manager.general == "switch.fixture_general"
+
+
+@pytest.mark.parametrize("step", ["schedule_choose", "schedule_remove"])
+async def test_single_day_schedule_ui_rejects_changed_profile_before_selection(house, step):
+    entry, _ = await add_zone(house)
+    manager = house.data[DOMAIN]
+    await manager.async_edit_schedule(entry.entry_id, lambda p: p.set_blocks([0], 420, "home"))
+    flow = await house.config_entries.options.async_init(entry.entry_id)
+    flow = await house.config_entries.options.async_configure(
+        flow["flow_id"], {"next_step_id": step}
+    )
+    token = next(
+        value.config["options"][0]["value"]
+        for key, value in flow["data_schema"].schema.items()
+        if str(key) == "block"
+    )
+    assert token == "0|420|home"
+    await manager.async_edit_schedule(entry.entry_id, lambda p: p.set_blocks([0], 420, "eco"))
+    before = manager.zones[entry.entry_id].program.dump()
+    result = await house.config_entries.options.async_configure(flow["flow_id"], {"block": token})
+    assert result["type"] == "form" and result["errors"] == {"base": "schedule_changed"}
+    assert manager.zones[entry.entry_id].program.dump() == before
+
+
+@pytest.mark.parametrize("hub_first", [True, False])
+@pytest.mark.parametrize("valid", [True, False])
+async def test_solar_confirmation_normalisation_waits_for_hub_in_either_load_order(
+    house, hub_first, valid
+):
+    from custom_components.radiant_climate.runtime import Installation
+
+    entry, _ = await add_zone(house)
+    current = house.data[DOMAIN]
+    alternative = "sensor.fixture_boot_sun"
+    house.states.async_set(alternative, "ok", {"azimuth": 135, "elevation": 30})
+    await solar_source_options(house, alternative)
+    await configure_sources(house, entry, solar_confirmed=True)
+    await current.async_feature(entry.entry_id, "solar", "active")
+    if not valid:
+        house.config_entries.async_update_entry(
+            entry, options={**entry.options, "solar_source_signature": ["standard", "sun.sun"]}
+        )
+        await settle(house)
+    z = current.zones[entry.entry_id]
+    saved = {**z.intent.dump(), "program": z.program.dump(), "intelligence": z.intelligence.dump()}
+    saved["intelligence"]["features"]["solar"] = "active"
+    manager = Installation(house)
+    manager._saved[entry.entry_id] = saved
+    hub = house.config_entries.async_get_entry(current.hub)
+    try:
+        first, second = (hub, entry) if hub_first else (entry, hub)
+        manager._register(first)
+        if not hub_first:
+            assert manager.zones[entry.entry_id].intelligence.features.solar == "active"
+        manager._register(second)
+        assert manager.zones[entry.entry_id].intelligence.features.solar == (
+            "active" if valid else "observe"
+        )
+    finally:
+        manager.async_stop()
+
+
+@pytest.mark.parametrize("age,valid", [(899, True), (901, False)])
+async def test_solar_position_expires_after_fifteen_minutes(house, age, valid):
+    from datetime import timedelta
+
+    from custom_components.radiant_climate.solar import angles
+
+    house.states.async_set("sun.sun", "above_horizon", {"azimuth": 140, "elevation": 26})
+    state = house.states.get("sun.sun")
+    result = angles(house, {}, state.last_reported + timedelta(seconds=age))
+    assert result == ((140, 26) if valid else (None, None))
+
+
+async def test_entity_validation_errors_are_presented_as_service_validation(house):
+    from homeassistant.exceptions import ServiceValidationError
+
+    from custom_components.radiant_climate.climate import RadiantThermostat
+    from custom_components.radiant_climate.number import HoldMinutes
+
+    entry, _ = await add_zone(house)
+    manager = house.data[DOMAIN]
+    entity = RadiantThermostat(manager, entry)
+    with pytest.raises(ServiceValidationError):
+        await entity.async_set_preset_mode("unsupported")
+    with pytest.raises(ServiceValidationError):
+        await HoldMinutes(manager, entry).async_set_native_value(0)

@@ -2,6 +2,7 @@
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.const import EntityCategory, UnitOfTemperature
+from homeassistant.exceptions import ServiceValidationError
 
 from .const import DOMAIN
 from .core.control import temperature
@@ -71,7 +72,7 @@ class HoldMinutes(RadiantEntity, NumberEntity):
     async def async_set_native_value(self, value):
         minutes = float(value)
         if not 1 <= minutes <= 1440:
-            raise ValueError("Manual duration must be between 1 and 1440 minutes")
+            raise ServiceValidationError("Manual duration must be between 1 and 1440 minutes")
         await self.manager.async_change(
             lambda: setattr(self.manager.zones[self.entry.entry_id].program, "minutes", minutes)
         )

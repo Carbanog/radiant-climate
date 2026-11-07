@@ -9,6 +9,10 @@ from .control import HoldPolicy, Intent, Mode, Settings, aware, temperature
 PROFILES = ("home", "eco", "sleep", "away")
 
 
+class ScheduleInUseError(ValueError):
+    """An enabled program must retain at least one block."""
+
+
 @dataclass(frozen=True, order=True)
 class Block:
     day: int

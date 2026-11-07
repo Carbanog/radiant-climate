@@ -105,7 +105,7 @@
       },
       "sources": {
         "title": "Fuentes opcionales y optimización",
-        "description": "Fuentes vacías heredan la instalación. Orientación = dirección fija de la ventana; azimut = dirección cambiante del sol. El ángulo se permite a ambos lados de la orientación. La elevación no incluye edificios: calibra sombras por estancia. Cambiar geometría invalida su confirmación; guarda y después confirma sin cambiarla. El adelanto solar es distinto del horario: solo calor, Solar Optimizar, exposición confirmada, previsión favorable y confort próximo a consigna. Observación no actúa. Sin previsión no hay corte previo al sol.",
+        "description": "Fuente solar compartida: {solar_source}. Fuentes vacías heredan la instalación. Orientación = dirección fija de la ventana; azimut = dirección cambiante del sol. El ángulo se permite a ambos lados de la orientación. La elevación no incluye edificios: calibra sombras por estancia. Cambiar geometría invalida su confirmación; guarda y después confirma sin cambiarla. El adelanto solar es distinto del horario: solo calor, Solar Optimizar, exposición confirmada, previsión favorable y confort próximo a consigna. Observación no actúa. Sin previsión no hay corte previo al sol.",
         "data": {
           "weather": "Fuente meteorológica (opcional)",
           "outdoor": "Sensor exterior (opcional)",
@@ -162,7 +162,8 @@
       "entity_missing": "Una entidad seleccionada no existe.",
       "invalid_configuration": "Comprueba los valores y campos obligatorios.",
       "schedule_changed": "El bloque ha cambiado o no contiene esos días. Vuelve a seleccionarlo.",
-      "schedule_conflict": "Ya existe otro bloque en uno de los días y horas de destino. No se ha cambiado la programación."
+      "schedule_conflict": "Ya existe otro bloque en uno de los días y horas de destino. No se ha cambiado la programación.",
+      "solar_source_changed": "La fuente solar ha cambiado mientras editabas. Revisa la fuente indicada y confirma de nuevo."
     },
     "abort": {
       "installation_only": "Configúralo en la instalación.",

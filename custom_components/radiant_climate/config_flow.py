@@ -11,10 +11,10 @@ from homeassistant.helpers.translation import async_get_translations
 
 from .const import DOMAIN
 from .core.control import Settings, temperature
-from .core.program import PROFILES
+from .core.program import PROFILES, ScheduleInUseError
 from .core.schedule_editor import groups, replace_blocks, selection, weekdays
 from .hydraulic import DEFAULTS, configuration
-from .solar import source_entities, source_signature
+from .solar import confirmed, source_entities, source_signature
 
 
 def _entity(domain: str, multiple: bool = False):
@@ -212,7 +212,7 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
         previous = {**self.config_entry.data, **self.config_entry.options}
         errors = {}
         if user_input is not None:
-            data = {**previous, **user_input}
+            data = {**self.config_entry.options, **user_input}
             for key in ("sun_entity", "sun_elevation", "sun_azimuth"):
                 data[key] = user_input.get(key)
             entities = source_entities(data)
@@ -303,6 +303,11 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_sources(self, user_input=None):
         previous = {**self.config_entry.data, **self.config_entry.options}
+        manager = self.hass.data[DOMAIN]
+        # Read the committed entry, not a possibly queued runtime update.
+        installation = self.hass.config_entries.async_get_entry(manager.hub)
+        solar_config = {**installation.data, **installation.options} if installation else {}
+        signature = source_signature(solar_config)
         errors = {}
         if user_input is not None:
             data = {
@@ -311,9 +316,10 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
                 "weather": user_input.get("weather"),
                 "outdoor": user_input.get("outdoor"),
             }
-            data["solar_source_signature"] = source_signature(
-                self.hass.data[DOMAIN].environment.solar_config
-            )
+            data["solar_confirmed"] = user_input.get("solar_confirmed") is True
+            if getattr(self, "_reviewed_solar_source", None) != signature:
+                # A checked box from the old page cannot certify a new source.
+                errors["base"] = "solar_source_changed"
             if any(
                 data.get(key, default) != previous.get(key, default)
                 for key, default in (
@@ -323,12 +329,19 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
                 )
             ):
                 data["solar_confirmed"] = False
+            if data["solar_confirmed"] and not errors:
+                data["solar_source_signature"] = list(self._reviewed_solar_source)
             try:
                 _validate(self.hass, data, self.config_entry.entry_id)
             except ValueError:
                 errors["base"] = "entity_missing"
             else:
-                return self.async_create_entry(title="", data=data)
+                if not errors:
+                    options = {**self.config_entry.options, **user_input}
+                    for key in ("weather", "outdoor", "solar_confirmed", "solar_source_signature"):
+                        if key in data:
+                            options[key] = data[key]
+                    return self.async_create_entry(title="", data=options)
         fields = {}
         for source, domain in [("outdoor", "sensor"), ("weather", "weather")]:
             fields[_optional_entity(source, previous)] = _entity(domain)
@@ -343,11 +356,17 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
             fields[vol.Required(key, default=previous.get(key, default))] = _number(
                 minimum, maximum
             )
-        fields[vol.Required("solar_confirmed", default=previous.get("solar_confirmed", False))] = (
+        fields[vol.Required("solar_confirmed", default=confirmed(previous, solar_config))] = (
             selector.BooleanSelector()
         )
+        self._reviewed_solar_source = signature
         return self.async_show_form(
-            step_id="sources", data_schema=vol.Schema(fields), errors=errors
+            step_id="sources",
+            data_schema=vol.Schema(fields),
+            errors=errors,
+            description_placeholders={
+                "solar_source": ", ".join(filter(None, source_entities(solar_config)))
+            },
         )
 
     async def async_step_vacation(self, user_input=None):
@@ -548,9 +567,13 @@ class RadiantOptionsFlow(config_entries.OptionsFlow):
                     self.config_entry.entry_id,
                     lambda current: replace_blocks(current, original),
                 )
+            except ScheduleInUseError:
+                errors["base"] = "schedule_in_use"
             except ValueError as exc:
                 errors["base"] = (
-                    "schedule_changed" if str(exc) == "schedule_changed" else "schedule_in_use"
+                    "schedule_changed"
+                    if str(exc) == "schedule_changed"
+                    else "invalid_configuration"
                 )
             else:
                 return self.async_create_entry(title="", data=dict(self.config_entry.options))

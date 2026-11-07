@@ -87,7 +87,9 @@ class HydraulicDiagnostic:
         if _event is not None and _event.data["entity_id"] in outputs:
             state = _event.data.get("new_state")
             ready &= state is not None and state.state == "on"
-        ready &= not bool(manager._retired or manager._command_faults or manager._stop_requested)
+        ready &= not bool(
+            manager.retired_actuators or manager.actuator_faults or manager.stop_requested
+        )
         mode = manager.supply_mode.value
         self.state = self.observer.evaluate(
             now=monotonic(),

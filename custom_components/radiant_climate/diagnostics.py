@@ -19,5 +19,5 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "model": zone.intelligence.model.dump() if zone else None,
         "optimisation": zone.intelligence.diagnostics if zone else None,
         "valve_position_measured": False,
-        "command_fault_count": len(manager._command_faults),
+        "command_fault_count": len(manager.actuator_faults),
     }

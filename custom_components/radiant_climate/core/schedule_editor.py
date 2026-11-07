@@ -18,9 +18,7 @@ def groups(blocks):
         grouped.setdefault((block.minute, block.profile), []).append(block.day)
     return [
         (
-            f"{days[0]}:{minute}"
-            if len(days) == 1
-            else f"{','.join(map(str, days))}|{minute}|{profile}",
+            f"{','.join(map(str, days))}|{minute}|{profile}",
             days,
             minute,
             profile,

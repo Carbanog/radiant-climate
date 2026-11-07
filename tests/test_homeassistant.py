@@ -1296,12 +1296,17 @@ async def test_last_enabled_schedule_block_cannot_be_removed_silently(house):
     flow = await house.config_entries.options.async_configure(
         flow["flow_id"], {"next_step_id": "schedule_remove"}
     )
-    result = await house.config_entries.options.async_configure(flow["flow_id"], {"block": "0:0"})
+    token = next(
+        value.config["options"][0]["value"]
+        for key, value in flow["data_schema"].schema.items()
+        if str(key) == "block"
+    )
+    result = await house.config_entries.options.async_configure(flow["flow_id"], {"block": token})
     assert result["type"] == "form" and result["errors"] == {"base": "schedule_in_use"}
     assert len(manager.zones[a.entry_id].program.blocks) == 1
     assert house.states.get(ca).attributes["temperature"] == 22
     await service(house, "switch", "turn_off", zone_entity(house, a, "switch", "schedule"))
-    result = await house.config_entries.options.async_configure(flow["flow_id"], {"block": "0:0"})
+    result = await house.config_entries.options.async_configure(flow["flow_id"], {"block": token})
     assert result["type"] == "create_entry", result
     await settle(house)
     assert not manager.zones[a.entry_id].program.blocks

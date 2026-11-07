@@ -3089,3 +3089,171 @@ async def test_entity_validation_errors_are_presented_as_service_validation(hous
         await entity.async_set_preset_mode("unsupported")
     with pytest.raises(ServiceValidationError):
         await HoldMinutes(manager, entry).async_set_native_value(0)
+
+
+async def sparse_learning_zone(hass, monkeypatch, mode="heat", stale_after=10800):
+    """Real Core services with an explicitly advanced clock and synthetic reports."""
+    from datetime import timedelta
+    from types import SimpleNamespace
+
+    from homeassistant.util import dt as dt_util
+
+    entry, climate = await add_zone(hass)
+    hass.states.async_set("binary_sensor.fixture_window", "off")
+    flow = await hass.config_entries.options.async_init(entry.entry_id)
+    flow = await hass.config_entries.options.async_configure(
+        flow["flow_id"], {"next_step_id": "hardware"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        flow["flow_id"],
+        {
+            "sensor": "sensor.fixture_a",
+            "actuators": ["switch.fixture_a"],
+            "available_modes": "heat_cool",
+            "target": 21,
+            "window": "binary_sensor.fixture_window",
+            "minimum_on": 0,
+            "minimum_off": 0,
+            "stale_after": stale_after,
+        },
+    )
+    assert result["type"] == "create_entry", result
+    await settle(hass)
+    manager = hass.data[DOMAIN]
+    await manager.async_supply(mode)
+    await service(
+        hass, "climate", "set_temperature", climate, temperature=30 if mode == "heat" else 18
+    )
+    await service(hass, "switch", "turn_on", zone_entity(hass, entry, "switch", "learning"))
+    baseline = 19 if mode == "heat" else 27
+    hass.states.async_set("sensor.fixture_a", str(baseline), {"unit_of_measurement": "°C"})
+    await service(hass, "climate", "set_hvac_mode", climate, hvac_mode=mode)
+    await service(hass, "switch", "turn_on", global_entity(hass))
+    clock = SimpleNamespace(now=dt_util.utcnow() + timedelta(minutes=1))
+    monkeypatch.setattr(dt_util, "utcnow", lambda: clock.now)
+    hass.states.async_set(
+        "sensor.fixture_a",
+        str(baseline),
+        {"unit_of_measurement": "°C"},
+        timestamp=clock.now.timestamp(),
+    )
+    await settle(hass)
+    assert hass.states.get("switch.fixture_a").state == "on"
+    assert manager.zones[entry.entry_id].intelligence.model.anchor is not None
+    return entry, climate, clock
+
+
+@pytest.mark.parametrize("mode,direction", [("heat", 1), ("cool", -1)])
+async def test_real_adapter_learns_from_sparse_reports_without_enabling_predictions(
+    house, monkeypatch, mode, direction
+):
+    from datetime import timedelta
+
+    from custom_components.radiant_climate.core.control import Mode
+
+    entry, climate, clock = await sparse_learning_zone(house, monkeypatch, mode)
+    manager = house.data[DOMAIN]
+    initial = clock.now
+    baseline = 19 if mode == "heat" else 27
+    for episode in range(3):
+        if episode:
+            await service(house, "climate", "set_hvac_mode", climate, hvac_mode="off")
+            clock.now = initial + timedelta(days=episode)
+            house.states.async_set(
+                "sensor.fixture_a",
+                str(baseline),
+                {"unit_of_measurement": "°C"},
+                timestamp=clock.now.timestamp(),
+            )
+            await service(house, "climate", "set_hvac_mode", climate, hvac_mode=mode)
+            clock.now += timedelta(minutes=1)
+            house.states.async_set(
+                "sensor.fixture_a",
+                str(baseline),
+                {"unit_of_measurement": "°C"},
+                timestamp=clock.now.timestamp(),
+            )
+            await settle(house)
+        for sample in range(1, 5):
+            clock.now += timedelta(minutes=45)
+            house.states.async_set(
+                "sensor.fixture_a",
+                str(baseline + direction * sample * 0.375),
+                {"unit_of_measurement": "°C"},
+                timestamp=clock.now.timestamp(),
+            )
+            await settle(house)
+    response = manager.zones[entry.entry_id].intelligence.model.response(Mode(mode))
+    assert response.ready and response.episodes == 3
+    assert response.count == 12 and response.hours == pytest.approx(9)
+    assert response.rate == pytest.approx(0.5)
+    attrs = house.states.get(climate).attributes
+    assert attrs["model_ready"] and attrs["model_intervals"] == 12
+    assert attrs["model_rate_c_per_hour"] == 0.5
+    assert attrs["trend_c_per_hour"] is None
+    features = manager.zones[entry.entry_id].intelligence.features
+    assert not features.anticipation and not features.predictive
+    assert house.states.get("switch.fixture_a").state == "on"
+
+
+@pytest.mark.parametrize(
+    "entity", ["switch.fixture_a", "switch.fixture_general", "binary_sensor.fixture_window"]
+)
+async def test_intervening_events_break_sparse_learning_even_before_reconciliation(
+    house, monkeypatch, entity
+):
+    import asyncio
+    from datetime import timedelta
+
+    entry, _, clock = await sparse_learning_zone(house, monkeypatch)
+    manager = house.data[DOMAIN]
+    model = manager.zones[entry.entry_id].intelligence.model
+    start = clock.now
+    clock.now += timedelta(minutes=15)
+    house.states.async_set(
+        "sensor.fixture_a", "19.125", {"unit_of_measurement": "°C"}, timestamp=clock.now.timestamp()
+    )
+    await settle(house)
+    assert model.anchor is not None
+    clock.now += timedelta(minutes=5)
+    first, last = ("on", "off") if entity.startswith("binary_sensor") else ("off", "on")
+    async with manager._lock:
+        house.states.async_set(entity, first, timestamp=clock.now.timestamp())
+        house.states.async_set(entity, last, timestamp=clock.now.timestamp())
+        await asyncio.sleep(0)
+        assert model.anchor is None
+    await settle(house)
+    assert model.anchor is None  # The cached t+15 reading predates both events.
+    clock.now = start + timedelta(minutes=45)
+    house.states.async_set(
+        "sensor.fixture_a", "19.375", {"unit_of_measurement": "°C"}, timestamp=clock.now.timestamp()
+    )
+    await settle(house)
+    assert not model.statistics
+    clock.now = start + timedelta(minutes=90)
+    house.states.async_set(
+        "sensor.fixture_a", "19.75", {"unit_of_measurement": "°C"}, timestamp=clock.now.timestamp()
+    )
+    await settle(house)
+    assert model.statistics["heat_on"].count == 1
+    assert model.statistics["heat_on"].hours == pytest.approx(0.75)
+
+
+async def test_learning_does_not_extend_temperature_safety_expiry(house, monkeypatch):
+    from datetime import timedelta
+
+    entry, climate, clock = await sparse_learning_zone(house, monkeypatch, stale_after=3600)
+    model = house.data[DOMAIN].zones[entry.entry_id].intelligence.model
+    clock.now += timedelta(minutes=45)
+    house.states.async_set(
+        "sensor.fixture_a", "19.375", {"unit_of_measurement": "°C"}, timestamp=clock.now.timestamp()
+    )
+    await settle(house)
+    assert model.statistics["heat_on"].count == 1
+    clock.now += timedelta(minutes=61)
+    await settle(house)
+    assert house.states.get(climate).attributes["reason"] == "temperature_stale"
+    assert house.states.get("switch.fixture_a").state == "off"
+    assert house.states.get("switch.fixture_general").state == "off"
+    assert model.anchor is None
+    assert model.statistics["heat_on"].count == 1

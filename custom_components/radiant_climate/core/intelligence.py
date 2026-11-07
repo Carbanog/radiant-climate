@@ -10,6 +10,9 @@ from datetime import datetime
 
 from .control import Mode, aware
 
+MAX_LEARNING_INTERVAL = 90 * 60
+MAX_TREND_GAP = 20 * 60
+
 
 @dataclass
 class Features:
@@ -77,12 +80,27 @@ class ThermalModel:
     cohort: str | None = None
     episode_pending: bool = True
     rejected: int = 0
+    training_not_before: datetime | None = None
+    trend_not_before: datetime | None = None
 
-    def reset_period(self):
+    def interrupt_training(self, when: datetime):
+        """Do not attribute a cached reading to a newly observed control state."""
+        aware(when)
+        self.anchor = None
+        self.cohort = None
+        self.episode_pending = True
+        if self.training_not_before is None or when > self.training_not_before:
+            self.training_not_before = when
+
+    def reset_period(self, when: datetime | None = None):
         self.anchor = None
         self.points.clear()
         self.cohort = None
         self.episode_pending = True
+        if when is not None:
+            self.interrupt_training(when)
+            if self.trend_not_before is None or when > self.trend_not_before:
+                self.trend_not_before = when
 
     def observe(
         self,
@@ -94,27 +112,42 @@ class ThermalModel:
         eligible: bool,
         learning: bool,
         outside: float | None = None,
+        observed_at: datetime | None = None,
+        maximum_gap: float = MAX_LEARNING_INTERVAL,
     ):
         aware(when)
+        observed_at = observed_at or when
+        aware(observed_at)
         if not eligible or mode == Mode.OFF:
-            self.reset_period()
+            self.reset_period(observed_at)
             return
-        if not learning:
-            # Eligibility can change on a sun/module event without a new indoor
-            # timestamp. Never bridge that excluded period with a training anchor.
-            self.anchor = None
-            self.cohort = None
+        key = f"{mode.value}_{'on' if active else 'off'}"
+        if not learning or self.cohort != key:
+            # Context changes matter even without a fresh temperature report.
+            self.interrupt_training(observed_at)
+            self.cohort = key if learning else None
+        if self.trend_not_before is not None and when < self.trend_not_before:
+            return
         if self.points and when <= self.points[-1][0]:
             return
         if self.points:
             hours = (when - self.points[-1][0]).total_seconds() / 3600
-            if hours > 1 / 3 or abs(value - self.points[-1][1]) / hours > 3:
-                self.reset_period()
+            if abs(value - self.points[-1][1]) / hours > 3:
+                self.reset_period(observed_at)
                 self.rejected += 1
+                return
+            if hours * 3600 > min(maximum_gap, MAX_LEARNING_INTERVAL):
+                self.interrupt_training(observed_at)
+                self.rejected += 1
+            if hours * 3600 > MAX_TREND_GAP:
+                # Sparse reports can train slow response, but cannot establish
+                # the recent trend required for immediate optional pauses.
+                self.points.clear()
         self.points.append((when, value))
         self.points = [(t, v) for t, v in self.points[-96:] if (when - t).total_seconds() <= 3600]
-        key = f"{mode.value}_{'on' if active else 'off'}"
-        if not learning:
+        if not learning or (
+            self.training_not_before is not None and when < self.training_not_before
+        ):
             return
         if self.cohort != key:
             self.anchor = None
@@ -128,7 +161,7 @@ class ThermalModel:
             return
         direction = 1 if mode == Mode.HEAT else -1
         delta = (value - self.anchor[1]) * direction
-        if hours <= 1 and abs(delta / hours) <= 3:
+        if hours * 3600 <= MAX_LEARNING_INTERVAL and abs(delta / hours) <= 3:
             self.statistics.setdefault(key, Statistics()).add(
                 hours, delta, self.episode_pending, outside, value
             )
@@ -138,7 +171,7 @@ class ThermalModel:
         self.anchor = (when, value)
 
     def trend(self, now: datetime) -> float | None:
-        if len(self.points) < 3 or (now - self.points[-1][0]).total_seconds() > 1200:
+        if len(self.points) < 3 or (now - self.points[-1][0]).total_seconds() > MAX_TREND_GAP:
             return None
         span = (self.points[-1][0] - self.points[0][0]).total_seconds()
         if span < 900:

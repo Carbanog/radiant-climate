@@ -383,7 +383,19 @@ class Installation:
     def _state_changed(self, event) -> None:
         entity = event.data["entity_id"]
         state = event.data.get("new_state")
+        old = event.data.get("old_state")
         now = dt_util.utcnow()
+        changed = (old.state if old else None) != (state.state if state else None)
+        for z in self.zones.values():
+            model = z.intelligence.model
+            # Preserve interruptions synchronously, including two opposite
+            # events received before the asynchronous reconciliation runs.
+            if entity == z.config["sensor"] and indoor_temperature(state) is None:
+                model.reset_period(now)
+            elif changed and entity == z.config.get("window") and z.window_enabled:
+                model.reset_period(now)
+            elif changed and (entity == self.general or entity in z.config["actuators"]):
+                model.interrupt_training(now)
         unsafe = any(
             z.decision is not None
             and z.decision.demand

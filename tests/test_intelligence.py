@@ -87,7 +87,7 @@ def test_windows_invalid_periods_and_learning_off_do_not_train():
     assert not m.statistics
     for n in range(15):
         m.observe(
-            NOW + timedelta(minutes=n * 5),
+            NOW + timedelta(minutes=75 + n * 5),
             20 + n / 60,
             Mode.HEAT,
             True,
@@ -95,7 +95,7 @@ def test_windows_invalid_periods_and_learning_off_do_not_train():
             learning=False,
         )
     assert not m.statistics
-    assert m.trend(NOW + timedelta(minutes=70)) is not None
+    assert m.trend(NOW + timedelta(minutes=145)) is not None
 
 
 def test_stale_constant_reports_do_not_create_fake_samples():
@@ -287,3 +287,155 @@ def test_pre_sun_pause_respects_comfort_and_requires_forecast(
     from core.intelligence import before_sun_pause
 
     assert before_sun_pause(mode, current, 21, trend, minutes, sunny) == expected
+
+
+@pytest.mark.parametrize("minutes", [30, 45, 60, 90])
+@pytest.mark.parametrize("mode,direction", [(Mode.HEAT, 1), (Mode.COOL, -1)])
+def test_sparse_reports_train_response_without_inventing_recent_trend(minutes, mode, direction):
+    model = ThermalModel()
+    for episode in range(3):
+        model.reset_period()
+        for elapsed in range(0, 361, minutes):
+            when = NOW + timedelta(days=episode, minutes=elapsed)
+            model.observe(
+                when, 21 + direction * elapsed / 120, mode, True, eligible=True, learning=True
+            )
+    response = model.response(mode)
+    assert response.ready
+    assert response.rate == pytest.approx(0.5)
+    assert response.episodes == 3
+    assert response.count == 3 * (360 // minutes)
+    assert model.trend(when) is None
+
+
+@pytest.mark.parametrize("minutes", [91, 120, 300])
+def test_long_unknown_intervals_are_not_training_evidence(minutes):
+    model = ThermalModel()
+    model.observe(NOW, 20, Mode.HEAT, True, eligible=True, learning=True)
+    model.observe(
+        NOW + timedelta(minutes=minutes), 20.3, Mode.HEAT, True, eligible=True, learning=True
+    )
+    assert not model.statistics
+    assert model.rejected == 1
+    assert not model.response(Mode.HEAT).ready
+
+
+@pytest.mark.parametrize("interruption", ["relay", "event", "excluded", "blocked"])
+def test_cached_reading_cannot_bridge_intervening_control_changes(interruption):
+    model = ThermalModel()
+    for minute in (0, 15):
+        model.observe(
+            NOW + timedelta(minutes=minute),
+            20 + minute / 120,
+            Mode.HEAT,
+            True,
+            eligible=True,
+            learning=True,
+        )
+    cached = NOW + timedelta(minutes=15)
+    changed = NOW + timedelta(minutes=20)
+    if interruption == "event":
+        model.interrupt_training(changed)
+    else:
+        model.observe(
+            cached,
+            20.125,
+            Mode.HEAT,
+            interruption != "relay",
+            eligible=interruption != "blocked",
+            learning=interruption != "excluded",
+            observed_at=changed,
+        )
+    model.observe(
+        cached,
+        20.125,
+        Mode.HEAT,
+        True,
+        eligible=True,
+        learning=True,
+        observed_at=NOW + timedelta(minutes=25),
+    )
+    assert model.anchor is None
+    model.observe(
+        NOW + timedelta(minutes=45), 20.375, Mode.HEAT, True, eligible=True, learning=True
+    )
+    assert not model.statistics
+    model.observe(NOW + timedelta(minutes=90), 20.75, Mode.HEAT, True, eligible=True, learning=True)
+    response = model.response(Mode.HEAT)
+    assert response.count == 1
+    assert response.hours == pytest.approx(0.75)
+    assert response.rate == pytest.approx(0.5)
+
+
+def test_repeated_cached_reports_do_not_fill_sparse_intervals():
+    model = ThermalModel()
+    model.observe(NOW, 20, Mode.HEAT, True, eligible=True, learning=True)
+    for minute in range(1, 45):
+        model.observe(
+            NOW,
+            20,
+            Mode.HEAT,
+            True,
+            eligible=True,
+            learning=True,
+            observed_at=NOW + timedelta(minutes=minute),
+        )
+    assert len(model.points) == 1
+    assert not model.statistics
+    model.observe(
+        NOW + timedelta(minutes=45), 20.375, Mode.HEAT, True, eligible=True, learning=True
+    )
+    assert model.response(Mode.HEAT).count == 1
+    assert model.trend(NOW + timedelta(minutes=45)) is None
+
+
+def test_restart_cannot_join_the_last_sparse_training_anchor():
+    model = ThermalModel()
+    for minute in (0, 45):
+        model.observe(
+            NOW + timedelta(minutes=minute),
+            20 + minute / 120,
+            Mode.HEAT,
+            True,
+            eligible=True,
+            learning=True,
+        )
+    restored = ThermalModel.restore(model.dump())
+    restored.observe(
+        NOW + timedelta(minutes=90), 20.75, Mode.HEAT, True, eligible=True, learning=True
+    )
+    assert restored.response(Mode.HEAT).hours == pytest.approx(0.75)
+    assert restored.response(Mode.HEAT).count == 1
+    assert restored.trend(NOW + timedelta(minutes=90)) is None
+
+
+def test_learning_gap_limit_does_not_limit_continuously_observed_window():
+    model = ThermalModel()
+    for minute in range(0, 31, 5):
+        model.observe(
+            NOW + timedelta(minutes=minute),
+            20 + minute / 120,
+            Mode.HEAT,
+            True,
+            eligible=True,
+            learning=True,
+            maximum_gap=600,
+        )
+    assert model.response(Mode.HEAT).count == 1
+    assert model.response(Mode.HEAT).hours == pytest.approx(0.5)
+
+
+def test_learning_does_not_bridge_gap_beyond_configured_temperature_expiry():
+    model = ThermalModel()
+    model.observe(NOW, 20, Mode.HEAT, True, eligible=True, learning=True, maximum_gap=3600)
+    model.observe(
+        NOW + timedelta(minutes=75),
+        20.625,
+        Mode.HEAT,
+        True,
+        eligible=True,
+        learning=True,
+        maximum_gap=3600,
+    )
+    assert not model.statistics
+    assert model.rejected == 1

@@ -5,6 +5,7 @@ from datetime import timedelta
 
 from .core.control import Decision, Mode, decide
 from .core.intelligence import (
+    MAX_LEARNING_INTERVAL,
     Features,
     ThermalModel,
     before_sun_pause,
@@ -77,6 +78,24 @@ class Intelligence:
         condition, clouds = environment.weather(weather, now) if f.weather else (None, None)
         weather_solar = solar_weather(condition, clouds)
         solar = geometry and weather_solar is not False
+        # Relay states are observations, not proof of water flow. Do not train
+        # an active response during partial activation or an unavailable inlet.
+        outputs = [manager.hass.states.get(e) for e in config["actuators"]]
+        uniform_outputs = all(s is not None and s.state == ("on" if on else "off") for s in outputs)
+        inlet = manager.hass.states.get(manager.general) if manager.general else None
+        inlet_ready = not manager.general or (
+            inlet is not None
+            and manager.general not in manager.actuator_faults
+            and inlet.state in ("on", "off")
+            and (
+                not on
+                or (
+                    inlet.state == "on"
+                    and (now - inlet.last_changed).total_seconds()
+                    >= manager.entries.get(manager.hub, {}).get("general_travel", 0)
+                )
+            )
+        )
         if measured is not None and sensor is not None:
             self.model.observe(
                 sensor.last_reported,
@@ -84,11 +103,13 @@ class Intelligence:
                 mode,
                 on,
                 eligible=allowed,
-                learning=f.learning and not learning_exposure,
+                learning=f.learning and not learning_exposure and uniform_outputs and inlet_ready,
                 outside=outdoor,
+                observed_at=now,
+                maximum_gap=z.settings.stale_after,
             )
         elif not allowed:
-            self.model.reset_period()
+            self.model.reset_period(now)
         trend = self.model.trend(now)
         response = self.model.response(mode)
         manual = z.intent.hold is not None and z.intent.hold.active(now)
@@ -102,6 +123,9 @@ class Intelligence:
             "trend_c_per_hour": round(trend, 3) if trend is not None else None,
             "model_ready": response.ready,
             "model_hours": round(response.hours, 2),
+            "model_intervals": response.count,
+            "model_rate_c_per_hour": round(response.rate, 3) if response.hours else None,
+            "learning_max_gap_minutes": min(MAX_LEARNING_INTERVAL, z.settings.stale_after) / 60,
             "model_episodes": response.episodes,
             "model_rejected": self.model.rejected,
             "advance_minutes": None,

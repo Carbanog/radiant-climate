@@ -83,7 +83,7 @@ Off, ventana o sensor inválido. No se atribuye la predicción de sol a un apren
 que el modelo térmico actual no realiza.
 
 
-## Desarrollo posterior a v0.2.7: informes irregulares
+## v0.2.8: informes irregulares
 
 Regresiones puras para calor/frío con intervalos de30/45/60/90min, huecos demasiado
 largos o superiores a caducidad, muestras repetidas, cambios de cohorte/exclusión,
@@ -93,3 +93,6 @@ modelos recuperados mediante Store tras reinicio completo, interrupciones de ven
 relé de zona/general y sensor inválido antes de reconciliar, atributos de relé sin
 cambio físico comunicado y cierre por dato caducado. Los ensayos no sustituyen
 históricos reales ni garantizan calidad térmica en una vivienda.
+
+Validación de v0.2.8: 158 pruebas del núcleo y 209 pruebas del adaptador por cada
+Core 2026.10.4 y 2026.11.0.

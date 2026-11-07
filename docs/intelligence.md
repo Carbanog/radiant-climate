@@ -42,10 +42,10 @@ calibra el adelanto con observación real antes de confiar en él para evitar so
 
 Aprender respuesta térmica recopila periodos válidos por zona, temporada y estado comunicado de actuación. Excluye paradas, ventanas, fallos y periodos de incidencia solar candidata; no cose muestras a través de reinicios. Solo procesa nuevos informes, limita memoria y rechaza saltos incompatibles. Las estadísticas se guardan periódicamente y al parar ordenadamente.
 
-### Lecturas irregulares — desarrollo posterior a v0.2.7
+### Lecturas irregulares desde v0.2.8
 
-Esta mejora está en `main`, todavía no en una release nueva. v0.2.7 mantiene el
-límite anterior de veinte minutos entre informes para el aprendizaje.
+Disponible desde v0.2.8. Las versiones anteriores mantienen el límite de veinte
+minutos entre informes para el aprendizaje.
 
 La respuesta térmica lenta admite ventanas de 30 a 90 minutos construidas solo
 con informes reales. Cada separación entre informes debe ser como máximo el menor

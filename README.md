@@ -13,7 +13,7 @@ Una integración para Home Assistant con perfiles, horarios y funciones opcional
 [![Release](https://img.shields.io/github/v/release/Carbanog/radiant-climate)](https://github.com/Carbanog/radiant-climate/releases/latest)
 [![Licencia MIT](https://img.shields.io/badge/licencia-MIT-blue)](LICENSE)
 
-> **Versión: v0.2.7.** Probada con Core 2026.10.4 y 2026.11.0.
+> **Versión: v0.2.8.** Probada con Core 2026.10.4 y 2026.11.0.
 > Proyecto personal de código abierto. No es un controlador certificado; la respuesta térmica debe ajustarse a cada instalación. La refrigeración requiere protección anticondensación independiente.
 
 **Empieza aquí:** [Instalar](#1-instalar) → [Crear termostatos](#2-crear-la-instalación-y-las-zonas) → [Configurar](#3-configurar-perfiles-y-horarios) → [Usar](#4-uso-diario-manual-y-apagado).
@@ -81,7 +81,7 @@ El control básico es local y no solicita cuentas propias. Tu proveedor meteorol
 
 1. Abre **Configuración → Marketplace → Añadir desde enlace**.
 2. Introduce `https://github.com/Carbanog/radiant-climate`.
-3. Selecciona **v0.2.7** e instala; es una release normal.
+3. Selecciona **v0.2.8** e instala; es una release normal.
 4. En una instalación nueva, Marketplace abre el asistente de configuración.
 
 Este recorrido se ha comprobado en el laboratorio con 2026.11.0. El acceso al repositorio puede requerir la conexión con GitHub gestionada por Marketplace. Una actualización puede pedir reiniciar HA.
@@ -90,7 +90,7 @@ Este recorrido se ha comprobado en el laboratorio con 2026.11.0. El acceso al re
 
 1. Con HACS configurado, abre **Repositorios personalizados** en su menú.
 2. Añade `https://github.com/Carbanog/radiant-climate`, categoría **Integración**.
-3. Descarga **v0.2.7** y reinicia Home Assistant.
+3. Descarga **v0.2.8** y reinicia Home Assistant.
 4. Abre **Configuración → Dispositivos y servicios → Añadir integración → Radiant Climate**.
 
 No necesitas mostrar versiones preliminares. El proyecto se añade por enlace; no se afirma su inclusión en el catálogo oficial. Para ZIP, integridad y recuperación, consulta [Instalación y reversión](docs/installation.md).
@@ -210,9 +210,8 @@ Después activa únicamente los controles que necesites en el dispositivo de cad
 
 El aprendizaje no se desactiva automáticamente al alcanzar calidad: continúa observando mientras esté habilitado. Puedes desactivarlo conservando el modelo o usar **Restablecer aprendizaje térmico** para borrarlo. No se garantiza un modelo válido tras un número fijo de días.
 
-> **En desarrollo, posterior a v0.2.7:** aprendizaje con lecturas irregulares,
-> sin ampliar la caducidad de seguridad ni inventar muestras entre informes.
-> No está incluido en la release v0.2.7. Consulta los [límites y diagnósticos](docs/intelligence.md#lecturas-irregulares--desarrollo-posterior-a-v027).
+> **Desde v0.2.8:** el aprendizaje admite lecturas irregulares, sin ampliar la
+> caducidad de seguridad ni inventar muestras. Consulta sus [límites y diagnósticos](docs/intelligence.md#lecturas-irregulares-desde-v028).
 
 Puedes aplicar módulos a varias zonas con **Copiar ajustes**. No copia relés, sensores, orientación ni modelos aprendidos. [Cómo funcionan los algoritmos](docs/intelligence.md) · [Qué observar para ajustarlos](docs/tuning.md).
 
@@ -300,7 +299,7 @@ Para volver al controlador anterior, apaga y deshabilita primero Radiant Climate
 
 ## Validación y límites
 
-La **v0.2.7** supera **139 pruebas del núcleo y 199 pruebas del adaptador en cada Core 2026.10.4 y 2026.11.0**, además de Ruff, formato, privacidad, HACS y hassfest. Se prueban flujos de configuración, concurrencia de agenda y fuente solar, reinicios, Manual coincidente con perfiles, apagados y fallos de sensores/actuadores. Son pruebas con Core real y dispositivos simulados, no ensayos físicos. [Alcance y evidencia](docs/testing.md) · [CI de la release](https://github.com/Carbanog/radiant-climate/actions/runs/42358189460).
+La **v0.2.8** supera **158 pruebas del núcleo y 209 pruebas del adaptador en cada Core 2026.10.4 y 2026.11.0**, además de Ruff, formato, privacidad, HACS y hassfest. Se prueban flujos de configuración, concurrencia de agenda y fuente solar, reinicios, Manual coincidente con perfiles, apagados y fallos de sensores/actuadores. Son pruebas con Core real y dispositivos simulados, no ensayos físicos. [Alcance y evidencia](docs/testing.md) · [Comprobaciones por commit](https://github.com/Carbanog/radiant-climate/actions/workflows/ci.yml).
 
 - Una orden al relé y una espera estimada **no confirman posición de válvula ni caudal**.
 - Si HA cae, el software no puede garantizar el cierre: revisa las protecciones independientes del hardware. No se implementa un watchdog renovable para temporizadores cortos de relé.

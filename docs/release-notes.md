@@ -1,6 +1,37 @@
 # Cambios y actualización
 
 
+## v0.2.8 — aprendizaje con lecturas irregulares
+
+- Ventanas observadas de 30–90 minutos para aprender respuestas lentas en calor/frío.
+  La separación máxima entre informes es el menor de 90 minutos y la caducidad
+  interior configurada. No se interpolan temperaturas ni se amplía esa caducidad.
+- Las interrupciones de relés de zona/general, ventanas habilitadas y sensores
+  inválidos cortan la continuidad aun si llegan antes de reconciliar. Una lectura
+  anterior al evento no puede iniciar otro periodo.
+- Se excluye el entrenamiento en activación parcial o con una general no utilizable.
+  Los cambios de atributos de relé sin cambio de estado no descartan el periodo.
+- Diagnóstico con número de intervalos, velocidad observada y máximo hueco admisible.
+- Estadísticas existentes conservadas, sin cambios del esquema ni entidades nuevas.
+  Un reinicio conserva las estadísticas y no une muestras a través de la parada.
+
+**Límite importante:** aprender con informes cada 45 minutos puede permitir
+anticipar horarios, pero las pausas inmediatas por sol/inercia siguen requiriendo
+una tendencia reciente suficiente. No se garantiza aprendizaje con cualquier cadencia,
+una respuesta física concreta ni ahorro demostrado.
+
+Validación: 158 pruebas del núcleo y 209 pruebas del adaptador por cada Core
+2026.10.4 y 2026.11.0, con relojes/dispositivos de ensayo explícitos; también formato,
+privacidad, HACS y hassfest. No son pruebas físicas de la instalación.
+
+Actualización desde v0.2.7: conserva copia recuperable y versión anterior, apaga
+**Climatización**, actualiza y reinicia si HA lo solicita. Revisa fuentes, temporada
+y motivos antes de reactivar. No exige ayudantes ni automatizaciones nuevos,
+no activa módulos ni borra modelos existentes. Puedes dejar Aprender activado y
+mantener Anticipar horario e Inercia desactivados para observar la calidad real.
+No aumentes la caducidad solo para obtener muestras: retrasa la protección por
+pérdida de datos. Consulta la guía de reversión; no restaures `.storage` en caliente.
+
 ## v0.2.7
 
 Correcciones de fiabilidad, sin cambiar la regulación térmica básica, los perfiles,

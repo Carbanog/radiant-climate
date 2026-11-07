@@ -47,8 +47,8 @@ Si una optimización no mejora el resultado, desactívala en su zona o copia los
 
 ## Sensores a pilas y cadencia
 
-En el desarrollo posterior a v0.2.7 se han ampliado las ventanas de aprendizaje
-sin ampliar la caducidad de seguridad; véase [lecturas irregulares](intelligence.md#lecturas-irregulares--desarrollo-posterior-a-v027).
+Desde v0.2.8 se han ampliado las ventanas de aprendizaje
+sin ampliar la caducidad de seguridad; véase [lecturas irregulares](intelligence.md#lecturas-irregulares-desde-v028).
 Los atributos nuevos de la plantilla aparecerán como `None` en versiones anteriores.
 Comprueba la cadencia de los informes durante demandas reales, no solo en una sala
 estable. No aumentes la caducidad únicamente para obtener un modelo: también retrasa

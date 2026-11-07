@@ -167,9 +167,9 @@ En la instalación, **Fuente de posición solar (compartida)** permite mantener 
 (predeterminado), elegir una entidad con atributos `azimuth` y `elevation`, o dos sensores
 en grados (`°` o `deg`). No basta con elevación: el azimut solar distingue la dirección.
 Ambos sensores deben estar vigentes y sus informes separados por un máximo de cinco
-minutos. Las fuentes solares caducan a los treinta minutos; no cambian la caducidad interior.
+minutos. Las fuentes solares caducan a los quince minutos; no cambian la caducidad interior.
 Si cambias la fuente, las zonas que optimizaban pasan a Observación y requieren guardar
-la confirmación de incidencia de nuevo. No cambian consignas ni se retiran actuadores.
+la confirmación de incidencia de nuevo. La pantalla de zona muestra la fuente compartida y solo conserva la casilla marcada si la confirmación sigue siendo válida. Si la fuente cambia con el formulario abierto, se rechaza el guardado para revisarla de nuevo. No cambian consignas ni se retiran actuadores.
 
 En cada zona, Entorno, sol y anticipación ofrece **Adelanto antes de entrar el sol**:
 0 desactiva; 1–180 minutos limita la ventana preventiva. Es distinto de **Adelanto máximo

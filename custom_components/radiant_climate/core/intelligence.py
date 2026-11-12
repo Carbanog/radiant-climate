@@ -51,14 +51,33 @@ class Statistics:
 
     @property
     def ready(self):
+        return not self.missing_requirements
+
+    @property
+    def missing_requirements(self):
         variance = max(0, self.rate_square / self.hours - self.rate**2) if self.hours else 0
-        return (
-            self.count >= 12
-            and self.hours >= 6
-            and self.episodes >= 3
-            and 0.05 <= self.rate <= 3
-            and math.sqrt(variance) <= abs(self.rate) * 0.75
+        return tuple(
+            key
+            for key, passed in (
+                ("intervals", self.count >= 12),
+                ("hours", self.hours >= 6),
+                ("episodes", self.episodes >= 3),
+                ("rate", 0.05 <= self.rate <= 3),
+                ("dispersion", math.sqrt(variance) <= abs(self.rate) * 0.75),
+            )
+            if not passed
         )
+
+    def summary(self):
+        missing = self.missing_requirements
+        return {
+            "ready": not missing,
+            "intervals": self.count,
+            "hours": round(self.hours, 2),
+            "episodes": self.episodes,
+            "rate_c_per_hour": round(self.rate, 3) if self.hours else None,
+            "missing_requirements": list(missing),
+        }
 
     def add(self, hours, delta, new_episode, outside, indoor):
         self.count += 1

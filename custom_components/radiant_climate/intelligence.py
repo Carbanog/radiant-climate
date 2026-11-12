@@ -96,6 +96,7 @@ class Intelligence:
                 )
             )
         )
+        training_allowed = f.learning and not learning_exposure and uniform_outputs and inlet_ready
         if measured is not None and sensor is not None:
             self.model.observe(
                 sensor.last_reported,
@@ -103,7 +104,7 @@ class Intelligence:
                 mode,
                 on,
                 eligible=allowed,
-                learning=f.learning and not learning_exposure and uniform_outputs and inlet_ready,
+                learning=training_allowed,
                 outside=outdoor,
                 observed_at=now,
                 maximum_gap=z.settings.stale_after,
@@ -112,6 +113,8 @@ class Intelligence:
             self.model.reset_period(now)
         trend = self.model.trend(now)
         response = self.model.response(mode)
+        display_mode = z.intent.last_mode if mode == Mode.OFF else mode
+        progress = self.model.response(display_mode).summary()
         manual = z.intent.hold is not None and z.intent.hold.active(now)
         self.diagnostics = {
             "outside_available": outdoor is not None,
@@ -121,12 +124,15 @@ class Intelligence:
             "solar_mode": f.solar,
             "learning_solar_exclusion": bool(learning_exposure),
             "trend_c_per_hour": round(trend, 3) if trend is not None else None,
-            "model_ready": response.ready,
-            "model_hours": round(response.hours, 2),
-            "model_intervals": response.count,
-            "model_rate_c_per_hour": round(response.rate, 3) if response.hours else None,
+            "learning_collecting": bool(training_allowed and allowed and measured is not None),
+            "model_mode": display_mode.value,
+            "model_ready": progress["ready"],
+            "model_hours": progress["hours"],
+            "model_intervals": progress["intervals"],
+            "model_rate_c_per_hour": progress["rate_c_per_hour"],
             "learning_max_gap_minutes": min(MAX_LEARNING_INTERVAL, z.settings.stale_after) / 60,
-            "model_episodes": response.episodes,
+            "model_episodes": progress["episodes"],
+            "model_missing_requirements": progress["missing_requirements"],
             "model_rejected": self.model.rejected,
             "advance_minutes": None,
             "solar_arrival": None,

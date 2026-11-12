@@ -428,7 +428,16 @@ def complete_document(language):
             "name": ("Actuator review needed", "Revisión de relés pendiente")[language]
         },
         "solar_opportunity": {
-            "name": ("Shared solar opportunity", "Oportunidad solar compartida")[language]
+            "name": ("General solar conditions", "Condiciones solares generales")[language]
+        },
+    }
+    entities["sensor"]["learning_status"] = {
+        "name": ("Thermal learning status", "Estado del aprendizaje térmico")[language],
+        "state": {
+            "disabled": ("Disabled", "Desactivado")[language],
+            "collecting": ("Collecting", "Recopilando")[language],
+            "paused": ("Paused", "En pausa")[language],
+            "ready": ("Model ready", "Modelo listo")[language],
         },
     }
     entities["button"]["reset_learning"] = {
@@ -438,8 +447,8 @@ def complete_document(language):
         "actuator_attention": {
             "title": ("Actuator review needed", "Revisión de relés pendiente")[language],
             "description": (
-                "Latched faults: {faults}. Retired outputs pending: {retired}. Switch Climate enabled off and inspect the cause and reported states. Use Reset actuator faults after review; leave actuators blank to select all faults, or use its entity selector. Physical removal acknowledgement is separate and requires checking disconnection. Dismissing this issue does not reset faults or enable outputs.",
-                "Fallos enclavados: {faults}. Salidas retiradas pendientes: {retired}. Apaga Climatización y revisa la causa y los estados comunicados. Usa Reconocer fallos de relés tras revisión; deja Relés vacío para todos los fallos o elige con su selector. Confirmar una retirada física es una acción distinta y exige comprobar la desconexión. Descartar este aviso no reconoce fallos ni habilita salidas.",
+                "Active faults: {faults}. Retired outputs pending: {retired}. Check actuator_incidents on Climate enabled for the cause and automatic close verification. To acknowledge a reviewed fault, turn Climate enabled off, check the close and select the relay in Reset actuator faults after review. For an unassigned, physically disconnected output, use Acknowledge physical removal.",
+                "Fallos activos: {faults}. Salidas retiradas pendientes: {retired}. Consulta actuator_incidents en Climatización para conocer la causa y si se está verificando el cierre automáticamente. Para reconocer un fallo revisado, apaga Climatización, comprueba el cierre y selecciona el relé en Reconocer fallos de relés tras revisión. Para una salida sin asignar y físicamente desconectada, usa Confirmar retirada física.",
             )[language],
         }
     }

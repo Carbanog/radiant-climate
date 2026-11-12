@@ -323,6 +323,15 @@
           "possible_high_supply": "Impulsión superior a la referencia de frío",
           "unexpected_delta": "Diferencia de temperatura inesperada; revisar mediciones"
         }
+      },
+      "learning_status": {
+        "name": "Estado del aprendizaje térmico",
+        "state": {
+          "disabled": "Desactivado",
+          "collecting": "Recopilando",
+          "paused": "En pausa",
+          "ready": "Modelo listo"
+        }
       }
     },
     "button": {
@@ -367,14 +376,14 @@
         "name": "Revisión de relés pendiente"
       },
       "solar_opportunity": {
-        "name": "Oportunidad solar compartida"
+        "name": "Condiciones solares generales"
       }
     }
   },
   "issues": {
     "actuator_attention": {
       "title": "Revisión de relés pendiente",
-      "description": "Fallos enclavados: {faults}. Salidas retiradas pendientes: {retired}. Apaga Climatización y revisa la causa y los estados comunicados. Usa Reconocer fallos de relés tras revisión; deja Relés vacío para todos los fallos o elige con su selector. Confirmar una retirada física es una acción distinta y exige comprobar la desconexión. Descartar este aviso no reconoce fallos ni habilita salidas."
+      "description": "Fallos activos: {faults}. Salidas retiradas pendientes: {retired}. Consulta actuator_incidents en Climatización para conocer la causa y si se está verificando el cierre automáticamente. Para reconocer un fallo revisado, apaga Climatización, comprueba el cierre y selecciona el relé en Reconocer fallos de relés tras revisión. Para una salida sin asignar y físicamente desconectada, usa Confirmar retirada física."
     }
   },
   "services": {

@@ -2,9 +2,10 @@
 
 import asyncio
 import logging
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
@@ -29,6 +30,25 @@ from .solar import confirmed
 
 _LOGGER = logging.getLogger(__name__)
 COMMAND_TIMEOUT = 5
+RECOVERY_COOLDOWN = 900
+RECOVERY_STABLE = 60
+TRANSIENT_FAULTS = {"command_timeout", "command_error", "command_unconfirmed"}
+
+
+@dataclass(frozen=True)
+class ActuatorIncident:
+    reason: str
+    since: datetime
+    wanted: bool
+    reported: str | None
+
+    def dump(self):
+        return {
+            "reason": self.reason,
+            "since": self.since.isoformat(),
+            "wanted": self.wanted,
+            "reported": self.reported,
+        }
 
 
 def indoor_temperature(state) -> float | None:
@@ -80,7 +100,10 @@ class Installation:
         self._change_signal = asyncio.Event()
         self._last_command: dict[str, tuple[bool, object]] = {}
         self._command_faults: set[str] = set()
+        self._incidents: dict[str, ActuatorIncident] = {}
+        self.recent_recoveries: deque[dict] = deque(maxlen=16)
         self._close_recovery: dict[str, tuple[int, object]] = {}
+        self._close_probe: dict[str, datetime] = {}
         self._retired: dict[str, float] = {}
         self._hardware_pending: dict[str, set[str]] = {}
         self._stop_requested = False
@@ -88,6 +111,7 @@ class Installation:
         self._change_applied = 0
         self._desired: dict[str, bool] = {}
         self._deviations: dict[str, list] = {}
+        self._deviation_active: dict[str, bool] = {}
         self._fault_dirty = False
         self.environment = Environment(hass)
         self._weather_task: asyncio.Task | None = None
@@ -113,6 +137,33 @@ class Installation:
             self._command_faults = set(raw.get("command_faults", []))
             if any(not isinstance(e, str) for e in self._command_faults):
                 raise ValueError("Invalid command fault state")
+            incidents = raw.get("actuator_incidents", {})
+            if isinstance(incidents, dict):
+                for entity in self._command_faults:
+                    item = incidents.get(entity)
+                    if not isinstance(item, dict) or not isinstance(item.get("since"), str):
+                        continue
+                    since = dt_util.parse_datetime(item["since"])
+                    reason, wanted, reported = (
+                        item.get(k) for k in ("reason", "wanted", "reported")
+                    )
+                    if (
+                        since is not None
+                        and since.tzinfo is not None
+                        and isinstance(reason, str)
+                        and reason in TRANSIENT_FAULTS | {"repeated_disagreement"}
+                        and type(wanted) is bool
+                        and reported in (None, "on", "off", "unknown", "unavailable")
+                    ):
+                        self._incidents[entity] = ActuatorIncident(reason, since, wanted, reported)
+            history = raw.get("recent_recoveries", [])
+            if isinstance(history, list):
+                for item in history[-16:]:
+                    if isinstance(item, dict) and all(
+                        isinstance(item.get(k), str)
+                        for k in ("entity", "reason", "resolution", "resolved_at")
+                    ):
+                        self.recent_recoveries.append(item)
             retired = raw.get("retired_actuators", {})
             recovery_states = raw.get("close_recovery", {})
             if not isinstance(retired, dict) or not isinstance(recovery_states, dict):
@@ -326,6 +377,84 @@ class Installation:
         return tuple(sorted(self._command_faults))
 
     @property
+    def actuator_incidents(self):
+        result = {}
+        for entity in self.actuator_faults:
+            incident = self._incidents.get(entity)
+            state = self.hass.states.get(entity)
+            attempts, last_attempt = self._close_recovery.get(entity, (0, None))
+            result[entity] = {
+                **(incident.dump() if incident else {"reason": "legacy_fault"}),
+                "current_state": state.state if state else None,
+                "close_attempts": attempts,
+                "last_close_attempt": last_attempt.isoformat() if last_attempt else None,
+                "recovery": "automatic" if self._transient(entity) else "review",
+                "close_verified": self._verified_close(entity, state),
+            }
+        return result
+
+    def _transient(self, entity):
+        incident = self._incidents.get(entity)
+        return incident is not None and incident.reason in TRANSIENT_FAULTS
+
+    def _record_fault(self, entity, reason, wanted):
+        if entity in self._command_faults:
+            return
+        state = self.hass.states.get(entity)
+        reported = (
+            state.state
+            if state and state.state in ("on", "off", "unknown", "unavailable")
+            else None
+        )
+        self._command_faults.add(entity)
+        self._incidents[entity] = ActuatorIncident(reason, dt_util.utcnow(), wanted, reported)
+        self._fault_dirty = True
+
+    def _clear_fault(self, entity, resolution):
+        incident = self._incidents.pop(entity, None)
+        if entity in self._command_faults:
+            self.recent_recoveries.append(
+                {
+                    "entity": entity,
+                    **(incident.dump() if incident else {"reason": "legacy_fault"}),
+                    "resolution": resolution,
+                    "resolved_at": dt_util.utcnow().isoformat(),
+                    "close_attempts": self._close_recovery.get(entity, (0, None))[0],
+                }
+            )
+        self._command_faults.discard(entity)
+        self._last_command.pop(entity, None)
+        self._deviations.pop(entity, None)
+        self._deviation_active.pop(entity, None)
+        self._close_recovery.pop(entity, None)
+        self._close_probe.pop(entity, None)
+        self._fault_dirty = True
+
+    def _verified_close(self, entity, state):
+        # Attribute-only writes update last_updated. Require a state change or
+        # a later identical report after our accepted close service.
+        probe = self._close_probe.get(entity)
+        return bool(
+            probe is not None
+            and state is not None
+            and state.state == "off"
+            and (state.last_changed > probe or state.last_reported > max(probe, state.last_updated))
+        )
+
+    def _recover_transient_faults(self, now):
+        for entity in self.actuator_faults:
+            if not self._transient(entity) or entity in self._retired:
+                continue
+            state = self.hass.states.get(entity)
+            if self._verified_close(entity, state) and (
+                (now - max(self._close_probe[entity], state.last_changed)).total_seconds()
+                >= RECOVERY_STABLE
+                and (now - self._incidents[entity].since).total_seconds() >= RECOVERY_COOLDOWN
+            ):
+                self._clear_fault(entity, "verified_close")
+                _LOGGER.info("Actuator %s recovered after a verified reported close", entity)
+
+    @property
     def retired_actuators(self) -> tuple[str, ...]:
         return tuple(sorted(self._retired))
 
@@ -440,26 +569,31 @@ class Installation:
         }
         watched |= self._retired.keys()
         if entity in watched:
-            state = event.data.get("new_state")
-            if (
-                entity in self._desired
-                and state is not None
-                and state.state in ("on", "off")
-                and (state.state == "on") != self._desired[entity]
-                and entity not in self._last_command
-            ):
-                now = dt_util.utcnow()
-                history = [
-                    t for t in self._deviations.get(entity, []) if (now - t).total_seconds() < 300
-                ]
-                history.append(now)
-                self._deviations[entity] = history
-                if len(history) >= 2:
-                    self._command_faults.add(entity)
-                    self._fault_dirty = True
-                    _LOGGER.warning(
-                        "Repeated actuator deviations; control inhibited until explicit fault review"
-                    )
+            if changed and (state is None or state.state != "off"):
+                self._close_probe.pop(entity, None)
+            if entity in self._desired and state is not None and state.state in ("on", "off"):
+                wanted = self._desired[entity]
+                if (state.state == "on") == wanted:
+                    self._deviation_active.pop(entity, None)
+                elif (
+                    changed
+                    and entity not in self._last_command
+                    and entity not in self._command_faults
+                    and self._deviation_active.get(entity) is not wanted
+                ):
+                    self._deviation_active[entity] = wanted
+                    history = [
+                        t
+                        for t in self._deviations.get(entity, [])
+                        if (now - t).total_seconds() < 300
+                    ]
+                    history.append(now)
+                    self._deviations[entity] = history
+                    if len(history) >= 2:
+                        self._record_fault(entity, "repeated_disagreement", wanted)
+                        _LOGGER.warning(
+                            "Repeated actuator deviations on %s; review required", entity
+                        )
             self._revision += 1
             self._request_update()
 
@@ -484,6 +618,8 @@ class Installation:
             await self.async_reconcile()
 
     async def _command(self, entity: str, wanted: bool) -> bool:
+        if self._desired.get(entity) is not wanted:
+            self._deviation_active.pop(entity, None)
         self._desired[entity] = wanted
         if wanted and (
             entity in self._command_faults
@@ -494,25 +630,30 @@ class Installation:
         state = self.hass.states.get(entity)
         if state is None or state.state not in ("on", "off"):
             return False
-        if (state.state == "on") == wanted:
+        verifying = not wanted and self._transient(entity)
+        if (state.state == "on") == wanted and not verifying:
             self._last_command.pop(entity, None)
             return True
+        if verifying and self._verified_close(entity, state):
+            return True
+        if verifying and self._closed and state.state == "off":
+            return False
         now = dt_util.utcnow()
         if entity in self._command_faults:
-            # Open remains latched. Permit at most two recovery close commands,
-            # spaced by 30 seconds; preserve the budget across restarts.
             count, last = self._close_recovery.get(entity, (0, None))
+            if verifying and last is not None and (now - last).total_seconds() >= RECOVERY_COOLDOWN:
+                count = 0
             if count >= 2 or (last is not None and (now - last).total_seconds() < 30):
                 return False
             self._close_recovery[entity] = (count + 1, now)
             self._fault_dirty = True
             self._last_command.pop(entity, None)
+            self._close_probe.pop(entity, None)
         previous = self._last_command.get(entity)
         if previous and previous[0] == wanted:
             if (now - previous[1]).total_seconds() > 30:
-                self._command_faults.add(entity)
-                self._fault_dirty = True
-                _LOGGER.error("Actuator did not report the requested state; manual review required")
+                self._record_fault(entity, "command_unconfirmed", wanted)
+                _LOGGER.error("Actuator %s did not report the requested state", entity)
             return False
         self._last_command[entity] = (wanted, now)
         confirmed = asyncio.Event()
@@ -557,14 +698,22 @@ class Installation:
                         await asyncio.gather(*tasks, return_exceptions=True)
                     if interrupted.is_set():
                         return False
-        except (HomeAssistantError, TimeoutError):
-            self._command_faults.add(entity)
-            self._fault_dirty = True
-            _LOGGER.error("Actuator command failed; opening inhibited and close recovery bounded")
+        except (HomeAssistantError, TimeoutError) as exc:
+            reason = "command_timeout" if isinstance(exc, TimeoutError) else "command_error"
+            self._record_fault(entity, reason, wanted)
+            _LOGGER.error(
+                "Actuator command failed for %s (%s, requested %s)",
+                entity,
+                reason,
+                "on" if wanted else "off",
+            )
             return False
         finally:
             unsubscribe()
         state = self.hass.states.get(entity)
+        if verifying:
+            self._close_probe[entity] = now
+            return self._verified_close(entity, state)
         return state is not None and state.state == ("on" if wanted else "off")
 
     async def _abort_open(self, zone: Zone | None = None) -> None:
@@ -581,6 +730,8 @@ class Installation:
     async def _apply(self) -> None:
         revision = self._revision
         now = dt_util.utcnow()
+        if not self._closed and self.hass.is_running:
+            self._recover_transient_faults(now)
         # Retired outputs remain owned until they report off and their estimated
         # travel has elapsed. Unavailable is never accepted as physical removal.
         for entity, travel in list(self._retired.items()):
@@ -595,6 +746,8 @@ class Installation:
             ):
                 del self._retired[entity]
                 self._fault_dirty = True
+                if entity in self._command_faults and entity not in self._assigned_outputs():
+                    self._clear_fault(entity, "retired_closed")
         enabled = (
             self.enabled
             and not self._stop_requested
@@ -733,6 +886,10 @@ class Installation:
                 "supply_mode": self.supply_mode.value,
                 "zones": self._saved,
                 "command_faults": sorted(self._command_faults),
+                "actuator_incidents": {
+                    entity: incident.dump() for entity, incident in self._incidents.items()
+                },
+                "recent_recoveries": list(self.recent_recoveries),
                 "retired_actuators": dict(self._retired),
                 "close_recovery": {
                     entity: {"attempts": count, "last_attempt": when.isoformat()}
@@ -797,15 +954,13 @@ class Installation:
                 raise ValueError("Select only actuators with a latched fault")
             for entity in selected:
                 state = self.hass.states.get(entity)
-                if entity in self._retired or state is None or state.state != "off":
-                    raise ValueError(
-                        "Resolve retired outputs and confirm reported off before resetting faults"
-                    )
+                if entity in self._retired:
+                    raise ValueError(f"{entity}: retirement is still pending")
+                if state is None or state.state != "off":
+                    current = state.state if state else "missing"
+                    raise ValueError(f"{entity}: requires reported off, current state is {current}")
             for entity in selected:
-                self._command_faults.discard(entity)
-                self._last_command.pop(entity, None)
-                self._deviations.pop(entity, None)
-                self._close_recovery.pop(entity, None)
+                self._clear_fault(entity, "manual_review")
 
         await self.async_change(update)
 
@@ -815,24 +970,24 @@ class Installation:
                 raise ValueError(
                     "Switch off the installation before acknowledging physical removal"
                 )
-            assigned = {
-                output
-                for entry in self.hass.config_entries.async_entries(DOMAIN)
-                for output in [
-                    *{**entry.data, **entry.options}.get("actuators", []),
-                    {**entry.data, **entry.options}.get("general"),
-                ]
-            }
-            if entity not in self._retired or entity in assigned:
-                raise ValueError("Only unassigned pending retired actuators can be acknowledged")
-            del self._retired[entity]
-            self._command_faults.discard(entity)
-            self._last_command.pop(entity, None)
-            self._close_recovery.pop(entity, None)
-            self._deviations.pop(entity, None)
-            self._fault_dirty = True
+            if (
+                entity not in self._retired and entity not in self._command_faults
+            ) or entity in self._assigned_outputs():
+                raise ValueError("Only unassigned retired or faulted actuators can be acknowledged")
+            self._retired.pop(entity, None)
+            self._clear_fault(entity, "physical_removal_confirmed")
 
         await self.async_change(update)
+
+    def _assigned_outputs(self):
+        return {
+            output
+            for entry in self.hass.config_entries.async_entries(DOMAIN)
+            for output in (
+                *{**entry.data, **entry.options}.get("actuators", []),
+                {**entry.data, **entry.options}.get("general"),
+            )
+        }
 
     def validate_feature(self, z, key, value):
         if (

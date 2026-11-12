@@ -61,7 +61,15 @@ class SolarOpportunity(RadiantEntity, BinarySensorEntity):
     @property
     def extra_state_attributes(self):
         condition, _ = self.manager.environment.weather(self.weather, dt_util.utcnow())
+        zones = tuple(self.manager.zones.values())
         return {
             "basis": "weather_and_sun" if condition else "sun_only",
             "direct_sun_verified": False,
+            "zones_observing": sum(z.intelligence.features.solar == "observe" for z in zones),
+            "zones_optimising": sum(z.intelligence.features.solar == "active" for z in zones),
+            "zones_paused_by_solar": sum(
+                z.decision is not None
+                and z.decision.reason in ("solar_pause", "solar_anticipation")
+                for z in zones
+            ),
         }

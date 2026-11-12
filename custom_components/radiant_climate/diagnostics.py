@@ -20,4 +20,17 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "optimisation": zone.intelligence.diagnostics if zone else None,
         "valve_position_measured": False,
         "command_fault_count": len(manager.actuator_faults),
+        "actuator_incidents": [
+            {
+                key: item[key]
+                for key in (
+                    "reason",
+                    "recovery",
+                    "current_state",
+                    "close_attempts",
+                    "close_verified",
+                )
+            }
+            for item in manager.actuator_incidents.values()
+        ],
     }

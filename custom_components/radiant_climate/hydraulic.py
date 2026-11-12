@@ -11,7 +11,6 @@ from homeassistant.util.unit_conversion import TemperatureConverter
 
 from .core.control import temperature
 from .core.hydraulic import HydraulicObserver
-from .environment import fresh
 
 DEFAULTS = {
     "hydraulic_enabled": False,
@@ -40,15 +39,27 @@ def reading(hass, entity, now, maximum):
 
 
 def state_reading(state, now, maximum):
-    if not fresh(state, now, maximum):
-        return None
+    return describe_reading(state, now, maximum)[0]
+
+
+def describe_reading(state, now, maximum):
+    detail = {"status": "missing", "last_reported": None, "age_seconds": None}
+    if state is None:
+        return None, detail
+    age = (now - state.last_reported).total_seconds()
+    detail.update(last_reported=state.last_reported.isoformat(), age_seconds=round(age, 1))
+    if state.state in ("unknown", "unavailable"):
+        return None, {**detail, "status": state.state}
+    if age < -60 or age > maximum:
+        return None, {**detail, "status": "future_timestamp" if age < -60 else "stale"}
     unit = state.attributes.get("unit_of_measurement")
     if unit not in ("°C", "°F", "K"):
-        return None
+        return None, {**detail, "status": "invalid_unit"}
     try:
-        return temperature(TemperatureConverter.convert(float(state.state), unit, "°C"), 0, 90)
+        value = temperature(TemperatureConverter.convert(float(state.state), unit, "°C"), 0, 90)
     except (ValueError, TypeError, OverflowError):
-        return None
+        return None, {**detail, "status": "invalid_value"}
+    return value, {**detail, "status": "valid"}
 
 
 class HydraulicDiagnostic:
@@ -63,16 +74,22 @@ class HydraulicDiagnostic:
         manager, hass = self.manager, self.manager.hass
         cfg = configuration(self.entry)
         now = dt_util.utcnow()
-        supply = reading(hass, cfg["hydraulic_supply"], now, cfg["hydraulic_stale"])
-        returning = reading(hass, cfg["hydraulic_return"], now, cfg["hydraulic_stale"])
+        maximum = cfg["hydraulic_stale"]
+        supply, supply_detail = describe_reading(
+            hass.states.get(cfg["hydraulic_supply"] or ""), now, maximum
+        )
+        returning, return_detail = describe_reading(
+            hass.states.get(cfg["hydraulic_return"] or ""), now, maximum
+        )
         if _event is not None:
             # Do not lose an intervening invalid or recovered sample when HA
             # dispatches several state events after the source has changed again.
-            value = state_reading(_event.data.get("new_state"), now, cfg["hydraulic_stale"])
             if _event.data["entity_id"] == cfg["hydraulic_supply"]:
-                supply = value
+                supply, supply_detail = describe_reading(_event.data.get("new_state"), now, maximum)
             elif _event.data["entity_id"] == cfg["hydraulic_return"]:
-                returning = value
+                returning, return_detail = describe_reading(
+                    _event.data.get("new_state"), now, maximum
+                )
         active = tuple(
             sorted(
                 key
@@ -111,6 +128,9 @@ class HydraulicDiagnostic:
         self.attributes = {
             "supply_celsius": supply,
             "return_celsius": returning,
+            "supply_reading": supply_detail,
+            "return_reading": return_detail,
+            "maximum_reading_age_seconds": maximum,
             "delta_celsius": round(supply - returning, 2)
             if supply is not None and returning is not None
             else None,

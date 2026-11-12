@@ -323,6 +323,15 @@
           "possible_high_supply": "Supply above configured cooling reference",
           "unexpected_delta": "Unexpected temperature difference; check measurements"
         }
+      },
+      "learning_status": {
+        "name": "Thermal learning status",
+        "state": {
+          "disabled": "Disabled",
+          "collecting": "Collecting",
+          "paused": "Paused",
+          "ready": "Model ready"
+        }
       }
     },
     "button": {
@@ -367,14 +376,14 @@
         "name": "Actuator review needed"
       },
       "solar_opportunity": {
-        "name": "Shared solar opportunity"
+        "name": "General solar conditions"
       }
     }
   },
   "issues": {
     "actuator_attention": {
       "title": "Actuator review needed",
-      "description": "Latched faults: {faults}. Retired outputs pending: {retired}. Switch Climate enabled off and inspect the cause and reported states. Use Reset actuator faults after review; leave actuators blank to select all faults, or use its entity selector. Physical removal acknowledgement is separate and requires checking disconnection. Dismissing this issue does not reset faults or enable outputs."
+      "description": "Active faults: {faults}. Retired outputs pending: {retired}. Check actuator_incidents on Climate enabled for the cause and automatic close verification. To acknowledge a reviewed fault, turn Climate enabled off, check the close and select the relay in Reset actuator faults after review. For an unassigned, physically disconnected output, use Acknowledge physical removal."
     }
   },
   "services": {

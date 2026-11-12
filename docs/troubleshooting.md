@@ -162,3 +162,38 @@ La regla inicial solo pausa calefacción de forma acotada; no es una predicción
 Incluye versiones de HA e integración, pasos, resultado esperado, resultado observado y el motivo visible. El [diagnóstico local](tuning.md#plantilla-de-diagnóstico-local) ayuda a obtener una instantánea. Descarga también los diagnósticos desde HA si están disponibles y revisa su contenido antes de compartirlo.
 
 Anonimiza nombres, entidades y preferencias que no quieras publicar. No adjuntes credenciales, exportaciones completas, copias de seguridad ni registros privados sin revisar. Una instantánea no sustituye un histórico cuando se evalúa inercia o confort.
+
+
+## Recuperación automática de relés en desarrollo
+
+Cambios posteriores a v0.2.8. En **Climatización** puedes consultar `actuator_incidents`
+por salida y `recent_actuator_recoveries` para las últimas 16 resoluciones. La causa,
+la hora, la orden, el estado observado y los intentos se guardan localmente. La descarga
+de diagnósticos muestra causas y contadores sin identificadores de relés.
+
+Un error de orden, un timeout o una orden no confirmada pasan a verificación de cierre.
+Se envía un cierre y se espera una transición a `off` o un nuevo informe idéntico de
+`off` posterior a esa orden. Una mera actualización de atributos no acredita el cierre.
+El plan mantiene cerrado el suministro compartido si no puede aislar esa salida.
+Con cierre comunicado y estable al menos 60 segundos, puede retirarse el fallo a partir
+de 15 minutos desde su inicio. La regulación normal decide si vuelve a haber demanda.
+Los cierres se limitan a dos intentos separados por 30 segundos por tanda. Si no hay
+confirmación, otra tanda solo es posible tras 15 minutos desde el último intento.
+Tras reiniciar se conserva el presupuesto y se exige comprobar el cierre de nuevo.
+
+La integración observa estados de HA. Un relé que no publique confirmación puede seguir
+pendiente de revisión. Las discrepancias repetidas y los fallos antiguos sin causa
+registrada requieren reconocimiento. Revisa el relé concreto en **Reconocer fallos de
+relés tras revisión**. El resultado indica qué salida no cumple la condición. La acción
+**Confirmar retirada física** permite resolver también un fallo huérfano de una salida
+sin asignar, tras comprobar su desconexión real y apagar Climatización.
+
+### Otras causas de diagnóstico
+
+- Agua. Revisa `supply_reading` y `return_reading` para distinguir ausente, indisponible,
+  caducado, unidad inválida o valor inválido. Se muestra el último informe y el umbral.
+- Sol. **Condiciones solares generales** conserva la entidad anterior e indica cuántas
+  zonas observan, optimizan o han pausado por sol. El indicador compartido describe el
+  entorno de la vivienda.
+- Aprendizaje. **Estado del aprendizaje térmico** conserva los datos de calor y frío a
+  la vista al apagar la zona. Sus atributos indican qué criterios faltan y si recopila.

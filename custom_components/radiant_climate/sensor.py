@@ -4,6 +4,7 @@ from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.const import EntityCategory
 
 from .const import DOMAIN
+from .core.control import Mode
 from .core.hydraulic import STATES
 from .entity import RadiantEntity
 from .hydraulic import HydraulicDiagnostic, configured
@@ -39,7 +40,8 @@ REASONS = [
 
 async def async_setup_entry(hass, entry, async_add_entities):
     if entry.data["kind"] == "zone":
-        async_add_entities([ControlReason(hass.data[DOMAIN], entry)])
+        manager = hass.data[DOMAIN]
+        async_add_entities([ControlReason(manager, entry), LearningStatus(manager, entry)])
     else:
         added = False
 
@@ -91,3 +93,38 @@ class ControlReason(RadiantEntity, SensorEntity):
     def native_value(self):
         zone = self.manager.zones[self.entry.entry_id]
         return zone.decision.reason if zone.decision else "not_ready"
+
+
+class LearningStatus(RadiantEntity, SensorEntity):
+    _attr_translation_key = "learning_status"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_options = ["disabled", "collecting", "paused", "ready"]
+
+    def __init__(self, manager, entry):
+        super().__init__(manager, entry, "learning_status")
+
+    @property
+    def native_value(self):
+        zone = self.manager.zones[self.entry.entry_id]
+        learning = zone.intelligence
+        if learning.model.response(zone.intent.last_mode).ready:
+            return "ready"
+        if not learning.features.learning:
+            return "disabled"
+        return "collecting" if learning.diagnostics.get("learning_collecting") else "paused"
+
+    @property
+    def extra_state_attributes(self):
+        zone = self.manager.zones[self.entry.entry_id]
+        learning = zone.intelligence
+        return {
+            "model_mode": zone.intent.last_mode.value,
+            "learning_enabled": learning.features.learning,
+            "collecting": learning.diagnostics.get("learning_collecting", False),
+            "regulation_reason": zone.decision.reason if zone.decision else "not_ready",
+            "solar_exclusion": learning.diagnostics.get("learning_solar_exclusion", False),
+            "rejected_intervals": learning.model.rejected,
+            "heating": learning.model.response(Mode.HEAT).summary(),
+            "cooling": learning.model.response(Mode.COOL).summary(),
+        }

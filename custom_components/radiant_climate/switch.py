@@ -224,6 +224,8 @@ class InstallationEnabled(RadiantEntity, SwitchEntity):
         return {
             "retired_actuators": list(self.manager.retired_actuators),
             "command_faults": list(self.manager.actuator_faults),
+            "actuator_incidents": self.manager.actuator_incidents,
+            "recent_actuator_recoveries": list(self.manager.recent_recoveries),
             "stop_requested": self.manager.stop_requested,
         }
 

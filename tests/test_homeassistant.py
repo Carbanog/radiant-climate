@@ -1720,7 +1720,9 @@ async def test_initial_unconfirmed_second_channel_is_bounded_and_interruptible(
         )
     if outcome in ("missing", "missing_reports"):
         errors = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
-        assert errors == ["Actuator command failed; opening inhibited and close recovery bounded"]
+        assert errors == [
+            "Actuator command failed for switch.fixture_b (command_timeout, requested on)"
+        ]
         caplog.clear()
     await manager.async_enable(False)
     if outcome == "global_off":
@@ -3344,3 +3346,203 @@ async def test_transient_invalid_measurement_cannot_be_hidden_from_learning(hous
     await settle(house)
     assert model.statistics["heat_on"].count == 1
     assert model.statistics["heat_on"].hours == pytest.approx(0.75)
+
+
+async def test_attribute_updates_and_reconnect_do_not_duplicate_one_relay_incident(house):
+    from unittest.mock import patch
+
+    await add_zone(house)
+    manager = house.data[DOMAIN]
+    entity = "switch.fixture_a"
+    with patch.object(manager, "_request_update"):
+        manager._desired[entity] = False
+        for value, signal in (("on", 1), ("on", 2), ("on", 3), ("unavailable", 4), ("on", 5)):
+            house.states.async_set(entity, value, {"fixture_signal": signal})
+        await house.async_block_till_done()
+        assert len(manager._deviations[entity]) == 1
+        assert not manager.actuator_faults
+        house.states.async_set(entity, "off")
+        house.states.async_set(entity, "on")
+        await house.async_block_till_done()
+        assert manager.actuator_incidents[entity]["reason"] == "repeated_disagreement"
+        assert manager.actuator_incidents[entity]["recovery"] == "review"
+        house.states.async_set(entity, "off")
+    await settle(house)
+
+
+@pytest.mark.parametrize("source", ["transition", "same_state"])
+@pytest.mark.parametrize("stop", [False, True])
+async def test_transient_actuator_recovers_only_after_verified_close(
+    house, monkeypatch, source, stop
+):
+    from datetime import timedelta
+    from unittest.mock import patch
+
+    from homeassistant.util import dt as dt_util
+
+    from custom_components.radiant_climate.runtime import RECOVERY_COOLDOWN
+
+    _, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    entity = "switch.fixture_a"
+    now = dt_util.utcnow()
+    clock = now
+    monkeypatch.setattr(dt_util, "utcnow", lambda: clock)
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    with patch.object(manager, "_request_update"):
+        manager.enabled = not stop
+        manager._record_fault(entity, "command_timeout", True)
+        original = type(house.services).async_call
+        attempts = []
+
+        async def close_probe(registry, domain, action, data=None, *args, **kwargs):
+            if domain == "switch" and action == "turn_off" and data["entity_id"] == entity:
+                attempts.append(action)
+                return None
+            return await original(registry, domain, action, data, *args, **kwargs)
+
+        with patch.object(type(house.services), "async_call", new=close_probe):
+            await manager.async_reconcile()
+            assert len(attempts) == 1
+            assert house.states.get("switch.fixture_general").state == "off"
+            clock += timedelta(seconds=1)
+            house.states.async_set(
+                entity, "off", {"fixture_signal": 2}, timestamp=clock.timestamp()
+            )
+            await house.async_block_till_done()
+            assert not manager.actuator_incidents[entity]["close_verified"]
+            assert not await manager._command(entity, True)
+            if source == "transition":
+                # A late ON invalidates the previous close verification.
+                clock += timedelta(seconds=2)
+                house.states.async_set(entity, "on", timestamp=clock.timestamp())
+                await house.async_block_till_done()
+                assert entity not in manager._close_probe
+                clock = now + timedelta(seconds=31)
+                await manager.async_reconcile()
+                assert len(attempts) == 2
+                clock += timedelta(seconds=1)
+                house.states.async_set(entity, "off", timestamp=clock.timestamp())
+            else:
+                clock += timedelta(seconds=1)
+                house.states.async_set(
+                    entity, "off", {"fixture_signal": 2}, timestamp=clock.timestamp()
+                )
+            await house.async_block_till_done()
+            assert manager.actuator_incidents[entity]["close_verified"]
+            await manager.async_reconcile()
+            assert entity in manager.actuator_faults
+        clock = now + timedelta(seconds=RECOVERY_COOLDOWN + 1)
+        await settle(house)
+        assert entity not in manager.actuator_faults
+        assert manager.recent_recoveries[-1]["resolution"] == "verified_close"
+        assert house.states.get(entity).state == ("off" if stop else "on")
+        assert house.states.get("switch.fixture_general").state == ("off" if stop else "on")
+    await manager.async_enable(False)
+
+
+async def test_transient_fault_budget_and_incident_survive_restart_without_cached_proof(house):
+    from datetime import timedelta
+    from unittest.mock import patch
+
+    from homeassistant.util import dt as dt_util
+
+    from custom_components.radiant_climate.runtime import RECOVERY_COOLDOWN, Installation
+
+    await add_zone(house)
+    manager = house.data[DOMAIN]
+    entity = "switch.fixture_a"
+    now = dt_util.utcnow()
+    with patch.object(manager, "_request_update"):
+        manager._record_fault(entity, "command_timeout", True)
+        manager._close_recovery[entity] = (2, now)
+        manager._close_probe[entity] = now - timedelta(minutes=2)
+        await manager._save()
+        restored = Installation(house)
+        try:
+            await restored.async_load()
+            assert restored.actuator_incidents[entity]["reason"] == "command_timeout"
+            assert restored.actuator_incidents[entity]["close_attempts"] == 2
+            assert not restored.actuator_incidents[entity]["close_verified"]
+            with patch.object(type(house.services), "async_call") as call:
+                assert not await restored._command(entity, False)
+                call.assert_not_called()
+            with patch.object(
+                dt_util, "utcnow", return_value=now + timedelta(seconds=RECOVERY_COOLDOWN)
+            ):
+                assert not await restored._command(entity, False)
+                assert restored.actuator_incidents[entity]["close_attempts"] == 1
+                assert not restored.actuator_incidents[entity]["close_verified"]
+        finally:
+            restored.async_stop()
+        await manager.async_reset_actuator_faults([entity])
+
+
+@pytest.mark.parametrize("complete", [False, True])
+async def test_unassigned_removed_relay_fault_has_a_resolution(house, complete):
+    from unittest.mock import patch
+
+    manager = house.data[DOMAIN]
+    entity = "switch.fixture_old"
+    with patch.object(manager, "_request_update"):
+        manager._command_faults.add(entity)
+        if complete:
+            manager._retired[entity] = 0
+            house.states.async_set(entity, "off")
+            await manager.async_reconcile()
+            assert entity not in manager.retired_actuators
+            assert manager.recent_recoveries[-1]["resolution"] == "retired_closed"
+        else:
+            await manager.async_acknowledge_retired(entity)
+            assert manager.recent_recoveries[-1]["resolution"] == "physical_removal_confirmed"
+        assert entity not in manager.actuator_faults
+
+
+async def test_learning_status_keeps_both_models_visible_with_zone_off(house):
+    from custom_components.radiant_climate.core.intelligence import Statistics
+
+    entry, climate = await add_zone(house)
+    model = house.data[DOMAIN].zones[entry.entry_id].intelligence.model
+    model.statistics["heat_on"] = Statistics(
+        count=12, hours=6, delta=3, rate_square=1.5, episodes=3
+    )
+    await settle(house)
+    status = house.states.get(zone_entity(house, entry, "sensor", "learning_status"))
+    assert house.states.get(climate).state == "off"
+    assert house.states.get(climate).attributes["model_ready"]
+    assert status.state == "ready"
+    assert status.attributes["heating"]["ready"]
+    assert "intervals" in status.attributes["cooling"]["missing_requirements"]
+    assert not status.attributes["collecting"]
+
+
+@pytest.mark.parametrize(
+    "value,unit,age,expected",
+    [
+        ("30", "°C", 899, "valid"),
+        ("30", "°C", 901, "stale"),
+        ("30", "%", 10, "invalid_unit"),
+        ("nan", "°C", 10, "invalid_value"),
+        ("unavailable", "°C", 10, "unavailable"),
+        ("30", "°C", -61, "future_timestamp"),
+    ],
+)
+def test_hydraulic_source_diagnostics_explain_rejection(value, unit, age, expected):
+    from datetime import timedelta
+    from types import SimpleNamespace
+
+    from homeassistant.util import dt as dt_util
+
+    from custom_components.radiant_climate.hydraulic import describe_reading
+
+    now = dt_util.utcnow()
+    state = SimpleNamespace(
+        state=value,
+        attributes={"unit_of_measurement": unit},
+        last_reported=now - timedelta(seconds=age),
+        last_changed=now - timedelta(hours=5),
+    )
+    result, details = describe_reading(state, now, 900)
+    assert details["status"] == expected
+    assert details["age_seconds"] == age
+    assert (result is not None) == (expected == "valid")

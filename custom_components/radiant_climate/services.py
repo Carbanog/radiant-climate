@@ -3,7 +3,7 @@
 from copy import deepcopy
 
 import voluptuous as vol
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.service import async_register_admin_service
@@ -102,7 +102,10 @@ def async_register_services(hass):
         manager = hass.data.get(DOMAIN)
         if manager is None:
             raise HomeAssistantError("No Radiant Climate installation is loaded")
-        await manager.async_acknowledge_retired(call.data["actuator"])
+        try:
+            await manager.async_acknowledge_retired(call.data["actuator"])
+        except ValueError as exc:
+            raise ServiceValidationError(str(exc)) from exc
 
     async_register_admin_service(
         hass,
@@ -121,7 +124,10 @@ def async_register_services(hass):
         manager = hass.data.get(DOMAIN)
         if manager is None:
             raise HomeAssistantError("No Radiant Climate installation is loaded")
-        await manager.async_reset_actuator_faults(call.data["actuators"])
+        try:
+            await manager.async_reset_actuator_faults(call.data["actuators"])
+        except ValueError as exc:
+            raise ServiceValidationError(str(exc)) from exc
 
     async_register_admin_service(
         hass,

@@ -832,7 +832,7 @@ async def test_repeated_output_deviations_isolate_zone_and_persist(house):
     manager = house.data[DOMAIN]
     assert "switch.fixture_a" in manager._command_faults
     # Recovery can now confirm A off; B may continue once A is isolated.
-    # The fault remains latched, so A cannot reopen without explicit review.
+    # A remains isolated during the stable-close wait.
     assert house.states.get("switch.fixture_a").state == "off"
     assert house.states.get("switch.fixture_general").state == "on"
     assert house.states.get("switch.fixture_b").state == "on"
@@ -856,14 +856,23 @@ async def test_sustained_unknown_zone_output_blocks_shared_supply_then_recovers(
     _, climate_b = await add_zone(house, "b")
     await service(house, "climate", "set_hvac_mode", climate_b, hvac_mode="heat")
     await service(house, "switch", "turn_on", global_entity(house))
+    manager = house.data[DOMAIN]
+    problem = er.async_get(house).async_get_entity_id(
+        "binary_sensor", DOMAIN, f"{manager.hub}_actuator_problem"
+    )
     house.states.async_set("switch.fixture_a", "unavailable")
     for _ in range(3):
         await settle(house)
         assert house.states.get("switch.fixture_general").state == "off"
         assert house.states.get("switch.fixture_b").state == "off"
+    assert house.states.get(problem).state == "on"
+    assert house.states.get(problem).attributes["shared_supply_blocked"]
+    assert house.states.get(problem).attributes["affected_actuators"] == ["switch.fixture_a"]
+    assert not manager.actuator_faults
     house.states.async_set("switch.fixture_a", "off")
     await settle(house)
     assert house.states.get("switch.fixture_b").state == "on"
+    assert house.states.get(problem).state == "off"
 
 
 async def test_forecast_failure_has_bounded_retry_without_blocking_control(house):
@@ -3365,17 +3374,24 @@ async def test_attribute_updates_and_reconnect_do_not_duplicate_one_relay_incide
         house.states.async_set(entity, "on")
         await house.async_block_till_done()
         assert manager.actuator_incidents[entity]["reason"] == "repeated_disagreement"
-        assert manager.actuator_incidents[entity]["recovery"] == "review"
+        assert manager.actuator_incidents[entity]["recovery"] == "automatic"
         house.states.async_set(entity, "off")
     await settle(house)
 
 
 @pytest.mark.parametrize(
-    "source,output", [("transition", "a"), ("same_state", "a"), ("transition", "general")]
+    "source,output,reason",
+    [
+        ("transition", "a", "command_timeout"),
+        ("same_state", "a", "command_timeout"),
+        ("transition", "general", "command_timeout"),
+        ("same_state", "a", "legacy_fault"),
+        ("transition", "a", "repeated_disagreement"),
+    ],
 )
 @pytest.mark.parametrize("stop", [False, True])
-async def test_transient_actuator_recovers_only_after_verified_close(
-    house, monkeypatch, source, output, stop
+async def test_actuator_recovers_only_after_verified_close(
+    house, monkeypatch, source, output, reason, stop
 ):
     from datetime import timedelta
     from unittest.mock import patch
@@ -3393,7 +3409,13 @@ async def test_transient_actuator_recovers_only_after_verified_close(
     await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
     with patch.object(manager, "_request_update"):
         manager.enabled = not stop
-        manager._record_fault(entity, "command_timeout", True)
+        if reason == "legacy_fault":
+            manager._command_faults.add(entity)
+        else:
+            manager._record_fault(entity, reason, True)
+        check = er.async_get(house).async_get_entity_id(
+            "button", DOMAIN, f"{manager.hub}_check_actuators"
+        )
         original = type(house.services).async_call
         attempts = []
 
@@ -3406,6 +3428,10 @@ async def test_transient_actuator_recovers_only_after_verified_close(
         with patch.object(type(house.services), "async_call", new=close_probe):
             await manager.async_reconcile()
             assert len(attempts) == 1
+            await house.services.async_call("button", "press", {"entity_id": check}, blocking=True)
+            assert len(attempts) == 1
+            assert entity in manager.actuator_faults
+            assert manager.enabled is not stop
             assert house.states.get("switch.fixture_general").state == "off"
             clock += timedelta(seconds=1)
             house.states.async_set(
@@ -3573,12 +3599,12 @@ async def test_second_verified_recovery_waits_for_cooldown(house, monkeypatch):
             )
             await house.async_block_till_done()
             clock += timedelta(seconds=RECOVERY_STABLE + 1)
-            manager._recover_transient_faults(clock)
+            manager._recover_faults(clock)
             if not attempt:
                 assert entity not in manager.actuator_faults
         assert entity in manager.actuator_faults
         clock += timedelta(seconds=RECOVERY_COOLDOWN)
-        manager._recover_transient_faults(clock)
+        manager._recover_faults(clock)
         assert entity not in manager.actuator_faults
         assert len(manager.recent_recoveries) == 2
 

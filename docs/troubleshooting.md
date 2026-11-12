@@ -198,3 +198,18 @@ sin asignar, tras comprobar su desconexión real y apagar Climatización.
   entorno de la vivienda.
 - Aprendizaje. **Estado del aprendizaje térmico** conserva los datos de calor y frío a
   la vista al apagar la zona. Sus atributos indican qué criterios faltan y si recopila.
+
+
+## Recuperación de cualquier fallo asignado en desarrollo
+
+Cambio posterior a v0.2.9. Un bloqueo repetido o heredado de un relé que sigue
+asignado usa la misma comprobación de cierre y los mismos tiempos que un fallo
+transitorio. La orden de cierre y el informe posterior siguen siendo necesarios.
+La recuperación conserva la intención de cada zona y los bloqueos vigentes.
+Una salida sin asignar o retirada sigue el procedimiento de mantenimiento.
+
+**Volver a comprobar** ejecuta una revisión del plan sin cambiar modos ni limpiar
+los fallos. El mismo límite de intentos se aplica si se pulsa varias veces. El
+panel muestra las salidas afectadas y, si está disponible, la hora a partir de la
+cual puede reintentarse o reanudarse el control. La integración también indica una
+salida indisponible aunque todavía no se haya registrado un bloqueo.

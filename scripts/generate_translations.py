@@ -443,12 +443,15 @@ def complete_document(language):
     entities["button"]["reset_learning"] = {
         "name": ("Reset thermal learning", "Restablecer aprendizaje térmico")[language]
     }
+    entities["button"]["check_actuators"] = {
+        "name": ("Check again", "Volver a comprobar")[language]
+    }
     result["issues"] = {
         "actuator_attention": {
             "title": ("Actuator review needed", "Revisión de relés pendiente")[language],
             "description": (
-                "Active faults: {faults}. Retired outputs pending: {retired}. Check actuator_incidents on Climate enabled for the cause and automatic close verification. To acknowledge a reviewed fault, turn Climate enabled off, check the close and select the relay in Reset actuator faults after review. For an unassigned, physically disconnected output, use Acknowledge physical removal.",
-                "Fallos activos: {faults}. Salidas retiradas pendientes: {retired}. Consulta actuator_incidents en Climatización para conocer la causa y si se está verificando el cierre automáticamente. Para reconocer un fallo revisado, apaga Climatización, comprueba el cierre y selecciona el relé en Reconocer fallos de relés tras revisión. Para una salida sin asignar y físicamente desconectada, usa Confirmar retirada física.",
+                "Active faults: {faults}. Retired outputs pending: {retired}. The integration verifies the close of assigned relays and resumes normal control when the reported state is stable. If an output keeps failing, check its connection. Retired outputs require verification of physical disconnection.",
+                "Fallos activos: {faults}. Salidas retiradas pendientes: {retired}. La integración vuelve a comprobar el cierre de los relés asignados y recupera la climatización cuando el estado comunicado es estable. Si una salida sigue sin responder, comprueba su conexión. Las salidas retiradas requieren comprobar su desconexión física.",
             )[language],
         }
     }

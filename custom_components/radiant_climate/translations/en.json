@@ -340,6 +340,9 @@
       },
       "reset_learning": {
         "name": "Reset thermal learning"
+      },
+      "check_actuators": {
+        "name": "Check again"
       }
     },
     "number": {
@@ -383,7 +386,7 @@
   "issues": {
     "actuator_attention": {
       "title": "Actuator review needed",
-      "description": "Active faults: {faults}. Retired outputs pending: {retired}. Check actuator_incidents on Climate enabled for the cause and automatic close verification. To acknowledge a reviewed fault, turn Climate enabled off, check the close and select the relay in Reset actuator faults after review. For an unassigned, physically disconnected output, use Acknowledge physical removal."
+      "description": "Active faults: {faults}. Retired outputs pending: {retired}. The integration verifies the close of assigned relays and resumes normal control when the reported state is stable. If an output keeps failing, check its connection. Retired outputs require verification of physical disconnection."
     }
   },
   "services": {

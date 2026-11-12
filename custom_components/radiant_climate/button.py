@@ -14,6 +14,25 @@ async def async_setup_entry(hass, entry, async_add_entities):
             [ResumeSchedule(hass.data[DOMAIN], entry), ResetLearning(hass.data[DOMAIN], entry)]
         )
 
+    else:
+        async_add_entities([CheckActuators(hass.data[DOMAIN], entry)])
+
+
+class CheckActuators(RadiantEntity, ButtonEntity):
+    _attr_translation_key = "check_actuators"
+    _attr_icon = "mdi:refresh"
+
+    def __init__(self, manager, entry):
+        super().__init__(manager, entry, "check_actuators")
+
+    async def async_press(self):
+        if (
+            self.manager.actuator_faults
+            or self.manager.retired_actuators
+            or self.manager.unavailable_actuators
+        ):
+            await self.manager.async_reconcile()
+
 
 class ResetLearning(RadiantEntity, ButtonEntity):
     _attr_entity_category = EntityCategory.CONFIG

@@ -25,13 +25,36 @@ class ActuatorProblem(RadiantEntity, BinarySensorEntity):
 
     @property
     def is_on(self):
-        return bool(self.manager.actuator_faults or self.manager.retired_actuators)
+        return bool(
+            self.manager.actuator_faults
+            or self.manager.retired_actuators
+            or self.manager.unavailable_actuators
+        )
 
     @property
     def extra_state_attributes(self):
+        manager = self.manager
+        unavailable = manager.unavailable_actuators
+        incidents = manager.actuator_incidents
+        affected = set(unavailable) | incidents.keys() | set(manager.retired_actuators)
         return {
-            "fault_count": len(self.manager.actuator_faults),
-            "retired_count": len(self.manager.retired_actuators),
+            "fault_count": len(incidents),
+            "retired_count": len(manager.retired_actuators),
+            "unavailable_actuators": list(unavailable),
+            "affected_actuators": sorted(affected),
+            "shared_supply_blocked": bool(
+                manager.enabled
+                and manager.general
+                and (
+                    manager.retired_actuators
+                    or unavailable
+                    or manager.general in incidents
+                    or any(
+                        item["recovery"] == "automatic" and not item["close_verified"]
+                        for item in incidents.values()
+                    )
+                )
+            ),
         }
 
 

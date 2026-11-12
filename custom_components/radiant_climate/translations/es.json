@@ -340,6 +340,9 @@
       },
       "reset_learning": {
         "name": "Restablecer aprendizaje térmico"
+      },
+      "check_actuators": {
+        "name": "Volver a comprobar"
       }
     },
     "number": {
@@ -383,7 +386,7 @@
   "issues": {
     "actuator_attention": {
       "title": "Revisión de relés pendiente",
-      "description": "Fallos activos: {faults}. Salidas retiradas pendientes: {retired}. Consulta actuator_incidents en Climatización para conocer la causa y si se está verificando el cierre automáticamente. Para reconocer un fallo revisado, apaga Climatización, comprueba el cierre y selecciona el relé en Reconocer fallos de relés tras revisión. Para una salida sin asignar y físicamente desconectada, usa Confirmar retirada física."
+      "description": "Fallos activos: {faults}. Salidas retiradas pendientes: {retired}. La integración vuelve a comprobar el cierre de los relés asignados y recupera la climatización cuando el estado comunicado es estable. Si una salida sigue sin responder, comprueba su conexión. Las salidas retiradas requieren comprobar su desconexión física."
     }
   },
   "services": {

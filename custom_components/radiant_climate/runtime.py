@@ -377,19 +377,45 @@ class Installation:
         return tuple(sorted(self._command_faults))
 
     @property
+    def unavailable_actuators(self):
+        return tuple(
+            sorted(
+                entity
+                for entity in self._assigned_outputs()
+                if entity
+                and (
+                    (state := self.hass.states.get(entity)) is None
+                    or state.state not in ("on", "off")
+                )
+            )
+        )
+
+    @property
     def actuator_incidents(self):
         result = {}
+        assigned = self._assigned_outputs() if self._command_faults else set()
         for entity in self.actuator_faults:
             incident = self._incidents.get(entity)
             state = self.hass.states.get(entity)
             attempts, last_attempt = self._close_recovery.get(entity, (0, None))
+            automatic = entity in assigned and entity not in self._retired
+            verified = self._verified_close(entity, state)
+            next_check = None
+            if automatic and verified:
+                next_check = self._rearm_at(entity, state)
+            elif automatic and last_attempt and state and state.state in ("on", "off"):
+                next_check = last_attempt + timedelta(
+                    seconds=RECOVERY_COOLDOWN if attempts >= 2 else 30
+                )
             result[entity] = {
                 **(incident.dump() if incident else {"reason": "legacy_fault"}),
+                "name": state.name if state else entity,
                 "current_state": state.state if state else None,
                 "close_attempts": attempts,
                 "last_close_attempt": last_attempt.isoformat() if last_attempt else None,
-                "recovery": "automatic" if self._transient(entity) else "review",
-                "close_verified": self._verified_close(entity, state),
+                "recovery": "automatic" if automatic else "review",
+                "close_verified": verified,
+                "next_check": next_check.isoformat() if next_check else None,
             }
         return result
 
@@ -441,31 +467,32 @@ class Installation:
             and (state.last_changed > probe or state.last_reported > max(probe, state.last_updated))
         )
 
-    def _recover_transient_faults(self, now):
+    def _rearm_at(self, entity, state):
+        stable = max(self._close_probe[entity], state.last_changed) + timedelta(
+            seconds=RECOVERY_STABLE
+        )
+        previous = next(
+            (
+                item
+                for item in reversed(self.recent_recoveries)
+                if item["entity"] == entity and item["resolution"] == "verified_close"
+            ),
+            None,
+        )
+        last = dt_util.parse_datetime(previous["resolved_at"]) if previous else None
+        if last is not None and last.tzinfo is not None:
+            return max(stable, last + timedelta(seconds=RECOVERY_COOLDOWN))
+        return stable
+
+    def _recover_faults(self, now):
+        if not self._command_faults:
+            return
+        assigned = self._assigned_outputs()
         for entity in self.actuator_faults:
-            if not self._transient(entity) or entity in self._retired:
+            if entity not in assigned or entity in self._retired:
                 continue
             state = self.hass.states.get(entity)
-            if (
-                not self._verified_close(entity, state)
-                or (now - max(self._close_probe[entity], state.last_changed)).total_seconds()
-                < RECOVERY_STABLE
-            ):
-                continue
-            previous = next(
-                (
-                    item
-                    for item in reversed(self.recent_recoveries)
-                    if item["entity"] == entity and item["resolution"] == "verified_close"
-                ),
-                None,
-            )
-            last = dt_util.parse_datetime(previous["resolved_at"]) if previous else None
-            if (
-                last is not None
-                and last.tzinfo is not None
-                and (now - last).total_seconds() < RECOVERY_COOLDOWN
-            ):
+            if not self._verified_close(entity, state) or now < self._rearm_at(entity, state):
                 continue
             self._clear_fault(entity, "verified_close")
             _LOGGER.info("Actuator %s recovered after a verified reported close", entity)
@@ -608,7 +635,7 @@ class Installation:
                     if len(history) >= 2:
                         self._record_fault(entity, "repeated_disagreement", wanted)
                         _LOGGER.warning(
-                            "Repeated actuator deviations on %s; review required", entity
+                            "Repeated actuator deviations on %s; verifying close", entity
                         )
             self._revision += 1
             self._request_update()
@@ -646,7 +673,11 @@ class Installation:
         state = self.hass.states.get(entity)
         if state is None or state.state not in ("on", "off"):
             return False
-        verifying = not wanted and self._transient(entity)
+        verifying = (
+            not wanted
+            and entity in self._command_faults
+            and (entity not in self._retired or self._transient(entity))
+        )
         if (state.state == "on") == wanted and not verifying:
             self._last_command.pop(entity, None)
             return True
@@ -747,7 +778,7 @@ class Installation:
         revision = self._revision
         now = dt_util.utcnow()
         if not self._closed and self.hass.is_running:
-            self._recover_transient_faults(now)
+            self._recover_faults(now)
         # Retired outputs remain owned until they report off and their estimated
         # travel has elapsed. Unavailable is never accepted as physical removal.
         for entity, travel in list(self._retired.items()):
@@ -869,6 +900,8 @@ class Installation:
 
     async def async_reconcile(self) -> None:
         async with self._lock:
+            if self._closed:
+                return
             await self._apply()
             self._notify()
             if self._fault_dirty or (dt_util.utcnow() - self._checkpoint).total_seconds() >= 900:

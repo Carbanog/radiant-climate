@@ -26,3 +26,62 @@ una vista Secciones y agruparlas por tarea. No cambia el control térmico ni sus
 Para copiar preferencias entre zonas utiliza la acción Copiar ajustes y selecciona
 solo las partes que quieras compartir. La copia de módulos no copia orientación,
 sensores, relés o modelos térmicos. Comprueba siempre los perfiles de destino.
+
+
+## Aviso de recuperación de válvulas
+
+Para el desarrollo posterior a v0.2.9. Añade una tarjeta condicional arriba en la
+vista de climatización. El ejemplo utiliza entidades ficticias. Sustituye el sensor
+de problema, el interruptor general y el botón por los de tu dispositivo Climatización.
+
+```yaml
+type: conditional
+conditions:
+  - condition: state
+    entity: binary_sensor.climatizacion_revision_de_reles_pendiente
+    state: 'on'
+card:
+  type: vertical-stack
+  cards:
+    - type: markdown
+      title: Estado de la climatización
+      content: |-
+        {% set problem = 'binary_sensor.climatizacion_revision_de_reles_pendiente' %}
+        {% set control = 'switch.climatizacion' %}
+        {% set incidents = state_attr(control, 'actuator_incidents') or {} %}
+        {% set unavailable = state_attr(problem, 'unavailable_actuators') or [] %}
+        {% set retired = state_attr(control, 'retired_actuators') or [] %}
+        {% if state_attr(problem, 'shared_supply_blocked') %}
+        **Suministro en pausa mientras se comprueba el cierre.**
+        {% elif is_state(control, 'off') %}
+        **Climatización apagada.**
+        {% else %}
+        **Recuperación de una salida en curso.**
+        {% endif %}
+
+        {% for relay in state_attr(problem, 'affected_actuators') or [] %}
+        {% set incident = incidents.get(relay, {}) %}
+        - **{{ state_attr(relay, 'friendly_name') or incident.get('name') or relay }}**
+          {% if relay in retired or incident.get('recovery') == 'review' %}
+          · Salida retirada. Requiere revisión de mantenimiento.
+          {% elif relay in unavailable %}
+          · Sin conexión. Comprueba que tenga alimentación.
+          {% elif incident.get('close_verified') %}
+          · Cierre comunicado. Esperando que se estabilice.
+          {% else %}
+          · Comprobando cierre.
+          {% endif %}
+          {% if incident.get('next_check') and as_timestamp(incident.next_check) > as_timestamp(now()) %}
+          Próxima comprobación a partir de las {{ as_local(as_datetime(incident.next_check)).strftime('%H:%M') }}.
+          {% endif %}
+        {% endfor %}
+    - type: button
+      name: Volver a comprobar
+      icon: mdi:refresh
+      entity: button.climatizacion_volver_a_comprobar
+      tap_action:
+        action: perform-action
+        perform_action: button.press
+        target:
+          entity_id: button.climatizacion_volver_a_comprobar
+```

@@ -25,7 +25,9 @@
       "invalid_actuators": "Selecciona al menos un relé, sin duplicados.",
       "actuator_assigned": "Este relé ya está asignado a otra zona o a la general.",
       "entity_missing": "Una entidad seleccionada no existe.",
-      "invalid_configuration": "Comprueba los valores y campos obligatorios."
+      "invalid_configuration": "Comprueba los valores y campos obligatorios.",
+      "schedule_changed": "El bloque ha cambiado o no contiene esos días. Vuelve a seleccionarlo.",
+      "schedule_conflict": "Ya existe otro bloque en uno de los días y horas de destino. No se ha cambiado la programación."
     },
     "abort": {
       "already_configured": "La instalación ya existe."
@@ -37,16 +39,19 @@
         "title": "Configuración de climatización",
         "menu_options": {
           "hardware": "Dispositivos y regulación",
-          "schedule_add": "Añadir o sustituir bloque horario",
+          "schedule_add": "Añadir bloque horario",
           "schedule_remove": "Eliminar bloque horario",
           "sources": "Entorno, sol y anticipación",
           "vacation": "Vacaciones y regreso",
-          "hydraulic": "Diagnóstico hidráulico"
-        }
+          "hydraulic": "Diagnóstico hidráulico",
+          "schedule_choose": "Editar bloque horario",
+          "solar_source": "Fuente de posición solar (compartida)"
+        },
+        "description": "Selecciona el apartado. Los perfiles y los interruptores de funciones están en el dispositivo de cada termostato. Apagar un termostato lo mantiene apagado hasta encenderlo expresamente."
       },
       "hardware": {
         "title": "Configuración",
-        "description": "Los cambios recargan esta entrada. Editar la instalación desactiva el control general; reactívalo expresamente tras revisar las salidas. El frío requiere protección anticondensación independiente. Ni la integración ni su diagnóstico opcional del agua la proporcionan.",
+        "description": "Los ajustes lógicos se aplican sin retirar relés. Cambiar sensores, relés o modos puede recargar la entrada y cerrar salidas; revisa el resultado antes de encender. La caducidad cuenta desde el último informe que HA registra, no desde el último cambio de temperatura; debe ajustarse a la fuente. El frío requiere protección anticondensación independiente.",
         "data": {
           "weather": "Fuente meteorológica (opcional)",
           "outdoor": "Sensor exterior (opcional)",
@@ -69,7 +74,7 @@
       },
       "schedule_add": {
         "title": "Programación semanal",
-        "description": "El perfil se mantiene hasta el siguiente bloque, también de un día a otro. Repetir día y hora sustituye ese bloque.",
+        "description": "El perfil se mantiene hasta el siguiente bloque, también al cambiar de día. Puedes seleccionar Semana completa, Entre semana, Fin de semana o días sueltos. Añadir en un día y hora existentes sustituye su perfil; para mover un bloque utiliza Editar.",
         "data": {
           "days": "Días de la semana",
           "time": "Hora de inicio",
@@ -78,8 +83,10 @@
       },
       "schedule_remove": {
         "title": "Eliminar un bloque",
+        "description": "Se eliminarán los días seleccionados de este bloque; vacío elimina todos sus días. No se puede eliminar el último bloque con el horario activado.",
         "data": {
-          "block": "Bloque (1 = lunes)"
+          "block": "Bloque horario",
+          "scope": "Días afectados (vacío = todos los del bloque)"
         }
       },
       "hydraulic": {
@@ -98,16 +105,17 @@
       },
       "sources": {
         "title": "Fuentes opcionales y optimización",
-        "description": "Fuentes vacías heredan las de instalación. Activa los módulos por separado en el dispositivo. Cambiar la geometría invalida la confirmación. Revisa y confirma los nuevos valores sin modificarlos antes de Solar Activo; la geometría no demuestra sol directo.",
+        "description": "Fuente solar compartida: {solar_source}. Fuentes vacías heredan la instalación. Orientación = dirección fija de la ventana; azimut = dirección cambiante del sol. El ángulo se permite a ambos lados de la orientación. La elevación no incluye edificios: calibra sombras por estancia. Cambiar geometría invalida su confirmación; guarda y después confirma sin cambiarla. El adelanto solar es distinto del horario: solo calor, Solar Optimizar, exposición confirmada, previsión favorable y confort próximo a consigna. Observación no actúa. Sin previsión no hay corte previo al sol.",
         "data": {
           "weather": "Fuente meteorológica (opcional)",
           "outdoor": "Sensor exterior (opcional)",
-          "orientation": "Azimut de ventanas (grados desde norte)",
-          "solar_elevation": "Elevación mínima de incidencia observada",
-          "solar_width": "Desviación máxima de azimut respecto a fachada",
+          "orientation": "Orientación fija de ventanas (° desde norte)",
+          "solar_elevation": "Altura mínima del sol para superar sombras (°)",
+          "solar_width": "Ángulo permitido a cada lado de la orientación (°)",
           "solar_confirmed": "Incidencia y umbrales de sombra comprobados",
-          "max_advance": "Adelanto máximo (minutos)",
-          "residual_minutes": "Horizonte de proyección residual (minutos)"
+          "max_advance": "Adelanto máximo del horario (minutos)",
+          "residual_minutes": "Horizonte de proyección residual (minutos)",
+          "solar_lead": "Adelanto antes de entrar el sol (minutos; 0 = desactivado)"
         }
       },
       "vacation": {
@@ -118,6 +126,33 @@
           "date": "Fecha de regreso (opcional)",
           "time": "Hora de regreso"
         }
+      },
+      "schedule_choose": {
+        "title": "Editar un bloque",
+        "description": "Selecciona el bloque y, opcionalmente, limita los días que editarás. Los demás días se conservan. En el siguiente paso podrás cambiar días, hora y perfil.",
+        "data": {
+          "block": "Bloque horario",
+          "scope": "Días afectados (vacío = todos los del bloque)"
+        }
+      },
+      "schedule_edit": {
+        "title": "Editar días, hora y perfil",
+        "description": "Sustituye únicamente los días elegidos en el paso anterior. La hora antigua de esos días se elimina. Si existe otro bloque en el destino, no se sobrescribe: resuelve el conflicto primero.",
+        "data": {
+          "days": "Días de la semana",
+          "time": "Hora de inicio",
+          "profile": "Perfil"
+        }
+      },
+      "solar_source": {
+        "title": "Posición solar compartida",
+        "description": "Por defecto se utiliza sun.sun. Alternativamente selecciona una entidad con atributos azimuth y elevation, o dos sensores en grados. Elevación 0° es el horizonte calculado de la ubicación, no los edificios que ocultan las ventanas. Cambiar de fuente requiere revisar y confirmar de nuevo la exposición de las zonas antes de optimizar. No controla persianas.",
+        "data": {
+          "solar_source": "Tipo de fuente",
+          "sun_entity": "Entidad con atributos azimuth y elevation",
+          "sun_elevation": "Sensor de elevación (grados)",
+          "sun_azimuth": "Sensor de azimut (grados)"
+        }
       }
     },
     "error": {
@@ -125,7 +160,10 @@
       "invalid_actuators": "Selecciona al menos un relé, sin duplicados.",
       "actuator_assigned": "Este relé ya está asignado a otra zona o a la general.",
       "entity_missing": "Una entidad seleccionada no existe.",
-      "invalid_configuration": "Comprueba los valores y campos obligatorios."
+      "invalid_configuration": "Comprueba los valores y campos obligatorios.",
+      "schedule_changed": "El bloque ha cambiado o no contiene esos días. Vuelve a seleccionarlo.",
+      "schedule_conflict": "Ya existe otro bloque en uno de los días y horas de destino. No se ha cambiado la programación.",
+      "solar_source_changed": "La fuente solar ha cambiado mientras editabas. Revisa la fuente indicada y confirma de nuevo."
     },
     "abort": {
       "installation_only": "Configúralo en la instalación.",
@@ -148,7 +186,10 @@
         "3": "Jueves",
         "4": "Viernes",
         "5": "Sábado",
-        "6": "Domingo"
+        "6": "Domingo",
+        "week": "Semana completa",
+        "weekdays": "Entre semana (lunes–viernes)",
+        "weekend": "Fin de semana"
       }
     },
     "profile": {
@@ -166,6 +207,13 @@
         "schedule": "Bloques y activación del horario",
         "modules": "Activación de módulos (sin fuentes, orientación ni aprendizaje)",
         "vacation": "Ausencia y fecha de vuelta"
+      }
+    },
+    "solar_source": {
+      "options": {
+        "standard": "Sol de Home Assistant (predeterminado)",
+        "entity": "Otra entidad con atributos solares",
+        "sensors": "Sensores separados de elevación y azimut"
       }
     }
   },
@@ -218,7 +266,7 @@
         "state": {
           "duration": "Durante el tiempo configurado",
           "next_change": "Hasta el próximo bloque horario",
-          "until_resume": "Hasta volver al horario"
+          "until_resume": "Manual indefinido (sin límite de tiempo)"
         }
       },
       "solar": {
@@ -257,7 +305,8 @@
           "clock_changed": "Cambio de reloj pendiente de reconciliar",
           "demand": "Demanda térmica",
           "satisfied": "Consigna satisfecha",
-          "supply_not_ready": "Relé de suministro compartido no preparado"
+          "supply_not_ready": "Relé de suministro compartido no preparado",
+          "solar_anticipation": "Pausa preventiva antes del aporte solar"
         }
       },
       "hydraulic": {

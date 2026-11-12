@@ -512,6 +512,7 @@ async def test_invalid_partial_change_restores_schedule_and_leaves_control_runni
     manager = house.data[DOMAIN]
     await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
     await manager.async_enable(True)
+    await settle(house)
     previous = manager.zones[entry.entry_id].program.dump()
 
     def invalid_change():

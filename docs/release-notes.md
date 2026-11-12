@@ -245,7 +245,7 @@ Mejora de fiabilidad sin cambiar regulación térmica, perfiles ni optimizacione
 
 Conserva copia, apaga Climatización, instala **v0.2.2** y reinicia Home Assistant. No requiere recrear termostatos, perfiles, horarios ni ayudantes: se conserva el almacenamiento versión 1. Cambiar solo el relé sobre el mismo circuito y sensor conserva el aprendizaje; al dividir circuitos o cambiar sensor conviene restablecerlo.
 
-El reconocimiento de fallos queda separado del apagado habitual: no lo automatices ni utilices Off/On para intentar borrar una avería. Consulta [el procedimiento](configuration.md#fiabilidad-y-recuperación-desde-v022). Conservamos v0.2.1 para recuperación, pero no reviertas con retiradas o fallos pendientes sin resolver; mantén Off y conserva código y configuración de respaldo juntos. Una restauración de estado debe hacerse con HA detenido.
+El reconocimiento de fallos queda separado del apagado habitual: no lo automatices ni utilices Off/On para intentar borrar una avería. Consulta [el procedimiento](configuration.md#fiabilidad-y-recuperación). Conservamos v0.2.1 para recuperación, pero no reviertas con retiradas o fallos pendientes sin resolver; mantén Off y conserva código y configuración de respaldo juntos. Una restauración de estado debe hacerse con HA detenido.
 
 ### Validación
 

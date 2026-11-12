@@ -81,7 +81,7 @@ El control básico es local y no solicita cuentas propias. Tu proveedor meteorol
 
 1. Abre **Configuración → Marketplace → Añadir desde enlace**.
 2. Introduce `https://github.com/Carbanog/radiant-climate`.
-3. Selecciona **v0.2.10** e instala; es una release normal.
+3. Selecciona la [última release estable](https://github.com/Carbanog/radiant-climate/releases/latest) e instala.
 4. En una instalación nueva, Marketplace abre el asistente de configuración.
 
 Este recorrido se ha comprobado en el laboratorio con 2026.11.0. El acceso al repositorio puede requerir la conexión con GitHub gestionada por Marketplace. Una actualización puede pedir reiniciar HA.
@@ -90,7 +90,7 @@ Este recorrido se ha comprobado en el laboratorio con 2026.11.0. El acceso al re
 
 1. Con HACS configurado, abre **Repositorios personalizados** en su menú.
 2. Añade `https://github.com/Carbanog/radiant-climate`, categoría **Integración**.
-3. Descarga **v0.2.10** y reinicia Home Assistant.
+3. Descarga la [última release estable](https://github.com/Carbanog/radiant-climate/releases/latest) y reinicia Home Assistant.
 4. Abre **Configuración → Dispositivos y servicios → Añadir integración → Radiant Climate**.
 
 No necesitas mostrar versiones preliminares. El proyecto se añade por enlace; no se afirma su inclusión en el catálogo oficial. Para ZIP, integridad y recuperación, consulta [Instalación y reversión](docs/installation.md).
@@ -284,9 +284,9 @@ Selecciona tus entidades reales desde el editor visual; sus identificadores depe
 | No anticipa el horario | Agenda activa, siguiente perfil más exigente y modelo utilizable |
 | Se detienen varias zonas | Fallo de una salida que no puede aislarse o problema de la general |
 | Manual acaba inesperadamente | Política, vencimiento, cambio real de temporada y órdenes explícitas |
-| Hay una avería de relé | Revisar la causa; apagar/encender no borra el bloqueo |
+| Hay una avería de relé | Consultar **Revisión de relés pendiente** para identificar la salida |
 
-Para averías usa el procedimiento de **Reconocer fallos de relés tras revisión**, con Climatización apagada y estados comunicados revisados. No fuerces los relés en paralelo al controlador. [Diagnóstico por síntomas y recuperación](docs/troubleshooting.md).
+Radiant Climate comprueba el cierre de un relé asignado y recupera el control al recibir confirmación y completar la espera de estabilidad. **Volver a comprobar** permite pedir otra revisión desde el panel. [Diagnóstico por síntomas y recuperación](docs/troubleshooting.md).
 
 ## Actualizar y volver atrás
 

@@ -1,5 +1,29 @@
 # Cambios y actualización
 
+## v0.2.11 — compatibilidad con Core y recuperación de incidencias
+
+- El termostato usa la API nativa de temperatura de Core 2026.11 y sigue siendo
+  compatible con Core 2026.10.4.
+- **Revisión de relés pendiente** identifica una salida cuyo cierre aún sin
+  confirmar bloquea el suministro a otra zona. La regulación se reevalúa cuando
+  Home Assistant comunica el cierre.
+- Una carga parcial que falla puede reintentarse sin reiniciar Home Assistant.
+  Si falla el guardado de un cambio, se restauran los ajustes y se desactiva el
+  control. Si falla el guardado al descargar una zona, se ordena el cierre y se
+  bloquean nuevas aperturas mientras la entrada siga en estado de descarga fallida.
+- Cancelar una orden en espera libera su bloqueo temporal. El apagado general
+  aceptado se completa aunque se desconecte quien lo solicitó.
+- Las guías de instalación y diagnóstico explican la recuperación automática
+  y cómo revisar el relé afectado desde el panel.
+
+**Validación.** 158 pruebas del núcleo y 239 en cada Core 2026.10.4 y 2026.11.0.
+Las pruebas usan salidas simuladas. La posición física de la válvula y el
+caudal se comprueban en la instalación.
+
+**Actualizar.** Conserva una copia recuperable y la v0.2.10 para revertir. Apaga
+Climatización, instala la actualización y reinicia si Home Assistant lo solicita.
+Comprueba las salidas y reactiva Climatización. Se conservan las zonas, los perfiles
+y los horarios existentes.
 
 ## v0.2.10 — recuperación sencilla de las válvulas
 

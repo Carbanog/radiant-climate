@@ -3370,21 +3370,23 @@ async def test_attribute_updates_and_reconnect_do_not_duplicate_one_relay_incide
     await settle(house)
 
 
-@pytest.mark.parametrize("source", ["transition", "same_state"])
+@pytest.mark.parametrize(
+    "source,output", [("transition", "a"), ("same_state", "a"), ("transition", "general")]
+)
 @pytest.mark.parametrize("stop", [False, True])
 async def test_transient_actuator_recovers_only_after_verified_close(
-    house, monkeypatch, source, stop
+    house, monkeypatch, source, output, stop
 ):
     from datetime import timedelta
     from unittest.mock import patch
 
     from homeassistant.util import dt as dt_util
 
-    from custom_components.radiant_climate.runtime import RECOVERY_COOLDOWN
+    from custom_components.radiant_climate.runtime import RECOVERY_STABLE
 
     _, climate = await add_zone(house)
     manager = house.data[DOMAIN]
-    entity = "switch.fixture_a"
+    entity = f"switch.fixture_{output}"
     now = dt_util.utcnow()
     clock = now
     monkeypatch.setattr(dt_util, "utcnow", lambda: clock)
@@ -3432,7 +3434,7 @@ async def test_transient_actuator_recovers_only_after_verified_close(
             assert manager.actuator_incidents[entity]["close_verified"]
             await manager.async_reconcile()
             assert entity in manager.actuator_faults
-        clock = now + timedelta(seconds=RECOVERY_COOLDOWN + 1)
+        clock += timedelta(seconds=RECOVERY_STABLE + 1)
         await settle(house)
         assert entity not in manager.actuator_faults
         assert manager.recent_recoveries[-1]["resolution"] == "verified_close"
@@ -3544,5 +3546,58 @@ def test_hydraulic_source_diagnostics_explain_rejection(value, unit, age, expect
     )
     result, details = describe_reading(state, now, 900)
     assert details["status"] == expected
-    assert details["age_seconds"] == age
+    assert details["last_reported"] == state.last_reported.isoformat()
     assert (result is not None) == (expected == "valid")
+
+
+async def test_second_verified_recovery_waits_for_cooldown(house, monkeypatch):
+    from datetime import timedelta
+    from unittest.mock import patch
+
+    from homeassistant.util import dt as dt_util
+
+    from custom_components.radiant_climate.runtime import RECOVERY_COOLDOWN, RECOVERY_STABLE
+
+    await add_zone(house)
+    manager = house.data[DOMAIN]
+    entity = "switch.fixture_a"
+    clock = dt_util.utcnow()
+    monkeypatch.setattr(dt_util, "utcnow", lambda: clock)
+    with patch.object(manager, "_request_update"):
+        for attempt in range(2):
+            manager._record_fault(entity, "command_timeout", True)
+            manager._close_probe[entity] = clock
+            clock += timedelta(seconds=1)
+            house.states.async_set(entity, "off", timestamp=clock.timestamp())
+            await house.async_block_till_done()
+            clock += timedelta(seconds=RECOVERY_STABLE + 1)
+            manager._recover_transient_faults(clock)
+            if not attempt:
+                assert entity not in manager.actuator_faults
+        assert entity in manager.actuator_faults
+        clock += timedelta(seconds=RECOVERY_COOLDOWN)
+        manager._recover_transient_faults(clock)
+        assert entity not in manager.actuator_faults
+        assert len(manager.recent_recoveries) == 2
+
+
+async def test_fault_arriving_during_store_write_is_still_pending(house):
+    from unittest.mock import patch
+
+    await add_zone(house)
+    manager = house.data[DOMAIN]
+    manager._record_fault("switch.fixture_a", "command_timeout", True)
+    saved = []
+
+    async def store_write(snapshot):
+        saved.append(snapshot["command_faults"])
+        if len(saved) == 1:
+            manager._record_fault("switch.fixture_general", "command_error", False)
+
+    with patch.object(manager._store, "async_save", new=store_write):
+        await manager._save()
+        assert manager._fault_dirty
+        assert saved[0] == ["switch.fixture_a"]
+        await manager._save()
+        assert not manager._fault_dirty
+        assert saved[1] == ["switch.fixture_a", "switch.fixture_general"]

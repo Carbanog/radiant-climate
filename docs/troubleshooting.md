@@ -175,8 +175,9 @@ Un error de orden, un timeout o una orden no confirmada pasan a verificación de
 Se envía un cierre y se espera una transición a `off` o un nuevo informe idéntico de
 `off` posterior a esa orden. Una mera actualización de atributos no acredita el cierre.
 El plan mantiene cerrado el suministro compartido si no puede aislar esa salida.
-Con cierre comunicado y estable al menos 60 segundos, puede retirarse el fallo a partir
-de 15 minutos desde su inicio. La regulación normal decide si vuelve a haber demanda.
+Con cierre comunicado y estable al menos 60 segundos, puede retirarse el primer fallo
+transitorio. Si el mismo relé vuelve a fallar, se espacian sus recuperaciones automáticas
+al menos 15 minutos. La regulación normal decide si vuelve a haber demanda.
 Los cierres se limitan a dos intentos separados por 30 segundos por tanda. Si no hay
 confirmación, otra tanda solo es posible tras 15 minutos desde el último intento.
 Tras reiniciar se conserva el presupuesto y se exige comprobar el cierre de nuevo.

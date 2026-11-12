@@ -43,11 +43,11 @@ def state_reading(state, now, maximum):
 
 
 def describe_reading(state, now, maximum):
-    detail = {"status": "missing", "last_reported": None, "age_seconds": None}
+    detail = {"status": "missing", "last_reported": None}
     if state is None:
         return None, detail
     age = (now - state.last_reported).total_seconds()
-    detail.update(last_reported=state.last_reported.isoformat(), age_seconds=round(age, 1))
+    detail["last_reported"] = state.last_reported.isoformat()
     if state.state in ("unknown", "unavailable"):
         return None, {**detail, "status": state.state}
     if age < -60 or age > maximum:

@@ -446,13 +446,29 @@ class Installation:
             if not self._transient(entity) or entity in self._retired:
                 continue
             state = self.hass.states.get(entity)
-            if self._verified_close(entity, state) and (
-                (now - max(self._close_probe[entity], state.last_changed)).total_seconds()
-                >= RECOVERY_STABLE
-                and (now - self._incidents[entity].since).total_seconds() >= RECOVERY_COOLDOWN
+            if (
+                not self._verified_close(entity, state)
+                or (now - max(self._close_probe[entity], state.last_changed)).total_seconds()
+                < RECOVERY_STABLE
             ):
-                self._clear_fault(entity, "verified_close")
-                _LOGGER.info("Actuator %s recovered after a verified reported close", entity)
+                continue
+            previous = next(
+                (
+                    item
+                    for item in reversed(self.recent_recoveries)
+                    if item["entity"] == entity and item["resolution"] == "verified_close"
+                ),
+                None,
+            )
+            last = dt_util.parse_datetime(previous["resolved_at"]) if previous else None
+            if (
+                last is not None
+                and last.tzinfo is not None
+                and (now - last).total_seconds() < RECOVERY_COOLDOWN
+            ):
+                continue
+            self._clear_fault(entity, "verified_close")
+            _LOGGER.info("Actuator %s recovered after a verified reported close", entity)
 
     @property
     def retired_actuators(self) -> tuple[str, ...]:
@@ -880,27 +896,32 @@ class Installation:
                 for k, z in self.zones.items()
             }
         )
-        await self._store.async_save(
-            {
-                "enabled": self.enabled,
-                "supply_mode": self.supply_mode.value,
-                "zones": self._saved,
-                "command_faults": sorted(self._command_faults),
-                "actuator_incidents": {
-                    entity: incident.dump() for entity, incident in self._incidents.items()
-                },
-                "recent_recoveries": list(self.recent_recoveries),
-                "retired_actuators": dict(self._retired),
-                "close_recovery": {
-                    entity: {"attempts": count, "last_attempt": when.isoformat()}
-                    for entity, (count, when) in self._close_recovery.items()
-                },
-                "transition_until": self._transition_until.isoformat()
-                if self._transition_until
-                else None,
-            }
-        )
+        snapshot = {
+            "enabled": self.enabled,
+            "supply_mode": self.supply_mode.value,
+            "zones": self._saved,
+            "command_faults": sorted(self._command_faults),
+            "actuator_incidents": {
+                entity: incident.dump() for entity, incident in self._incidents.items()
+            },
+            "recent_recoveries": list(self.recent_recoveries),
+            "retired_actuators": dict(self._retired),
+            "close_recovery": {
+                entity: {"attempts": count, "last_attempt": when.isoformat()}
+                for entity, (count, when) in self._close_recovery.items()
+            },
+            "transition_until": self._transition_until.isoformat()
+            if self._transition_until
+            else None,
+        }
+        # A state callback can mark a newer incident while Store awaits disk.
+        pending = self._fault_dirty
         self._fault_dirty = False
+        try:
+            await self._store.async_save(snapshot)
+        except (HomeAssistantError, OSError, asyncio.CancelledError):
+            self._fault_dirty |= pending
+            raise
 
     async def async_change(self, change: Callable) -> None:
         self._change_signal.set()

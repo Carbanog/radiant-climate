@@ -3568,7 +3568,9 @@ async def test_second_verified_recovery_waits_for_cooldown(house, monkeypatch):
             manager._record_fault(entity, "command_timeout", True)
             manager._close_probe[entity] = clock
             clock += timedelta(seconds=1)
-            house.states.async_set(entity, "off", timestamp=clock.timestamp())
+            house.states.async_set(
+                entity, "off", house.states.get(entity).attributes, timestamp=clock.timestamp()
+            )
             await house.async_block_till_done()
             clock += timedelta(seconds=RECOVERY_STABLE + 1)
             manager._recover_transient_faults(clock)

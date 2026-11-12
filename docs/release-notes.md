@@ -1,5 +1,28 @@
 # Cambios y actualización
 
+## v0.2.12 — parada segura ante fallos de almacenamiento
+
+- Si falla una escritura de configuración o de incidencias, Radiant Climate
+  apaga **Climatización**, solicita cerrar las salidas y conserva el diagnóstico.
+  Un fallo al validar un ajuste restaura los valores previos.
+- Un reinicio ordenado conserva la reanudación de Climatización. Tras una
+  interrupción con el control activo, se inicia apagado y se explica el motivo
+  en **Reparaciones**. Después de revisar almacenamiento y relés se puede
+  reactivar desde el interruptor habitual.
+- El panel avisa de inmediato si un relé deja de comunicar. Si lleva cinco
+  minutos indisponible, aparece también en **Reparaciones**.
+- Las acciones quedan registradas al cargar la integración, de modo que Home
+  Assistant puede validar las automatizaciones incluso sin entradas activas.
+
+**Validación.** 158 pruebas del núcleo y 247 en cada Core 2026.10.4 y 2026.11.0.
+Se provocan errores reales de escritura en un almacenamiento aislado y se usan
+relés simulados para comprobar las órdenes y el estado que comunican.
+
+**Actualizar.** Conserva una copia recuperable y la v0.2.11 para revertir. Apaga
+Climatización, instala la actualización y reinicia si Home Assistant lo pide.
+Comprueba las salidas y reactiva. El archivo de estado conserva el formato y
+los ajustes existentes.
+
 ## v0.2.11 — compatibilidad con Core y recuperación de incidencias
 
 - El termostato usa la API nativa de temperatura de Core 2026.11 y sigue siendo

@@ -25,9 +25,7 @@
       "invalid_actuators": "Choose at least one actuator, without duplicates.",
       "actuator_assigned": "This actuator is already assigned to another zone or the inlet.",
       "entity_missing": "A selected entity does not exist.",
-      "invalid_configuration": "Check the values and required fields.",
-      "schedule_changed": "The block changed or does not include those days. Select it again.",
-      "schedule_conflict": "Another block already occupies a destination day/time. The agenda has not changed."
+      "invalid_configuration": "Check the values and required fields."
     },
     "abort": {
       "already_configured": "The installation already exists."
@@ -39,19 +37,16 @@
         "title": "Climate settings",
         "menu_options": {
           "hardware": "Devices and regulation",
-          "schedule_add": "Add schedule block",
+          "schedule_add": "Add or replace schedule block",
           "schedule_remove": "Remove schedule block",
           "sources": "Environment, solar and anticipation",
           "vacation": "Vacation and return",
-          "hydraulic": "Hydraulic diagnostics",
-          "schedule_choose": "Edit schedule block",
-          "solar_source": "Shared solar position source"
-        },
-        "description": "Choose a section. Profile temperatures and feature switches are on each thermostat device. Turning a thermostat off keeps it off until explicitly turned on."
+          "hydraulic": "Hydraulic diagnostics"
+        }
       },
       "hardware": {
         "title": "Settings",
-        "description": "Logical settings apply without retiring relays. Changing sensors, relays or modes may reload the entry and close outputs; review before enabling. Freshness counts from the last report HA records, not the last temperature change; match the limit to the source. Cooling requires independent condensation protection.",
+        "description": "Changes reload this entry. Editing the installation disables global control; explicitly enable it after reviewing outputs. Cooling requires independent condensation protection. This integration and optional water diagnostics do not provide it.",
         "data": {
           "weather": "Weather source (optional)",
           "outdoor": "Outdoor sensor (optional)",
@@ -74,7 +69,7 @@
       },
       "schedule_add": {
         "title": "Weekly schedule",
-        "description": "Profiles last until the next block, including across midnight. Select all week, weekdays, weekend or individual days. Adding an existing day/time replaces its profile; use Edit to move a block.",
+        "description": "The profile remains active until the next block, including overnight. Reusing a day and time replaces that block.",
         "data": {
           "days": "Weekdays",
           "time": "Start time",
@@ -82,11 +77,9 @@
         }
       },
       "schedule_remove": {
-        "title": "Delete a block",
-        "description": "Delete the selected days from this block; empty removes all its days. Disable scheduling before removing its last block.",
+        "title": "Remove a block",
         "data": {
-          "block": "Schedule block",
-          "scope": "Affected days (empty = every day in the block)"
+          "block": "Block (1 = Monday)"
         }
       },
       "hydraulic": {
@@ -105,17 +98,16 @@
       },
       "sources": {
         "title": "Optional sources and optimisation",
-        "description": "Shared solar source: {solar_source}. Empty sources inherit the installation. Orientation is the fixed window direction; azimuth is the changing sun direction. Angular allowance applies on both sides. Elevation excludes buildings: calibrate shadows per zone. Geometry edits clear confirmation; save, then confirm without changing it. Solar lead differs from schedule advance: heating only, active confirmed solar, favourable forecast and temperature close to comfort. Observation never acts. No forecast means no preventive solar pause.",
+        "description": "Blank sources inherit installation defaults. Enable modules separately on the device. Geometry edits invalidate confirmation. Review and confirm the unchanged new values before Solar Active; geometry does not prove direct sun.",
         "data": {
           "weather": "Weather source (optional)",
           "outdoor": "Outdoor sensor (optional)",
-          "orientation": "Fixed window orientation (° from north)",
-          "solar_elevation": "Minimum sun elevation above obstructions (°)",
-          "solar_width": "Allowed angle on each side of window orientation (°)",
+          "orientation": "Window azimuth (degrees from north)",
+          "solar_elevation": "Minimum observed solar elevation",
+          "solar_width": "Allowed azimuth deviation from facade",
           "solar_confirmed": "Window exposure and shadows verified",
-          "max_advance": "Maximum schedule advance (minutes)",
-          "residual_minutes": "Residual projection horizon (minutes)",
-          "solar_lead": "Lead before sunlight arrives (minutes; 0 = disabled)"
+          "max_advance": "Maximum advance (minutes)",
+          "residual_minutes": "Residual projection horizon (minutes)"
         }
       },
       "vacation": {
@@ -126,33 +118,6 @@
           "date": "Return date (optional)",
           "time": "Return time"
         }
-      },
-      "schedule_choose": {
-        "title": "Choose a block to edit",
-        "description": "Choose a block and optionally restrict which days to edit. Other days remain unchanged. Next, edit its days, time and profile.",
-        "data": {
-          "block": "Schedule block",
-          "scope": "Affected days (empty = every day in the block)"
-        }
-      },
-      "schedule_edit": {
-        "title": "Edit days, time and profile",
-        "description": "Replace only the days chosen in the previous step, removing their old start time. Existing destination blocks are never overwritten: resolve collisions first.",
-        "data": {
-          "days": "Weekdays",
-          "time": "Start time",
-          "profile": "Profile"
-        }
-      },
-      "solar_source": {
-        "title": "Shared solar position",
-        "description": "Defaults to sun.sun. Alternatively select an entity with azimuth/elevation attributes or two sensors in degrees. Elevation 0° is the calculated location horizon, not buildings blocking windows. After changing sources, review and reconfirm zone exposure before optimising. Does not control blinds.",
-        "data": {
-          "solar_source": "Source type",
-          "sun_entity": "Entity with azimuth and elevation attributes",
-          "sun_elevation": "Elevation sensor (degrees)",
-          "sun_azimuth": "Azimuth sensor (degrees)"
-        }
       }
     },
     "error": {
@@ -160,10 +125,7 @@
       "invalid_actuators": "Choose at least one actuator, without duplicates.",
       "actuator_assigned": "This actuator is already assigned to another zone or the inlet.",
       "entity_missing": "A selected entity does not exist.",
-      "invalid_configuration": "Check the values and required fields.",
-      "schedule_changed": "The block changed or does not include those days. Select it again.",
-      "schedule_conflict": "Another block already occupies a destination day/time. The agenda has not changed.",
-      "solar_source_changed": "The solar source changed while editing. Review the displayed source and confirm again."
+      "invalid_configuration": "Check the values and required fields."
     },
     "abort": {
       "installation_only": "Configure this on the installation.",
@@ -186,10 +148,7 @@
         "3": "Thursday",
         "4": "Friday",
         "5": "Saturday",
-        "6": "Sunday",
-        "week": "All week",
-        "weekdays": "Weekdays (Monday–Friday)",
-        "weekend": "Weekend"
+        "6": "Sunday"
       }
     },
     "profile": {
@@ -207,13 +166,6 @@
         "schedule": "Schedule blocks and activation",
         "modules": "Module switches (not sources, geometry or learning)",
         "vacation": "Absence and return"
-      }
-    },
-    "solar_source": {
-      "options": {
-        "standard": "Home Assistant Sun (default)",
-        "entity": "Another solar attribute entity",
-        "sensors": "Separate elevation and azimuth sensors"
       }
     }
   },
@@ -266,7 +218,7 @@
         "state": {
           "duration": "For the configured duration",
           "next_change": "Until the next schedule block",
-          "until_resume": "Indefinite manual hold (no time limit)"
+          "until_resume": "Until resume schedule"
         }
       },
       "solar": {
@@ -305,8 +257,7 @@
           "clock_changed": "Clock change under review",
           "demand": "Temperature demand",
           "satisfied": "Target satisfied",
-          "supply_not_ready": "Shared supply relay not ready",
-          "solar_anticipation": "Preventive pause before solar gain"
+          "supply_not_ready": "Shared supply relay not ready"
         }
       },
       "hydraulic": {
@@ -386,7 +337,11 @@
   "issues": {
     "actuator_attention": {
       "title": "Actuator review needed",
-      "description": "Active faults: {faults}. Retired outputs pending: {retired}. The integration verifies the close of assigned relays and resumes normal control when the reported state is stable. If an output keeps failing, check its connection. Retired outputs require verification of physical disconnection."
+      "description": "Active faults: {faults}. Pending retired outputs: {retired}. Relays unavailable for at least five minutes: {unavailable}. Check the affected outputs in the actuator problem sensor, then check their connection and power. Assigned relays recover when their reported close is verified. For retired outputs, verify physical disconnection."
+    },
+    "storage_interrupted": {
+      "title": "Climate control paused for review",
+      "description": "Radiant Climate could not save its state or detected an interruption while control was active. Check Home Assistant storage and the reported relay states. Then turn Climate on to resume control."
     }
   },
   "services": {

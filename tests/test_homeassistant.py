@@ -297,6 +297,33 @@ async def test_state_roundtrip_through_real_storage(house):
         restored.async_stop()
 
 
+async def test_legacy_store_envelope_loads_and_invalid_envelope_is_preserved(house, caplog):
+    from homeassistant.exceptions import HomeAssistantError
+    from homeassistant.helpers.storage import Store
+
+    from custom_components.radiant_climate.runtime import Installation
+
+    legacy = Store(house, 1, f"{DOMAIN}.state")
+    await legacy.async_save({"enabled": True, "supply_mode": "heat", "zones": {}})
+    restored = Installation(house)
+    try:
+        await restored.async_load()
+        assert restored.enabled and not restored.storage_interrupted
+        path = restored._store.path
+        invalid = '{"version":99,"key":"radiant_climate.state","data":{}}'
+        await house.async_add_executor_job(path.write_text, invalid, "utf-8")
+        await restored.async_load()
+        assert restored.storage_interrupted
+        with pytest.raises(HomeAssistantError, match="Restore readable"):
+            await restored.async_enable(True)
+        assert not restored.enabled
+        assert await house.async_add_executor_job(path.read_text, "utf-8") == invalid
+        assert any("Could not read Radiant Climate state" in r.getMessage() for r in caplog.records)
+        caplog.clear()
+    finally:
+        restored.async_stop()
+
+
 async def test_cooling_without_weather_and_mismatched_season(house):
     _, climate = await add_zone(house)
     house.states.async_set("sensor.fixture_a", "28", {"unit_of_measurement": "°C"})
@@ -478,6 +505,112 @@ async def test_failed_schedule_write_keeps_previous_program_and_closes_outputs(h
     assert saved["enabled"] is False
     assert house.states.get("switch.fixture_a").state == "off"
     assert house.states.get("switch.fixture_general").state == "off"
+
+
+async def test_invalid_partial_change_restores_schedule_and_leaves_control_running(house):
+    entry, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await manager.async_enable(True)
+    previous = manager.zones[entry.entry_id].program.dump()
+
+    def invalid_change():
+        manager.zones[entry.entry_id].program.set_blocks([0], 420, "eco")
+        manager.enabled = False
+        raise ValueError("fixture validation failure")
+
+    with pytest.raises(ValueError, match="fixture validation failure"):
+        await manager.async_change(invalid_change)
+    assert manager.zones[entry.entry_id].program.dump() == previous
+    assert manager.enabled and not manager.storage_interrupted
+    assert house.states.get("switch.fixture_a").state == "on"
+    assert (await manager._store.async_load())["zones"][entry.entry_id]["program"] == previous
+
+
+@pytest.mark.parametrize("stage", ["before_open", "after_open", "reconcile"])
+async def test_real_storage_write_failure_closes_and_keeps_restart_safe(house, caplog, stage):
+    from unittest.mock import patch
+
+    from homeassistant.exceptions import HomeAssistantError
+    from homeassistant.helpers import issue_registry as ir
+    from homeassistant.util.file import WriteError
+
+    from custom_components.radiant_climate.core.control import Mode
+    from custom_components.radiant_climate.runtime import Installation
+
+    _, climate_a = await add_zone(house)
+    entry_b, climate_b = await add_zone(house, "b")
+    await service(house, "climate", "set_hvac_mode", climate_a, hvac_mode="heat")
+    if stage != "after_open":
+        await service(house, "climate", "set_hvac_mode", climate_b, hvac_mode="heat")
+    manager = house.data[DOMAIN]
+    if stage != "before_open":
+        await manager.async_enable(True)
+        await settle(house)
+        assert house.states.get("switch.fixture_a").state == "on"
+    if stage == "reconcile":
+        manager._record_fault("switch.fixture_b", "command_error", True)
+
+    # A rename to a directory fails in the real atomic writer, after serializing.
+    blocked_path = manager._store.path.parent / "fixture_directory"
+    blocked_path.mkdir()
+    call = house.services.async_call
+
+    async def fail_second_open(domain, service, service_data=None, **kwargs):
+        if (domain, service, service_data) == (
+            "switch",
+            "turn_on",
+            {"entity_id": "switch.fixture_b"},
+        ):
+            assert house.states.get("switch.fixture_a").state == "on"
+            manager._store.path = blocked_path
+            raise HomeAssistantError("fixture relay error")
+        return await call(domain, service, service_data, **kwargs)
+
+    with (
+        patch.object(manager, "_request_update"),
+        patch.object(manager._store, "path", manager._store.path),
+        patch.object(
+            type(house.services),
+            "async_call",
+            side_effect=fail_second_open if stage == "after_open" else call,
+        ),
+    ):
+        if stage != "after_open":
+            manager._store.path = blocked_path
+        with pytest.raises(WriteError):
+            if stage == "reconcile":
+                await manager.async_reconcile()
+            elif stage == "after_open":
+                zone = manager.zones[entry_b.entry_id]
+                await manager.async_change(lambda: zone.intent.set_mode(Mode.HEAT, zone.settings))
+            else:
+                await manager.async_enable(True)
+        assert not manager.enabled and manager.storage_interrupted
+        for key in ("a", "b", "general"):
+            assert house.states.get(f"switch.fixture_{key}").state == "off"
+        if stage != "before_open":
+            assert "switch.fixture_b" in manager.actuator_faults
+            restarted = Installation(house)
+            try:
+                await restarted.async_load()
+                assert not restarted.enabled and restarted.storage_interrupted
+            finally:
+                restarted.async_stop()
+    assert any("Saving file failed" in record.getMessage() for record in caplog.records)
+    caplog.clear()  # Expected I/O and relay errors injected above.
+    await settle(house)
+    issue_id = f"storage_interrupted_{manager.hub}"
+    registry = ir.async_get(house)
+    assert registry.async_get_issue(DOMAIN, issue_id) is not None
+    persisted = await manager._store.async_load()
+    assert not persisted["enabled"] and not persisted["control_armed"]
+    if stage != "before_open":
+        assert "switch.fixture_b" in persisted["command_faults"]
+    await manager.async_enable(True)
+    await settle(house)
+    assert manager.enabled and not manager.storage_interrupted
+    assert registry.async_get_issue(DOMAIN, issue_id) is None
 
 
 async def test_failed_unload_journal_closes_outputs_and_prevents_reopening(house, caplog):
@@ -1091,6 +1224,7 @@ def test_optional_temperature_conversion_rejects_invalid_data(value, unit, expec
         "retired",
         "preset",
         "sparse_learning",
+        "heating",
     ],
 )
 async def test_full_core_restart_restores_control_without_bypassing_off(house, scenario):
@@ -1131,6 +1265,9 @@ async def test_full_core_restart_restores_control_without_bypassing_off(house, s
     if scenario == "individual_off":
         await service(house, "climate", "turn_off", climate)
         await service(house, "switch", "turn_on", global_entity(house))
+    if scenario == "heating":
+        await service(house, "switch", "turn_on", global_entity(house))
+        assert house.states.get("switch.fixture_a").state == "on"
     if scenario == "sparse_learning":
         from custom_components.radiant_climate.core.control import Mode
         from custom_components.radiant_climate.core.intelligence import ThermalModel
@@ -1178,11 +1315,16 @@ async def test_full_core_restart_restores_control_without_bypassing_off(house, s
         await settle(restarted)
         state = restarted.states.get(climate)
         assert state is not None
-        assert state.state == ("heat" if scenario == "retired" else "off")
+        assert state.state == ("heat" if scenario in ("retired", "heating") else "off")
         if scenario == "preset":
             assert state.attributes["preset_mode"] == "eco"
-        assert restarted.states.get("switch.fixture_a").state == "off"
-        assert restarted.states.get("switch.fixture_general").state == "off"
+        expected = "on" if scenario == "heating" else "off"
+        assert restarted.states.get("switch.fixture_a").state == expected
+        assert restarted.states.get("switch.fixture_general").state == expected
+        if scenario == "heating":
+            manager = restarted.data[DOMAIN]
+            assert not manager.storage_interrupted
+            assert (await manager._store.async_load())["control_armed"]
         if scenario == "sparse_learning":
             zone = restarted.data[DOMAIN].zones[entry.entry_id]
             model = zone.intelligence.model
@@ -2726,7 +2868,7 @@ async def test_actuator_problem_and_repairs_follow_existing_latches_without_rese
     await house.async_block_till_done()
     assert house.states.get(problem).state == "on"
     issue = ir.async_get(house).async_get_issue(DOMAIN, issue_id)
-    assert issue.translation_placeholders == {"faults": "1", "retired": "1"}
+    assert issue.translation_placeholders == {"faults": "1", "retired": "1", "unavailable": "0"}
     await manager.async_enable(False)
     await house.async_block_till_done()
     assert manager.actuator_faults == ("switch.fixture_a",)
@@ -2736,6 +2878,7 @@ async def test_actuator_problem_and_repairs_follow_existing_latches_without_rese
     assert ir.async_get(house).async_get_issue(DOMAIN, issue_id).translation_placeholders == {
         "faults": "0",
         "retired": "1",
+        "unavailable": "0",
     }
     await manager.async_acknowledge_retired("switch.fixture_b")
     await house.async_block_till_done()
@@ -2743,6 +2886,58 @@ async def test_actuator_problem_and_repairs_follow_existing_latches_without_rese
     assert ir.async_get(house).async_get_issue(DOMAIN, issue_id) is None
     assert not manager.enabled
     assert house.states.get("switch.fixture_a").state == "off"
+
+
+async def test_repairs_reports_only_sustained_unavailability_and_clears_on_recovery(house):
+    from unittest.mock import patch
+
+    from homeassistant.helpers import issue_registry as ir
+
+    from custom_components.radiant_climate import repairs
+
+    await add_zone(house)
+    manager = house.data[DOMAIN]
+    issue_id = f"actuator_attention_{manager.hub}"
+    registry = ir.async_get(house)
+    problem = er.async_get(house).async_get_entity_id(
+        "binary_sensor", DOMAIN, f"{manager.hub}_actuator_problem"
+    )
+    with patch.object(repairs, "monotonic", return_value=1000) as clock:
+        house.states.async_set("switch.fixture_a", "unavailable")
+        await settle(house)
+        assert house.states.get(problem).state == "on"
+        assert registry.async_get_issue(DOMAIN, issue_id) is None
+        clock.return_value += repairs.UNAVAILABLE_DELAY
+        await settle(house)
+        assert registry.async_get_issue(DOMAIN, issue_id).translation_placeholders == {
+            "faults": "0",
+            "retired": "0",
+            "unavailable": "1",
+        }
+        house.states.async_set("switch.fixture_a", "off")
+        await settle(house)
+        assert registry.async_get_issue(DOMAIN, issue_id) is None
+        assert house.states.get(problem).state == "off"
+
+
+async def test_global_actions_remain_registered_without_entries_and_work_after_reload(house):
+    from homeassistant.exceptions import HomeAssistantError
+
+    manager = house.data[DOMAIN]
+    entry_id = manager.hub
+    assert await house.config_entries.async_unload(entry_id)
+    assert DOMAIN not in house.data
+    assert house.services.has_service(DOMAIN, "reset_actuator_faults")
+    with pytest.raises(HomeAssistantError, match="No Radiant Climate installation is loaded"):
+        await house.services.async_call(
+            DOMAIN, "reset_actuator_faults", {"confirmed_review": True}, blocking=True
+        )
+    assert await house.config_entries.async_setup(entry_id)
+    await settle(house)
+    assert house.data[DOMAIN].hub == entry_id
+    await house.services.async_call(
+        DOMAIN, "reset_actuator_faults", {"confirmed_review": True}, blocking=True
+    )
 
 
 async def test_cancelled_off_does_not_override_a_later_explicit_on(house):

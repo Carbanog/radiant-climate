@@ -450,10 +450,19 @@ def complete_document(language):
         "actuator_attention": {
             "title": ("Actuator review needed", "Revisión de relés pendiente")[language],
             "description": (
-                "Active faults: {faults}. Retired outputs pending: {retired}. The integration verifies the close of assigned relays and resumes normal control when the reported state is stable. If an output keeps failing, check its connection. Retired outputs require verification of physical disconnection.",
-                "Fallos activos: {faults}. Salidas retiradas pendientes: {retired}. La integración vuelve a comprobar el cierre de los relés asignados y recupera la climatización cuando el estado comunicado es estable. Si una salida sigue sin responder, comprueba su conexión. Las salidas retiradas requieren comprobar su desconexión física.",
+                "Active faults: {faults}. Pending retired outputs: {retired}. Relays unavailable for at least five minutes: {unavailable}. Check the affected outputs in the actuator problem sensor, then check their connection and power. Assigned relays recover when their reported close is verified. For retired outputs, verify physical disconnection.",
+                "Fallos activos: {faults}. Salidas retiradas pendientes: {retired}. Relés indisponibles durante al menos cinco minutos: {unavailable}. Consulta las salidas afectadas en el sensor Revisión de relés pendiente y comprueba su conexión y alimentación. Los relés asignados se recuperan cuando se verifica el cierre comunicado. Para salidas retiradas, comprueba su desconexión física.",
             )[language],
-        }
+        },
+        "storage_interrupted": {
+            "title": ("Climate control paused for review", "Climatización detenida para revisión")[
+                language
+            ],
+            "description": (
+                "Radiant Climate could not save its state or detected an interruption while control was active. Check Home Assistant storage and the reported relay states. Then turn Climate on to resume control.",
+                "Radiant Climate no pudo guardar su estado o detectó una interrupción con el control activo. Comprueba el almacenamiento de Home Assistant y el estado comunicado de los relés. Después activa Climatización para reanudar.",
+            )[language],
+        },
     }
     service_text = {
         "copy_settings": (

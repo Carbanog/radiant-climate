@@ -4,16 +4,23 @@ import asyncio
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN, PLATFORMS
 from .hydraulic import DEFAULTS
 from .repairs import async_setup_repairs
 from .runtime import Installation
-from .services import async_register_services
+from .services import async_setup_services
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    async_setup_services(hass)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    async_register_services(hass)
     # Core loads stored config entries concurrently at boot. Publish exactly one
     # fully loaded manager, including when the first storage read yields.
     lock = hass.data.setdefault(f"{DOMAIN}_setup_lock", asyncio.Lock())
@@ -78,3 +85,4 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         from homeassistant.helpers import issue_registry as ir
 
         ir.async_delete_issue(hass, DOMAIN, f"actuator_attention_{entry.entry_id}")
+        ir.async_delete_issue(hass, DOMAIN, f"storage_interrupted_{entry.entry_id}")

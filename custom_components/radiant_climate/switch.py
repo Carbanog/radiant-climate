@@ -227,6 +227,7 @@ class InstallationEnabled(RadiantEntity, SwitchEntity):
             "actuator_incidents": self.manager.actuator_incidents,
             "recent_actuator_recoveries": list(self.manager.recent_recoveries),
             "stop_requested": self.manager.stop_requested,
+            "storage_interrupted": self.manager.storage_interrupted,
         }
 
     async def async_turn_on(self, **kwargs):

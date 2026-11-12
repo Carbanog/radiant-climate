@@ -19,22 +19,23 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryError, HomeAssistantError
 from homeassistant.helpers.event import async_track_time_interval
-from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, STORAGE_VERSION
+from .const import DOMAIN
 from .core.control import Decision, Intent, Mode, Settings, temperature
 from .core.intelligence import ThermalModel, window_pause
 from .core.program import Program, ScheduleInUseError
 from .environment import Environment
 from .intelligence import Intelligence
 from .solar import confirmed
+from .storage import InstallationStorage
 
 _LOGGER = logging.getLogger(__name__)
 COMMAND_TIMEOUT = 5
 RECOVERY_COOLDOWN = 900
 RECOVERY_STABLE = 60
 TRANSIENT_FAULTS = {"command_timeout", "command_error", "command_unconfirmed"}
+STORAGE_ERRORS = (HomeAssistantError, OSError, asyncio.CancelledError)
 
 
 @dataclass(frozen=True)
@@ -94,7 +95,10 @@ class Installation:
         self._saved: dict = {}
         self._setting_up: set[str] = set()
         self.pending_isolation: tuple[str, ...] = ()
-        self._store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.state")
+        self._store = InstallationStorage(hass)
+        self._storage_read_failed = False
+        self._armed = False
+        self.storage_interrupted = False
         self._lock = asyncio.Lock()
         self._listeners: set[Callable] = set()
         self._pending: asyncio.Task | None = None
@@ -126,7 +130,14 @@ class Installation:
         self._unsub_start = hass.bus.async_listen(EVENT_HOMEASSISTANT_STARTED, self._tick)
 
     async def async_load(self) -> None:
-        raw = await self._store.async_load()
+        try:
+            raw = await self._store.async_load()
+        except (HomeAssistantError, OSError):
+            self._storage_read_failed = True
+            self.storage_interrupted = True
+            self.enabled = False
+            _LOGGER.error("Could not read Radiant Climate state; control remains disabled")
+            return
         if raw is None:
             return
         try:
@@ -136,7 +147,13 @@ class Installation:
             if self.supply_mode == Mode.OFF or not isinstance(raw["zones"], dict):
                 raise ValueError("Invalid installation state")
             self._saved = raw["zones"]
-            self.enabled = raw["enabled"]
+            armed = raw.get("control_armed", False)
+            interrupted = raw.get("storage_interrupted", False)
+            if type(armed) is not bool or type(interrupted) is not bool:
+                raise ValueError("Invalid storage recovery state")
+            self.storage_interrupted = armed or interrupted
+            self.enabled = raw["enabled"] and not self.storage_interrupted
+            self._fault_dirty |= armed
             self._command_faults = set(raw.get("command_faults", []))
             if any(not isinstance(e, str) for e in self._command_faults):
                 raise ValueError("Invalid command fault state")
@@ -202,6 +219,8 @@ class Installation:
                 raise ValueError("Invalid transition state")
         except (KeyError, TypeError, ValueError):
             self.enabled = False
+            self._storage_read_failed = True
+            self.storage_interrupted = True
             _LOGGER.error("Stored installation state is invalid; control remains disabled")
 
     async def async_add(self, entry: ConfigEntry, *, platforms_pending: bool = False) -> None:
@@ -325,16 +344,7 @@ class Installation:
                 self.enabled = False
             # Write-ahead record: a stop/cancellation during the first close must
             # not lose ownership of an output no longer present in config entries.
-            try:
-                await self._save()
-            except (HomeAssistantError, OSError, asyncio.CancelledError):
-                # Keep ownership when the journal cannot be committed, but
-                # close now even if Core has already removed the entities.
-                self.enabled = False
-                self._fault_dirty = True
-                await self._apply()
-                self._notify()
-                raise
+            await self._persist()
             self.zones.pop(entry_id, None)
             if zone:
                 for entity in zone.config["actuators"]:
@@ -345,7 +355,7 @@ class Installation:
             self.entries.pop(entry_id, None)
             self._hardware_pending.pop(entry_id, None)
             await self._apply()
-            await self._save()
+            await self._persist()
             self._notify()
 
     async def async_prepare_hardware(self, entry_id: str, data: dict) -> None:
@@ -694,7 +704,12 @@ class Installation:
         # pass revalidates safety before permitting any new opening.
         while self._dirty and not self._closed:
             self._dirty = False
-            await self.async_reconcile()
+            try:
+                await self.async_reconcile()
+            except (HomeAssistantError, OSError):
+                # Persistence already requested closure. Retry the checkpoint
+                # on the next tick or state event with control disabled.
+                return
 
     async def _command(self, entity: str, wanted: bool) -> bool:
         if self._desired.get(entity) is not wanted:
@@ -838,6 +853,12 @@ class Installation:
         transition = self._transition_until is not None and now < self._transition_until
         if transition:
             enabled = False
+        if enabled and not self._armed:
+            # Checkpoint before opening after a clean restart or legacy load.
+            await self._persist()
+            if revision != self._revision:
+                self._request_update()
+                return
         plan: dict[str, bool] = {}
         for key, z in self.zones.items():
             sensor = self.hass.states.get(z.config["sensor"])
@@ -940,8 +961,8 @@ class Installation:
             await self._apply()
             self._notify()
             if self._fault_dirty or (dt_util.utcnow() - self._checkpoint).total_seconds() >= 900:
+                await self._persist()
                 self._checkpoint = dt_util.utcnow()
-                await self._save()
             if not self.entries and not self._retired:
                 self.hass.loop.call_soon(self._dispose_if_unused)
 
@@ -952,6 +973,8 @@ class Installation:
             del self.hass.data[DOMAIN]
 
     async def _save(self) -> None:
+        if self._storage_read_failed:
+            raise HomeAssistantError("Restore readable Radiant Climate storage and reload")
         saved = {
             **self._saved,
             **{
@@ -967,6 +990,8 @@ class Installation:
         }
         snapshot = {
             "enabled": self.enabled,
+            "control_armed": self.enabled and not self._closed,
+            "storage_interrupted": self.storage_interrupted,
             "supply_mode": self.supply_mode.value,
             "zones": saved,
             "command_faults": sorted(self._command_faults),
@@ -988,10 +1013,27 @@ class Installation:
         self._fault_dirty = False
         try:
             await self._store.async_save(snapshot)
-        except (HomeAssistantError, OSError, asyncio.CancelledError):
+        except STORAGE_ERRORS:
             self._fault_dirty |= pending
             raise
         self._saved = saved
+        self._armed = snapshot["control_armed"]
+
+    async def _stop_after_storage_error(self):
+        if not self.storage_interrupted:
+            _LOGGER.warning("Could not save Radiant Climate state; control stopped")
+        self.enabled = False
+        self.storage_interrupted = True
+        self._fault_dirty = True
+        await self._apply()
+        self._notify()
+
+    async def _persist(self):
+        try:
+            await self._save()
+        except STORAGE_ERRORS:
+            await self._stop_after_storage_error()
+            raise
 
     @asynccontextmanager
     async def _lock_change(self, stop: bool):
@@ -1018,6 +1060,9 @@ class Installation:
         self._change_signal = asyncio.Event()
         self._revision += 1
         async with self._lock_change(stop):
+            enabled = self.enabled
+            interrupted = self.storage_interrupted
+            dirty = self._fault_dirty
             entries = self.entries.copy()
             supply = self.supply_mode, self._transition_until
             zones = {
@@ -1037,11 +1082,8 @@ class Installation:
             recoveries = self.recent_recoveries.copy()
             retired = self._retired.copy()
             hardware_pending = self._hardware_pending.copy()
-            change()
-            try:
-                await self._save()
-            except (HomeAssistantError, OSError, asyncio.CancelledError):
-                self.enabled = False
+
+            def restore():
                 self.entries = entries
                 self.supply_mode, self._transition_until = supply
                 for key, state in zones.items():
@@ -1067,19 +1109,35 @@ class Installation:
                 self.recent_recoveries = recoveries
                 self._retired = {**retired, **self._retired}
                 self._hardware_pending = hardware_pending
-                self._fault_dirty = True
-                await self._apply()
-                self._notify()
+
+            try:
+                change()
+            except Exception:
+                restore()
+                self.enabled = enabled
+                self.storage_interrupted = interrupted
+                self._command_faults = faults
+                self._incidents = incidents
+                self._retired = retired
+                self._fault_dirty = dirty
+                raise
+            try:
+                await self._save()
+            except STORAGE_ERRORS:
+                restore()
+                await self._stop_after_storage_error()
                 raise
             await self._apply()
             if self._fault_dirty:
-                await self._save()
+                await self._persist()
             self._refresh_weather()
             self._notify()
 
     async def async_enable(self, value: bool) -> None:
         def update():
             self.enabled = value
+            if value:
+                self.storage_interrupted = False
 
         if value:
             await self.async_change(update)
@@ -1284,7 +1342,5 @@ class Installation:
         # cannot deliver commands; do not claim a hardware fail-safe.
         self.async_stop()
         async with self._lock:
-            try:
-                await self._save()
-            finally:
-                await self._apply()
+            await self._apply()
+            await self._save()

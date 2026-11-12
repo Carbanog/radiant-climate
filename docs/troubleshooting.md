@@ -183,11 +183,25 @@ Si el relé sigue sin publicar confirmación, consulta **Revisión de relés pen
 y revisa su conectividad y estado. **Volver a comprobar** ejecuta otra revisión
 del plan respetando el límite de intentos. El aviso identifica también la salida
 cuyo cierre está pendiente cuando otra zona solicita suministro compartido.
+Una pérdida de comunicación se muestra enseguida en el panel. Si dura al menos
+cinco minutos aparece también en Reparaciones, hasta que la salida vuelva a comunicar.
 
 Para mantenimiento, **Reconocer fallos de relés tras revisión** permite elegir
 salidas que ya comunican apagado con **Climatización** desactivada. Usa
 **Confirmar retirada física** para una salida retirada o sin asignar solo
 después de comprobar su desconexión real y apagar Climatización.
+
+## Climatización se ha detenido tras un error de guardado
+
+Desde v0.2.12, un fallo al guardar desactiva Climatización y ordena cerrar los
+relés. Si Home Assistant arranca tras una interrupción con control activo, también
+mantiene Climatización apagada. Un reinicio ordenado conserva el estado habitual.
+Consulta **Reparaciones**, revisa los errores de disco o permisos de Home Assistant
+y comprueba el estado comunicado de las salidas. Cuando el almacenamiento vuelva
+a funcionar, enciende **Climatización** desde el panel. Los fallos de relés
+conservan sus propias reglas de recuperación.
+Si el registro indica que el archivo existente no se pudo leer, restaura una
+copia recuperable y recarga la integración antes de reactivar.
 
 ### Otras causas de diagnóstico
 

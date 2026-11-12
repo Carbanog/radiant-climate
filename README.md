@@ -13,7 +13,7 @@ Una integración para Home Assistant con perfiles, horarios y funciones opcional
 [![Release](https://img.shields.io/github/v/release/Carbanog/radiant-climate)](https://github.com/Carbanog/radiant-climate/releases/latest)
 [![Licencia MIT](https://img.shields.io/badge/licencia-MIT-blue)](LICENSE)
 
-> **Versión: v0.2.11.** Probada con Core 2026.10.4 y 2026.11.0.
+> **Versión: v0.2.12.** Probada con Core 2026.10.4 y 2026.11.0.
 > Proyecto personal de código abierto. No es un controlador certificado; la respuesta térmica debe ajustarse a cada instalación. La refrigeración requiere protección anticondensación independiente.
 
 **Empieza aquí:** [Instalar](#1-instalar) → [Crear termostatos](#2-crear-la-instalación-y-las-zonas) → [Configurar](#3-configurar-perfiles-y-horarios) → [Usar](#4-uso-diario-manual-y-apagado).
@@ -299,7 +299,7 @@ Para volver al controlador anterior, apaga y deshabilita primero Radiant Climate
 
 ## Validación y límites
 
-La **v0.2.11** supera **158 pruebas del núcleo y 239 pruebas del adaptador en cada Core 2026.10.4 y 2026.11.0**, además de Ruff, formato, privacidad, HACS y hassfest. Las pruebas cubren flujos de configuración, agenda, reinicios, Manual, apagados y fallos de sensores, almacenamiento y actuadores. Se ejecutan con Core real y dispositivos simulados. [Alcance y evidencia](docs/testing.md) · [Comprobaciones por commit](https://github.com/Carbanog/radiant-climate/actions/workflows/ci.yml).
+La **v0.2.12** supera **158 pruebas del núcleo y 247 pruebas del adaptador en cada Core 2026.10.4 y 2026.11.0**, además de Ruff, formato, privacidad, HACS y hassfest. Las pruebas cubren flujos de configuración, agenda, reinicios, Manual, apagados y fallos de sensores, almacenamiento y actuadores. Se ejecutan con Core real y dispositivos simulados. [Alcance y evidencia](docs/testing.md) · [Comprobaciones por commit](https://github.com/Carbanog/radiant-climate/actions/workflows/ci.yml).
 
 - Una orden al relé y una espera estimada **no confirman posición de válvula ni caudal**.
 - Si HA cae, el software no puede garantizar el cierre: revisa las protecciones independientes del hardware. No se implementa un watchdog renovable para temporizadores cortos de relé.

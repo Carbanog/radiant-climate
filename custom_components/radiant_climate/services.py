@@ -3,6 +3,7 @@
 from copy import deepcopy
 
 import voluptuous as vol
+from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
@@ -12,10 +13,8 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN
 
 
-def async_register_services(hass):
-    if hass.services.has_service(DOMAIN, "copy_settings"):
-        return
-
+@callback
+def async_setup_services(hass):
     async def copy_settings(call):
         manager = hass.data.get(DOMAIN)
         if manager is None:

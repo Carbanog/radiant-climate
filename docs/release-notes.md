@@ -1,6 +1,29 @@
 # Cambios y actualización
 
 
+## v0.2.10 — recuperación sencilla de las válvulas
+
+- Todos los fallos de relés que siguen asignados usan la comprobación automática de
+  cierre. Esto incluye los bloqueos antiguos y repetidos. Un informe válido posterior
+  a la orden y un cierre estable permiten recuperar el control según la demanda.
+- La general espera si no puede confirmarse el aislamiento de una zona. Los intentos
+  siguen espaciados y se conserva el apagado de las zonas y de Climatización.
+- El aviso identifica la salida afectada, incluso ante una pérdida de comunicación
+  que todavía no ha registrado un bloqueo. Muestra si el suministro está en pausa
+  y cuándo puede volver a comprobarse, cuando se conoce esa hora.
+- El botón **Volver a comprobar** aplica el plan habitual y respeta la espera entre
+  intentos. La [tarjeta condicional](https://github.com/Carbanog/radiant-climate/blob/v0.2.10/docs/dashboard.md#aviso-de-recuperación-de-válvulas)
+  reúne el aviso y el botón en el panel. La retirada física queda en mantenimiento.
+
+**Validación.** 158 pruebas del núcleo y 232 en cada Core 2026.10.4 y 2026.11.0.
+Se usan estados de relé simulados en Core real. La confirmación se refiere al estado
+comunicado por Home Assistant. La respuesta física de los relés se comprueba en cada instalación.
+
+**Actualizar.** Conserva una copia recuperable y v0.2.9, apaga Climatización,
+actualiza y reinicia si Home Assistant lo solicita. Comprueba las salidas antes de
+reactivar. Para mostrar el aviso en tu panel, añade la tarjeta y selecciona las
+entidades de Climatización. No hace falta crear ayudantes ni automatizaciones.
+
 ## v0.2.9 — recuperación automática de relés y diagnósticos
 
 Los fallos transitorios pueden recuperarse tras una orden de cierre aceptada y un

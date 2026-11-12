@@ -183,8 +183,8 @@ confirmación, otra tanda solo es posible tras 15 minutos desde el último inten
 Tras reiniciar se conserva el presupuesto y se exige comprobar el cierre de nuevo.
 
 La integración observa estados de HA. Un relé que no publique confirmación puede seguir
-pendiente de revisión. Las discrepancias repetidas y los fallos antiguos sin causa
-registrada requieren reconocimiento. Revisa el relé concreto en **Reconocer fallos de
+pendiente de revisión. En v0.2.9, las discrepancias repetidas y los fallos antiguos sin causa
+registrada requerían reconocimiento. Desde v0.2.10 se verifica su cierre automáticamente. Revisa el relé concreto en **Reconocer fallos de
 relés tras revisión**. El resultado indica qué salida no cumple la condición. La acción
 **Confirmar retirada física** permite resolver también un fallo huérfano de una salida
 sin asignar, tras comprobar su desconexión real y apagar Climatización.
@@ -200,9 +200,9 @@ sin asignar, tras comprobar su desconexión real y apagar Climatización.
   la vista al apagar la zona. Sus atributos indican qué criterios faltan y si recopila.
 
 
-## Recuperación de cualquier fallo asignado en desarrollo
+## Recuperación de cualquier fallo asignado desde v0.2.10
 
-Cambio posterior a v0.2.9. Un bloqueo repetido o heredado de un relé que sigue
+Un bloqueo repetido o heredado de un relé que sigue
 asignado usa la misma comprobación de cierre y los mismos tiempos que un fallo
 transitorio. La orden de cierre y el informe posterior siguen siendo necesarios.
 La recuperación conserva la intención de cada zona y los bloqueos vigentes.

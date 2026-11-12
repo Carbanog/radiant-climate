@@ -30,7 +30,7 @@ sensores, relés o modelos térmicos. Comprueba siempre los perfiles de destino.
 
 ## Aviso de recuperación de válvulas
 
-Para el desarrollo posterior a v0.2.9. Añade una tarjeta condicional arriba en la
+Disponible desde v0.2.10. Añade una tarjeta condicional arriba en la
 vista de climatización. El ejemplo utiliza entidades ficticias. Sustituye el sensor
 de problema, el interruptor general y el botón por los de tu dispositivo Climatización.
 

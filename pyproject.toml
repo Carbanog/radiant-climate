@@ -1,6 +1,6 @@
 [project]
 name = "radiant-climate"
-version = "0.2.8"
+version = "0.2.9"
 description = "Local heating and cooling thermostats for Home Assistant"
 requires-python = ">=3.12"
 license = "MIT"

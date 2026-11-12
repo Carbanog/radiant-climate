@@ -1,6 +1,32 @@
 # Cambios y actualización
 
 
+## v0.2.9 — recuperación automática de relés y diagnósticos
+
+Los fallos transitorios pueden recuperarse tras una orden de cierre aceptada y un
+informe posterior de `off`, con 60 segundos de estabilidad. Radiant Climate vuelve
+a evaluar la demanda y los bloqueos antes de abrir. Las recuperaciones repetidas
+se espacian 15 minutos. Las tandas de cierre tienen dos intentos separados por
+al menos 30 segundos. Si el cierre sigue pendiente, se protege el suministro
+compartido. La confirmación corresponde al estado comunicado por Home Assistant.
+
+- Los informes de atributos dejan de multiplicar una discrepancia de relé.
+- Climatización muestra las incidencias y las últimas 16 resoluciones. Los conflictos
+  repetidos y los fallos anteriores sin causa registrada requieren revisión. La
+  confirmación de retirada física admite salidas huérfanas sin asignar.
+- El diagnóstico hidráulico muestra la causa de invalidez por sonda, el último
+  informe y el umbral configurado. Solar distingue condiciones generales y uso por zona.
+- El estado del aprendizaje muestra calor, frío y criterios pendientes incluso con
+  la zona apagada. Se conservan horarios, perfiles y estadísticas.
+
+**Validación.** 158 pruebas del núcleo y 228 en cada Core 2026.10.4 y 2026.11.0,
+con dispositivos simulados. También pasan los controles de metadatos y privacidad.
+
+**Actualizar desde v0.2.8.** Conserva una copia recuperable, apaga Climatización,
+instala v0.2.9 y reinicia si HA lo solicita. Comprueba las salidas y el diagnóstico
+antes de reactivar. Conserva v0.2.8 para revertir. Los fallos heredados se conservan
+para su revisión. Consulta la guía de problemas y soluciones para identificarlos.
+
 ## v0.2.8 — aprendizaje con lecturas irregulares
 
 - Ventanas observadas de 30–90 minutos para aprender respuestas lentas en calor/frío.

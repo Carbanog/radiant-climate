@@ -164,9 +164,9 @@ Incluye versiones de HA e integración, pasos, resultado esperado, resultado obs
 Anonimiza nombres, entidades y preferencias que no quieras publicar. No adjuntes credenciales, exportaciones completas, copias de seguridad ni registros privados sin revisar. Una instantánea no sustituye un histórico cuando se evalúa inercia o confort.
 
 
-## Recuperación automática de relés en desarrollo
+## Recuperación automática de relés desde v0.2.9
 
-Cambios posteriores a v0.2.8. En **Climatización** puedes consultar `actuator_incidents`
+En **Climatización** puedes consultar `actuator_incidents`
 por salida y `recent_actuator_recoveries` para las últimas 16 resoluciones. La causa,
 la hora, la orden, el estado observado y los intentos se guardan localmente. La descarga
 de diagnósticos muestra causas y contadores sin identificadores de relés.

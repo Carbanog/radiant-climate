@@ -4,6 +4,7 @@ import asyncio
 import logging
 from collections import deque
 from collections.abc import Callable
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -90,6 +91,8 @@ class Installation:
         self.supply_mode = Mode.HEAT
         self.hub: str | None = None
         self._saved: dict = {}
+        self._setting_up: set[str] = set()
+        self.pending_isolation: tuple[str, ...] = ()
         self._store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.state")
         self._lock = asyncio.Lock()
         self._listeners: set[Callable] = set()
@@ -201,11 +204,33 @@ class Installation:
             self.enabled = False
             _LOGGER.error("Stored installation state is invalid; control remains disabled")
 
-    async def async_add(self, entry: ConfigEntry) -> None:
+    async def async_add(self, entry: ConfigEntry, *, platforms_pending: bool = False) -> None:
         async with self._lock:
             self._register(entry)
+            if platforms_pending:
+                self._setting_up.add(entry.entry_id)
             await self._apply()
             self._notify()
+
+    @callback
+    def async_finish_setup(self, entry_id: str) -> None:
+        self._setting_up.remove(entry_id)
+        self._request_update()
+
+    async def async_abort_setup(self, entry_id: str) -> None:
+        async with self._lock:
+            if entry_id not in self._setting_up:
+                return
+            try:
+                # While the entry is still present, reconcile its outputs closed.
+                await self._apply()
+            finally:
+                self._setting_up.remove(entry_id)
+                self.entries.pop(entry_id)
+                self.zones.pop(entry_id, None)
+                if self.hub == entry_id:
+                    self.hub = None
+                self._request_update()
 
     def _register(self, entry: ConfigEntry) -> None:
         data = {**entry.data, **entry.options}
@@ -521,7 +546,7 @@ class Installation:
                     state = self.hass.states.get(entity)
                     if state is None or state.state != "off":
                         return False
-        return self.hub is not None and expected <= self.entries.keys()
+        return self.hub is not None and not self._setting_up and expected <= self.entries.keys()
 
     @callback
     def _refresh_weather(self):
@@ -842,12 +867,13 @@ class Installation:
             plan[key] = z.decision.demand
         # First close zones that must not receive water. If that cannot be
         # confirmed at relay level, opening a shared supply is not allowed.
-        isolated = True
+        pending_isolation = []
         closing_wait = False
         for key, z in self.zones.items():
             if not plan[key]:
                 for e in z.config["actuators"]:
-                    isolated = await self._command(e, False) and isolated
+                    if not await self._command(e, False):
+                        pending_isolation.append(e)
                     state = self.hass.states.get(e)
                     if (
                         state is not None
@@ -855,12 +881,13 @@ class Installation:
                         and (now - state.last_changed).total_seconds()
                         < z.config.get("valve_travel", 0)
                     ):
-                        isolated = False
                         closing_wait = True
         if any(plan.values()) and revision != self._revision:
             self._request_update()
             return
         demand = any(plan.values()) and enabled
+        self.pending_isolation = tuple(sorted(pending_isolation)) if self.general and demand else ()
+        isolated = not pending_isolation and not closing_wait
         if self.general:
             inlet_healthy = self.general not in self._command_faults
             supply = await self._command(self.general, demand and isolated and inlet_healthy)
@@ -917,8 +944,9 @@ class Installation:
             del self.hass.data[DOMAIN]
 
     async def _save(self) -> None:
-        self._saved.update(
-            {
+        saved = {
+            **self._saved,
+            **{
                 k: {
                     **z.intent.dump(),
                     "program": z.program.dump(),
@@ -927,12 +955,12 @@ class Installation:
                     "learning_sensor": z.config["sensor"],
                 }
                 for k, z in self.zones.items()
-            }
-        )
+            },
+        }
         snapshot = {
             "enabled": self.enabled,
             "supply_mode": self.supply_mode.value,
-            "zones": self._saved,
+            "zones": saved,
             "command_faults": sorted(self._command_faults),
             "actuator_incidents": {
                 entity: incident.dump() for entity, incident in self._incidents.items()
@@ -955,6 +983,7 @@ class Installation:
         except (HomeAssistantError, OSError, asyncio.CancelledError):
             self._fault_dirty |= pending
             raise
+        self._saved = saved
 
     async def async_change(self, change: Callable) -> None:
         self._change_signal.set()
@@ -964,11 +993,56 @@ class Installation:
         ticket = self._change_requested
         async with self._lock:
             self._change_applied = ticket
+            entries = self.entries.copy()
+            supply = self.supply_mode, self._transition_until
+            zones = {
+                key: (
+                    deepcopy(z.intent),
+                    deepcopy(z.program),
+                    z.config,
+                    z.settings,
+                    z.window_enabled,
+                    deepcopy(z.intelligence.features),
+                    z.intelligence.model,
+                )
+                for key, z in self.zones.items()
+            }
+            faults = self._command_faults.copy()
+            incidents = self._incidents.copy()
+            recoveries = self.recent_recoveries.copy()
+            retired = self._retired.copy()
+            hardware_pending = self._hardware_pending.copy()
             change()
             try:
                 await self._save()
-            except (HomeAssistantError, OSError):
+            except (HomeAssistantError, OSError, asyncio.CancelledError):
                 self.enabled = False
+                self.entries = entries
+                self.supply_mode, self._transition_until = supply
+                for key, state in zones.items():
+                    z = self.zones[key]
+                    model_changed = z.intelligence.model is not state[-1]
+                    (
+                        z.intent,
+                        z.program,
+                        z.config,
+                        z.settings,
+                        z.window_enabled,
+                        z.intelligence.features,
+                        z.intelligence.model,
+                    ) = state
+                    if model_changed:
+                        z.intelligence.model.reset_period(dt_util.utcnow())
+                # A failed review cannot release outputs, and incidents raised
+                # during the write must survive. Never restore old close proofs.
+                for entity in faults - self._command_faults:
+                    if entity in incidents:
+                        self._incidents[entity] = incidents[entity]
+                    self._command_faults.add(entity)
+                self.recent_recoveries = recoveries
+                self._retired = {**retired, **self._retired}
+                self._hardware_pending = hardware_pending
+                self._fault_dirty = True
                 await self._apply()
                 self._notify()
                 raise

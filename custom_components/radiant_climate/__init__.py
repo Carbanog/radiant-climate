@@ -27,8 +27,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 manager.async_stop()
                 raise
             hass.data[DOMAIN] = manager
-    await manager.async_add(entry)
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    try:
+        await manager.async_add(entry, platforms_pending=True)
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    except (Exception, asyncio.CancelledError):
+        try:
+            await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+        finally:
+            await manager.async_abort_setup(entry.entry_id)
+        raise
+    manager.async_finish_setup(entry.entry_id)
     if entry.data["kind"] == "installation":
         async_setup_repairs(manager, entry)
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))

@@ -30,6 +30,7 @@ class CheckActuators(RadiantEntity, ButtonEntity):
             self.manager.actuator_faults
             or self.manager.retired_actuators
             or self.manager.unavailable_actuators
+            or self.manager.pending_isolation
         ):
             await self.manager.async_reconcile()
 

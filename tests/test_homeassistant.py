@@ -150,6 +150,77 @@ def global_entity(hass):
     return er.async_get(hass).async_get_entity_id("switch", DOMAIN, f"{manager.hub}_enabled")
 
 
+async def test_climate_temperature_api_preserves_public_state(house, caplog):
+    from homeassistant.components.climate import ClimateEntity
+
+    from custom_components.radiant_climate.climate import RadiantThermostat
+
+    _, climate = await add_zone(house)
+    await service(house, "climate", "set_temperature", climate, temperature=22.5, hvac_mode="heat")
+    await service(house, "climate", "set_preset_mode", climate, preset_mode="none")
+    attrs = house.states.get(climate).attributes
+    assert attrs["current_temperature"] == 19
+    assert attrs["temperature"] == 22.5
+    assert attrs["control_target"] == 22.5
+    legacy = {"_attr_temperature_unit", "current_temperature", "target_temperature"}
+    if hasattr(ClimateEntity, "native_temperature_unit"):
+        assert legacy.isdisjoint(RadiantThermostat.__dict__)
+        assert not any(
+            "deprecated" in record.getMessage().lower()
+            and "radiant_climate" in record.getMessage().lower()
+            for record in caplog.records
+        )
+    else:
+        assert legacy <= RadiantThermostat.__dict__.keys()
+
+
+async def test_zone_setup_failure_unloads_partial_platform_and_retries(house):
+    from unittest.mock import patch
+
+    from homeassistant.config_entries import ConfigEntryState
+    from homeassistant.const import Platform
+    from homeassistant.exceptions import ConfigEntryNotReady
+
+    manager = house.data[DOMAIN]
+    first, _ = await add_zone(house)
+    forward = house.config_entries.async_forward_entry_setups
+
+    async def fail_after_climate(entry, platforms):
+        await forward(entry, (Platform.CLIMATE,))
+        assert not manager.setup_ready
+        raise ConfigEntryNotReady("Simulated partial platform setup")
+
+    result = await house.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    with patch.object(
+        type(house.config_entries), "async_forward_entry_setups", side_effect=fail_after_climate
+    ):
+        result = await house.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                "sensor": "sensor.fixture_b",
+                "actuators": ["switch.fixture_b"],
+                "available_modes": "heat_cool",
+                "target": 21,
+            },
+        )
+        await house.async_block_till_done()
+    entry = result["result"]
+    assert entry.state == ConfigEntryState.SETUP_RETRY
+    assert set(manager.zones) == {first.entry_id}
+    assert entry.entry_id not in manager.entries
+    assert not manager.setup_ready
+
+    assert await house.config_entries.async_reload(entry.entry_id)
+    await settle(house)
+    assert entry.state == ConfigEntryState.LOADED
+    assert manager.setup_ready
+    assert set(manager.zones) == {first.entry_id, entry.entry_id}
+    climate = er.async_get(house).async_get_entity_id(
+        "climate", DOMAIN, f"{entry.entry_id}_thermostat"
+    )
+    assert house.states.get(climate).state == "off"
+
+
 async def test_basic_setup_is_off_and_requires_no_outdoor_or_weather(house):
     _, climate = await add_zone(house)
     assert house.states.get(climate).state == "off"
@@ -383,6 +454,30 @@ async def test_storage_failure_does_not_enable_outputs(house):
             await manager.async_enable(True)
     assert not manager.enabled
     assert house.states.get("switch.fixture_a").state == "off"
+
+
+async def test_failed_schedule_write_keeps_previous_program_and_closes_outputs(house):
+    from unittest.mock import patch
+
+    entry, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    await manager.async_edit_schedule(entry.entry_id, lambda p: p.set_blocks([0], 420, "home"))
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    assert house.states.get("switch.fixture_a").state == "on"
+    previous = manager.zones[entry.entry_id].program.dump()
+    with patch.object(manager._store, "async_save", side_effect=OSError("fixture storage failure")):
+        with pytest.raises(OSError, match="storage failure"):
+            await manager.async_edit_schedule(
+                entry.entry_id, lambda p: p.set_blocks([0], 420, "eco")
+            )
+    await settle(house)
+    assert manager.zones[entry.entry_id].program.dump() == previous
+    saved = await manager._store.async_load()
+    assert saved["zones"][entry.entry_id]["program"] == previous
+    assert saved["enabled"] is False
+    assert house.states.get("switch.fixture_a").state == "off"
+    assert house.states.get("switch.fixture_general").state == "off"
 
 
 async def test_window_unavailable_blocks_only_when_feature_enabled(house):
@@ -873,6 +968,48 @@ async def test_sustained_unknown_zone_output_blocks_shared_supply_then_recovers(
     await settle(house)
     assert house.states.get("switch.fixture_b").state == "on"
     assert house.states.get(problem).state == "off"
+
+
+async def test_pending_zone_close_is_visible_before_fault_is_latched(house):
+    from unittest.mock import patch
+
+    _, climate_a = await add_zone(house, "a")
+    _, climate_b = await add_zone(house, "b")
+    await service(house, "climate", "set_hvac_mode", climate_a, hvac_mode="heat")
+    await service(house, "climate", "set_hvac_mode", climate_b, hvac_mode="heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    assert house.states.get("switch.fixture_a").state == "on"
+    manager = house.data[DOMAIN]
+    problem = er.async_get(house).async_get_entity_id(
+        "binary_sensor", DOMAIN, f"{manager.hub}_actuator_problem"
+    )
+    call = house.services.async_call
+
+    async def delay_zone_close(domain, service_name, data=None, **kwargs):
+        if (domain, service_name, data) == (
+            "switch",
+            "turn_off",
+            {"entity_id": "switch.fixture_a"},
+        ):
+            return
+        return await call(domain, service_name, data, **kwargs)
+
+    with patch.object(type(house.services), "async_call", side_effect=delay_zone_close):
+        await service(house, "climate", "turn_off", climate_a)
+        state = house.states.get(problem)
+        assert state.state == "on"
+        assert state.attributes["pending_isolation"] == ["switch.fixture_a"]
+        assert state.attributes["affected_actuators"] == ["switch.fixture_a"]
+        assert state.attributes["shared_supply_blocked"]
+        assert not manager.actuator_faults
+        assert house.states.get("switch.fixture_general").state == "off"
+        assert house.states.get("switch.fixture_b").state == "off"
+        await call(
+            "input_boolean", "turn_off", {"entity_id": "input_boolean.fixture_a"}, blocking=True
+        )
+        await settle(house)
+    assert house.states.get(problem).state == "off"
+    assert house.states.get("switch.fixture_b").state == "on"
 
 
 async def test_forecast_failure_has_bounded_retry_without_blocking_control(house):

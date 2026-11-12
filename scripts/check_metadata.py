@@ -26,7 +26,12 @@ def main():
     displayed = re.search(r"\*\*Versión: v([^\s]+)\.\*\*", readme)
     assert displayed is not None, "README release version missing"
     assert declared == package == displayed[1] == version, "Release versions disagree"
-    print("Manifest, constants, package and README versions agree.")
+    installation = (ROOT / "docs/installation.md").read_text(encoding="utf-8")
+    assert "https://github.com/Carbanog/radiant-climate/releases/latest" in installation, (
+        "The installation guide must point to the latest stable release"
+    )
+    assert not re.search(r"selecciona `v[\d.]+`", installation), "Pinned installation version"
+    print("Release versions agree and the installation guide links to the latest release.")
 
 
 if __name__ == "__main__":

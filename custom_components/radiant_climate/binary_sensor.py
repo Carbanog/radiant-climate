@@ -29,6 +29,7 @@ class ActuatorProblem(RadiantEntity, BinarySensorEntity):
             self.manager.actuator_faults
             or self.manager.retired_actuators
             or self.manager.unavailable_actuators
+            or self.manager.pending_isolation
         )
 
     @property
@@ -36,11 +37,15 @@ class ActuatorProblem(RadiantEntity, BinarySensorEntity):
         manager = self.manager
         unavailable = manager.unavailable_actuators
         incidents = manager.actuator_incidents
-        affected = set(unavailable) | incidents.keys() | set(manager.retired_actuators)
+        pending = manager.pending_isolation
+        affected = (
+            set(unavailable) | incidents.keys() | set(manager.retired_actuators) | set(pending)
+        )
         return {
             "fault_count": len(incidents),
             "retired_count": len(manager.retired_actuators),
             "unavailable_actuators": list(unavailable),
+            "pending_isolation": list(pending),
             "affected_actuators": sorted(affected),
             "shared_supply_blocked": bool(
                 manager.enabled
@@ -48,6 +53,7 @@ class ActuatorProblem(RadiantEntity, BinarySensorEntity):
                 and (
                     manager.retired_actuators
                     or unavailable
+                    or pending
                     or manager.general in incidents
                     or any(
                         item["recovery"] == "automatic" and not item["close_verified"]

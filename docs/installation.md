@@ -1,6 +1,6 @@
 # Instalación, piloto y reversión
 
-La release v0.2.5 incluye las correcciones y pruebas descritas en las notas de versión. Su publicación no configura los actuadores domésticos. Conserva una copia recuperable y el commit exacto. Detén y deshabilita los controladores anteriores **antes de asignar sus relés** a Radiant Climate, incluida la válvula general.
+Conserva una copia recuperable y el commit exacto de la versión instalada. Detén y deshabilita los controladores anteriores **antes de asignar sus relés** a Radiant Climate, incluida la válvula general.
 
 **Apagado es una orden de cierre, no un modo pasivo de observación.** Una vez
 asignada una salida, Radiant Climate puede solicitar apagarla aunque Climatización
@@ -11,7 +11,7 @@ configurarlas sí. No prepares en paralelo dos controladores sobre relés reales
 
 1. En el HA donde vayas a instalar, crea una copia completa y comprueba que aparece con contenido de Home Assistant y opción de restauración. No envíes esa copia a un repositorio público.
 2. En HA 2026.11 o posterior, abre Configuración → Marketplace → Añadir desde enlace e introduce `https://github.com/Carbanog/radiant-climate`. En 2026.10 y anteriores, utiliza HACS → Repositorios personalizados, categoría Integración. No reinstales HACS en 2026.11: Marketplace lo sustituye.
-3. Busca Radiant Climate y selecciona `v0.2.5`, sin necesidad de mostrar versiones preliminares. Registra versión y commit. Main es una rama mutable: no uses su estado futuro como sustituto de una versión identificada.
+3. Busca Radiant Climate y selecciona la [última release estable](https://github.com/Carbanog/radiant-climate/releases/latest). Registra la versión y el commit que instalas.
 4. En Marketplace 2026.11 una instalación nueva abre directamente el asistente de configuración, sin reinicio intermedio. Las actualizaciones todavía pueden requerir reiniciar según el aviso de HA. Con HACS antiguo, reinicia ese HA y utiliza Dispositivos y servicios → Añadir integración. No actualices Core como parte de este procedimiento.
 5. La primera pantalla, «Configuración general», configura el sistema compartido. En beta.1 se llamaba «Instalación». La válvula general es opcional; puede dejarse vacía y configurarse después. Para el ensayo selecciona únicamente una salida simulada.
 6. Añade otra entrada por termostato. Elige sensor interior, relés, modos y consigna; conserva Climatización y las zonas apagadas hasta revisar las asignaciones.

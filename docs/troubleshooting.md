@@ -85,14 +85,10 @@ Un fallo interior detiene solo su zona cuando sus actuadores pueden aislarla. Co
 
 Busca automatizaciones anteriores, otra integración, mandos físicos o el comportamiento al volver la alimentación. Las discrepancias repetidas se enclavan para evitar una competencia ilimitada de órdenes. El diagnóstico no atribuye el cambio a una persona sin evidencia.
 
-Desde v0.2.2, apagar **Climatización** conserva los fallos enclavados. Después de corregir la causa y confirmar apagado comunicado, utiliza **Reconocer fallos de relés tras revisión** antes de reactivar. Consulta el procedimiento de [configuración](configuration.md#fiabilidad-y-recuperación-desde-v022). Un corte de red o de alimentación puede impedir cualquier orden software; no se promete cierre físico.
-
-Desde v0.2.5, **Revisión de relés pendiente** permite ver estos estados en el
-panel y Reparaciones presenta el procedimiento. La acción de reconocimiento
-ofrece un selector; dejar **Relés con fallo** vacío selecciona todos los fallos
-revisados. No necesitas escribir sus identificadores. Confirmar una salida
-retirada y desconectada físicamente sigue siendo una acción separada. Descartar
-el aviso no rearma ni habilita control.
+Consulta la salida afectada en **Revisión de relés pendiente**. La integración
+comprueba el cierre y se recupera automáticamente cuando recibe confirmación.
+Puedes pulsar **Volver a comprobar** desde el panel. Apagar **Climatización**
+conserva el diagnóstico y permite revisar la causa con el control desactivado.
 
 La detección observa discrepancias de estado, no sabe si alguien pulsó un botón.
 Dos discrepancias contrarias al plan en cinco minutos pueden enclavar un fallo;
@@ -164,14 +160,15 @@ Incluye versiones de HA e integración, pasos, resultado esperado, resultado obs
 Anonimiza nombres, entidades y preferencias que no quieras publicar. No adjuntes credenciales, exportaciones completas, copias de seguridad ni registros privados sin revisar. Una instantánea no sustituye un histórico cuando se evalúa inercia o confort.
 
 
-## Recuperación automática de relés desde v0.2.9
+## Recuperación automática de relés
 
 En **Climatización** puedes consultar `actuator_incidents`
 por salida y `recent_actuator_recoveries` para las últimas 16 resoluciones. La causa,
 la hora, la orden, el estado observado y los intentos se guardan localmente. La descarga
 de diagnósticos muestra causas y contadores sin identificadores de relés.
 
-Un error de orden, un timeout o una orden no confirmada pasan a verificación de cierre.
+Los errores de orden, los timeouts, las discrepancias repetidas y los fallos
+heredados de relés asignados pasan a verificación de cierre.
 Se envía un cierre y se espera una transición a `off` o un nuevo informe idéntico de
 `off` posterior a esa orden. Una mera actualización de atributos no acredita el cierre.
 El plan mantiene cerrado el suministro compartido si no puede aislar esa salida.
@@ -182,12 +179,15 @@ Los cierres se limitan a dos intentos separados por 30 segundos por tanda. Si no
 confirmación, otra tanda solo es posible tras 15 minutos desde el último intento.
 Tras reiniciar se conserva el presupuesto y se exige comprobar el cierre de nuevo.
 
-La integración observa estados de HA. Un relé que no publique confirmación puede seguir
-pendiente de revisión. En v0.2.9, las discrepancias repetidas y los fallos antiguos sin causa
-registrada requerían reconocimiento. Desde v0.2.10 se verifica su cierre automáticamente. Revisa el relé concreto en **Reconocer fallos de
-relés tras revisión**. El resultado indica qué salida no cumple la condición. La acción
-**Confirmar retirada física** permite resolver también un fallo huérfano de una salida
-sin asignar, tras comprobar su desconexión real y apagar Climatización.
+Si el relé sigue sin publicar confirmación, consulta **Revisión de relés pendiente**
+y revisa su conectividad y estado. **Volver a comprobar** ejecuta otra revisión
+del plan respetando el límite de intentos. El aviso identifica también la salida
+cuyo cierre está pendiente cuando otra zona solicita suministro compartido.
+
+Para mantenimiento, **Reconocer fallos de relés tras revisión** permite elegir
+salidas que ya comunican apagado con **Climatización** desactivada. Usa
+**Confirmar retirada física** para una salida retirada o sin asignar solo
+después de comprobar su desconexión real y apagar Climatización.
 
 ### Otras causas de diagnóstico
 
@@ -198,18 +198,3 @@ sin asignar, tras comprobar su desconexión real y apagar Climatización.
   entorno de la vivienda.
 - Aprendizaje. **Estado del aprendizaje térmico** conserva los datos de calor y frío a
   la vista al apagar la zona. Sus atributos indican qué criterios faltan y si recopila.
-
-
-## Recuperación de cualquier fallo asignado desde v0.2.10
-
-Un bloqueo repetido o heredado de un relé que sigue
-asignado usa la misma comprobación de cierre y los mismos tiempos que un fallo
-transitorio. La orden de cierre y el informe posterior siguen siendo necesarios.
-La recuperación conserva la intención de cada zona y los bloqueos vigentes.
-Una salida sin asignar o retirada sigue el procedimiento de mantenimiento.
-
-**Volver a comprobar** ejecuta una revisión del plan sin cambiar modos ni limpiar
-los fallos. El mismo límite de intentos se aplica si se pulsa varias veces. El
-panel muestra las salidas afectadas y, si está disponible, la hora a partir de la
-cual puede reintentarse o reanudarse el control. La integración también indica una
-salida indisponible aunque todavía no se haya registrado un bloqueo.

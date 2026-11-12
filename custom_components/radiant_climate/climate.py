@@ -20,7 +20,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 class RadiantThermostat(RadiantEntity, ClimateEntity):
     _attr_name = None
-    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_target_temperature_step = 0.1
     _attr_min_temp = 5
     _attr_max_temp = 40
@@ -55,15 +55,21 @@ class RadiantThermostat(RadiantEntity, ClimateEntity):
         return HVACAction.IDLE
 
     @property
-    def current_temperature(self):
+    def native_current_temperature(self):
         sensor = self.hass.states.get(self.zone.config["sensor"])
         return indoor_temperature(sensor)
 
     @property
-    def target_temperature(self):
+    def native_target_temperature(self):
         return self.zone.program.target(
             self.zone.intent, dt_util.utcnow(), self.hass.config.time_zone
         )
+
+    # Core 2026.10 still reads the legacy properties.
+    if not hasattr(ClimateEntity, "native_temperature_unit"):
+        _attr_temperature_unit = _attr_native_temperature_unit
+        current_temperature = native_current_temperature
+        target_temperature = native_target_temperature
 
     @property
     def preset_modes(self):
@@ -88,7 +94,7 @@ class RadiantThermostat(RadiantEntity, ClimateEntity):
             now = dt_util.utcnow()
             mode = z.intent.last_mode if z.intent.mode == Mode.OFF else z.intent.mode
             value = (
-                self.target_temperature
+                self.native_target_temperature
                 if preset_mode == "none"
                 else z.program.profiles[mode.value][preset_mode]
             )
@@ -125,7 +131,7 @@ class RadiantThermostat(RadiantEntity, ClimateEntity):
             "reason": self.zone.decision.reason if self.zone.decision else "not_ready",
             "control_target": self.zone.decision.target
             if self.zone.decision
-            else self.target_temperature,
+            else self.native_target_temperature,
             "vacation_until": self.zone.program.away_until.isoformat()
             if self.zone.program.away_until
             else None,

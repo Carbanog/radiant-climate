@@ -480,6 +480,35 @@ async def test_failed_schedule_write_keeps_previous_program_and_closes_outputs(h
     assert house.states.get("switch.fixture_general").state == "off"
 
 
+async def test_failed_unload_journal_closes_outputs_and_prevents_reopening(house, caplog):
+    from unittest.mock import patch
+
+    from homeassistant.config_entries import ConfigEntryState
+
+    entry, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    assert house.states.get("switch.fixture_a").state == "on"
+    with patch.object(manager._store, "async_save", side_effect=OSError("fixture journal failure")):
+        # Pause automatic retries so the test checks the unload failure path itself.
+        with patch.object(manager, "_request_update"):
+            assert not await house.config_entries.async_unload(entry.entry_id)
+    assert entry.state == ConfigEntryState.FAILED_UNLOAD
+    assert entry.entry_id in manager.entries
+    assert not manager.enabled
+    assert house.states.get("switch.fixture_a").state == "off"
+    assert house.states.get("switch.fixture_general").state == "off"
+    assert any("Error unloading entry" in record.getMessage() for record in caplog.records)
+    caplog.clear()
+
+    await manager.async_enable(True)
+    await settle(house)
+    assert not manager.setup_ready
+    assert house.states.get("switch.fixture_general").state == "off"
+    assert house.states.get("switch.fixture_a").state == "off"
+
+
 async def test_window_unavailable_blocks_only_when_feature_enabled(house):
     entry, climate = await add_zone(house)
     house.states.async_set("binary_sensor.fixture_window", "unavailable")
@@ -2221,7 +2250,7 @@ async def test_queued_season_changes_keep_the_last_explicit_choice(house):
         manager._lock.release()
     await asyncio.gather(cooling, heating)
     assert manager.supply_mode.value == "heat"
-    assert not manager._stop_requested
+    assert not manager.stop_requested
     assert house.states.get("switch.fixture_general").state == "off"
 
 
@@ -2244,6 +2273,38 @@ async def test_queued_turn_on_uses_the_current_declared_season(house):
     assert manager.zones[entry.entry_id].intent.mode.value == "cool"
     assert not manager.enabled
     assert house.states.get("switch.fixture_a").state == "off"
+
+
+@pytest.mark.parametrize("command", ["schedule", "season"])
+async def test_cancelled_queued_change_does_not_leave_control_blocked(house, command):
+    import asyncio
+
+    entry, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    house.states.async_set("sensor.fixture_a", "24", {"unit_of_measurement": "°C"})
+    await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await manager.async_enable(True)
+    assert house.states.get("switch.fixture_general").state == "off"
+    async with manager._lock:
+        waiting = house.async_create_task(
+            manager.async_supply("cool")
+            if command == "season"
+            else manager.async_edit_schedule(entry.entry_id, lambda p: p.set_blocks([0], 0, "home"))
+        )
+        await asyncio.sleep(0)
+        assert manager.stop_requested == (command == "season")
+        waiting.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await waiting
+
+    house.states.async_set("sensor.fixture_a", "19", {"unit_of_measurement": "°C"})
+    await settle(house)
+    assert manager.enabled
+    assert not manager.stop_requested
+    assert manager.supply_mode.value == "heat"
+    assert not manager.zones[entry.entry_id].program.blocks
+    assert house.states.get("switch.fixture_general").state == "on"
+    assert house.states.get("switch.fixture_a").state == "on"
 
 
 async def test_queued_resume_rechecks_away_before_enabling_schedule(house):
@@ -2599,7 +2660,7 @@ async def test_cancelled_global_off_waiting_for_lock_still_completes_and_persist
         off = house.async_create_task(manager.async_enable(False))
         await asyncio.sleep(0)
         await asyncio.sleep(0)
-        assert manager._stop_requested
+        assert manager.stop_requested
         off.cancel()
         with pytest.raises(asyncio.CancelledError):
             await off
@@ -2608,7 +2669,7 @@ async def test_cancelled_global_off_waiting_for_lock_still_completes_and_persist
     await house.async_block_till_done()
     await settle(house)
     assert not manager.enabled
-    assert not manager._stop_requested
+    assert not manager.stop_requested
     assert not (await manager._store.async_load())["enabled"]
     assert house.states.get("switch.fixture_a").state == "off"
     assert house.states.get("switch.fixture_general").state == "off"
@@ -2702,7 +2763,7 @@ async def test_cancelled_off_does_not_override_a_later_explicit_on(house):
     await on
     await house.async_block_till_done()
     assert manager.enabled
-    assert not manager._stop_requested
+    assert not manager.stop_requested
     await manager.async_enable(False)
 
 

@@ -4,11 +4,12 @@ import asyncio
 import logging
 from collections import deque
 from collections.abc import Callable
+from contextlib import asynccontextmanager
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import (
     EVENT_HOMEASSISTANT_STARTED,
     EVENT_HOMEASSISTANT_STOP,
@@ -109,9 +110,8 @@ class Installation:
         self._close_probe: dict[str, datetime] = {}
         self._retired: dict[str, float] = {}
         self._hardware_pending: dict[str, set[str]] = {}
-        self._stop_requested = False
-        self._change_requested = 0
-        self._change_applied = 0
+        self._queued_changes = 0
+        self._queued_stops = 0
         self._desired: dict[str, bool] = {}
         self._deviations: dict[str, list] = {}
         self._deviation_active: dict[str, bool] = {}
@@ -325,7 +325,16 @@ class Installation:
                 self.enabled = False
             # Write-ahead record: a stop/cancellation during the first close must
             # not lose ownership of an output no longer present in config entries.
-            await self._save()
+            try:
+                await self._save()
+            except (HomeAssistantError, OSError, asyncio.CancelledError):
+                # Keep ownership when the journal cannot be committed, but
+                # close now even if Core has already removed the entities.
+                self.enabled = False
+                self._fault_dirty = True
+                await self._apply()
+                self._notify()
+                raise
             self.zones.pop(entry_id, None)
             if zone:
                 for entity in zone.config["actuators"]:
@@ -528,7 +537,7 @@ class Installation:
 
     @property
     def stop_requested(self) -> bool:
-        return self._stop_requested
+        return self._queued_stops > 0
 
     @property
     def setup_ready(self) -> bool:
@@ -541,6 +550,8 @@ class Installation:
         all_entries = self.hass.config_entries.async_entries(DOMAIN)
         expected = {e.entry_id for e in all_entries if e.disabled_by is None}
         for entry in all_entries:
+            if entry.state == ConfigEntryState.FAILED_UNLOAD:
+                return False
             if entry.disabled_by is not None:
                 for entity in {**entry.data, **entry.options}.get("actuators", []):
                     state = self.hass.states.get(entity)
@@ -689,11 +700,7 @@ class Installation:
         if self._desired.get(entity) is not wanted:
             self._deviation_active.pop(entity, None)
         self._desired[entity] = wanted
-        if wanted and (
-            entity in self._command_faults
-            or self._stop_requested
-            or self._change_requested != self._change_applied
-        ):
+        if wanted and (self._closed or entity in self._command_faults or self._queued_changes):
             return False
         state = self.hass.states.get(entity)
         if state is None or state.state not in ("on", "off"):
@@ -822,7 +829,8 @@ class Installation:
                     self._clear_fault(entity, "retired_closed")
         enabled = (
             self.enabled
-            and not self._stop_requested
+            and not self._closed
+            and not self.stop_requested
             and not self._retired
             and self._ready()
             and self.hass.is_running
@@ -985,14 +993,31 @@ class Installation:
             raise
         self._saved = saved
 
-    async def async_change(self, change: Callable) -> None:
+    @asynccontextmanager
+    async def _lock_change(self, stop: bool):
+        # A cancelled waiter must release its opening veto without clearing the
+        # veto of any other user command still waiting to acquire the lock.
+        self._queued_changes += 1
+        self._queued_stops += stop
+        try:
+            try:
+                await self._lock.acquire()
+            finally:
+                self._queued_changes -= 1
+                self._queued_stops -= stop
+            try:
+                yield
+            finally:
+                self._lock.release()
+        except asyncio.CancelledError:
+            self._request_update()
+            raise
+
+    async def async_change(self, change: Callable, *, stop: bool = False) -> None:
         self._change_signal.set()
         self._change_signal = asyncio.Event()
         self._revision += 1
-        self._change_requested += 1
-        ticket = self._change_requested
-        async with self._lock:
-            self._change_applied = ticket
+        async with self._lock_change(stop):
             entries = self.entries.copy()
             supply = self.supply_mode, self._transition_until
             zones = {
@@ -1053,21 +1078,17 @@ class Installation:
             self._notify()
 
     async def async_enable(self, value: bool) -> None:
-        if not value:
-            self._stop_requested = True
-
         def update():
             self.enabled = value
-            self._stop_requested = False
 
         if value:
             await self.async_change(update)
         else:
             # An accepted Off must finish/persist even if the service caller
             # disconnects while waiting for a lock or a physical command.
-            # Eager start registers its queue ticket before another user action.
+            # Eager start queues the stop before another user action.
             task = self.hass.async_create_task(
-                self.async_change(update),
+                self.async_change(update, stop=True),
                 name="Radiant Climate accepted global off",
                 eager_start=True,
             )
@@ -1218,12 +1239,10 @@ class Installation:
         mode = Mode(value)
         if mode == Mode.OFF:
             raise ValueError("Supply mode must be heating or cooling")
-        if mode == self.supply_mode and self._change_requested == self._change_applied:
+        if mode == self.supply_mode and not self._queued_changes:
             return
-        self._stop_requested = True
 
         def update():
-            self._stop_requested = False
             if mode == self.supply_mode:
                 return
             self.supply_mode = mode
@@ -1243,7 +1262,7 @@ class Installation:
                 if z.intent.mode != Mode.OFF and mode in z.settings.modes:
                     z.intent.set_mode(mode, z.settings)
 
-        await self.async_change(update)
+        await self.async_change(update, stop=True)
 
     @callback
     def async_stop(self) -> None:

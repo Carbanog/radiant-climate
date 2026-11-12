@@ -985,14 +985,14 @@ async def test_pending_zone_close_is_visible_before_fault_is_latched(house):
     )
     call = house.services.async_call
 
-    async def delay_zone_close(domain, service_name, data=None, **kwargs):
-        if (domain, service_name, data) == (
+    async def delay_zone_close(domain, service, service_data=None, **kwargs):
+        if (domain, service, service_data) == (
             "switch",
             "turn_off",
             {"entity_id": "switch.fixture_a"},
         ):
             return
-        return await call(domain, service_name, data, **kwargs)
+        return await call(domain, service, service_data, **kwargs)
 
     with patch.object(type(house.services), "async_call", side_effect=delay_zone_close):
         await service(house, "climate", "turn_off", climate_a)

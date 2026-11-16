@@ -32,6 +32,7 @@ from .storage import InstallationStorage
 
 _LOGGER = logging.getLogger(__name__)
 COMMAND_TIMEOUT = 5
+CLOSE_CONFIRMATION_GRACE = 1
 RECOVERY_COOLDOWN = 900
 RECOVERY_STABLE = 60
 TRANSIENT_FAULTS = {"command_timeout", "command_error", "command_unconfirmed"}
@@ -720,7 +721,9 @@ class Installation:
                 # on the next tick or state event with control disabled.
                 return
 
-    async def _command(self, entity: str, wanted: bool) -> bool:
+    async def _command(
+        self, entity: str, wanted: bool, *, close_deadline: float | None = None
+    ) -> bool:
         if self._desired.get(entity) is not wanted:
             self._deviation_active.pop(entity, None)
         self._desired[entity] = wanted
@@ -761,6 +764,8 @@ class Installation:
         self._last_command[entity] = (wanted, now)
         confirmed = asyncio.Event()
         interrupted = self._change_signal
+        expected = "on" if wanted else "off"
+        wait_for_report = wanted or (close_deadline is not None and not verifying)
 
         @callback
         def reported(event):
@@ -769,12 +774,14 @@ class Installation:
                 if (
                     current is None
                     or current.state not in ("on", "off")
-                    or current.state == ("on" if wanted else "off")
+                    or current.state == expected
                 ):
                     confirmed.set()
 
         unsubscribe = (
-            self.hass.bus.async_listen(EVENT_STATE_CHANGED, reported) if wanted else lambda: None
+            self.hass.bus.async_listen(EVENT_STATE_CHANGED, reported)
+            if wait_for_report
+            else lambda: None
         )
         try:
             async with asyncio.timeout(COMMAND_TIMEOUT):
@@ -785,7 +792,7 @@ class Installation:
                     blocking=True,
                 )
                 state = self.hass.states.get(entity)
-                if wanted and (state is None or state.state != "on"):
+                if wait_for_report and (state is None or state.state != expected):
                     # An accepted service is not an acknowledgement. Allow a
                     # short radio delay within the same five-second I/O budget,
                     # while permitting queued user changes to cancel the wait.
@@ -794,7 +801,13 @@ class Installation:
                         asyncio.create_task(interrupted.wait()),
                     ]
                     try:
-                        await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                        await asyncio.wait(
+                            tasks,
+                            timeout=None
+                            if wanted
+                            else max(0, close_deadline - self.hass.loop.time()),
+                            return_when=asyncio.FIRST_COMPLETED,
+                        )
                     finally:
                         for task in tasks:
                             task.cancel()
@@ -817,7 +830,7 @@ class Installation:
         if verifying:
             self._close_probe[entity] = now
             return self._verified_close(entity, state)
-        return state is not None and state.state == ("on" if wanted else "off")
+        return state is not None and state.state == expected
 
     async def _abort_open(self, zone: Zone | None = None) -> None:
         """Compensate a failed opening in this pass, without waiting for a tick."""
@@ -907,10 +920,35 @@ class Installation:
         # confirmed at relay level, opening a shared supply is not allowed.
         pending_isolation = []
         closing_wait = False
+        demand = any(plan.values()) and enabled
+        general_state = self.hass.states.get(self.general) if self.general else None
+        continuing = set()
+        if (
+            demand
+            and general_state is not None
+            and general_state.state == "on"
+            and self.general not in self._command_faults
+        ):
+            continuing = {
+                key
+                for key, zone in self.zones.items()
+                if plan[key]
+                and all(
+                    (state := self.hass.states.get(entity)) is not None and state.state == "on"
+                    for entity in zone.config["actuators"]
+                )
+            }
+        close_deadline = self.hass.loop.time() + CLOSE_CONFIRMATION_GRACE
         for key, z in self.zones.items():
             if not plan[key]:
                 for e in z.config["actuators"]:
-                    if not await self._command(e, False):
+                    normal_close = continuing and z.decision.reason in ("zone_off", "satisfied")
+                    confirmed = (
+                        await self._command(e, False, close_deadline=close_deadline)
+                        if normal_close
+                        else await self._command(e, False)
+                    )
+                    if not confirmed:
                         pending_isolation.append(e)
                     state = self.hass.states.get(e)
                     travel = z.config.get("valve_travel", 0)
@@ -924,29 +962,18 @@ class Installation:
         if any(plan.values()) and revision != self._revision:
             self._request_update()
             return
-        demand = any(plan.values()) and enabled
         self.pending_isolation = tuple(sorted(pending_isolation)) if self.general and demand else ()
-        continuing = set()
         if self.general:
             inlet_healthy = self.general not in self._command_faults
             general_state = self.hass.states.get(self.general)
-            if closing_wait and general_state is not None and general_state.state == "on":
-                # With the closing relay reported off, keep circuits already
-                # receiving water running. New circuits wait for estimated travel.
-                continuing = {
-                    key
-                    for key, zone in self.zones.items()
-                    if plan[key]
-                    and all(
-                        (state := self.hass.states.get(entity)) is not None and state.state == "on"
-                        for entity in zone.config["actuators"]
-                    )
-                }
+            general_on = general_state is not None and general_state.state == "on"
+            # After the closing relay reports off, existing circuits can keep
+            # receiving water. New circuits wait for the estimated travel.
             wanted_supply = (
                 demand
                 and not pending_isolation
                 and inlet_healthy
-                and (not closing_wait or bool(continuing))
+                and (not closing_wait or (general_on and bool(continuing)))
             )
             supply = await self._command(self.general, wanted_supply)
             if wanted_supply and self.general in self._command_faults:

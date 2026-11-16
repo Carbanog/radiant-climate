@@ -1214,8 +1214,13 @@ async def test_pending_zone_close_is_visible_before_fault_is_latched(house):
     assert house.states.get("switch.fixture_b").state == "on"
 
 
-@pytest.mark.parametrize("stop", ["off", "resume", "satisfied"])
-async def test_zone_confirmed_off_does_not_interrupt_other_active_zone(house, stop):
+@pytest.mark.parametrize(
+    ("stop", "late"), [("off", False), ("resume", False), ("satisfied", False), ("resume", True)]
+)
+async def test_zone_confirmed_off_does_not_interrupt_other_active_zone(house, stop, late):
+    import asyncio
+    from unittest.mock import patch
+
     entry, climate_a = await add_zone(house, "a")
     _, climate_b = await add_zone(house, "b")
     manager = house.data[DOMAIN]
@@ -1235,14 +1240,32 @@ async def test_zone_confirmed_off_does_not_interrupt_other_active_zone(house, st
     before = {
         name: house.states.get(f"switch.fixture_{name}").last_changed for name in ("b", "general")
     }
-    if stop == "off":
-        await service(house, "climate", "turn_off", climate_a)
-    elif stop == "resume":
-        await service(house, "button", "press", zone_entity(house, entry, "button", "resume"))
-        assert house.states.get(climate_a).attributes["control_state"] == "scheduled"
-    else:
-        house.states.async_set("sensor.fixture_a", "23", {"unit_of_measurement": "°C"})
-        await settle(house)
+    call = house.services.async_call
+
+    async def delayed_switch(domain, service, service_data=None, **kwargs):
+        if late and (domain, service, service_data) == (
+            "switch",
+            "turn_off",
+            {"entity_id": "switch.fixture_a"},
+        ):
+
+            async def report():
+                await asyncio.sleep(0.02)
+                await call(domain, service, service_data, **kwargs)
+
+            house.async_create_task(report())
+            return
+        return await call(domain, service, service_data, **kwargs)
+
+    with patch.object(type(house.services), "async_call", side_effect=delayed_switch):
+        if stop == "off":
+            await service(house, "climate", "turn_off", climate_a)
+        elif stop == "resume":
+            await service(house, "button", "press", zone_entity(house, entry, "button", "resume"))
+            assert house.states.get(climate_a).attributes["control_state"] == "scheduled"
+        else:
+            house.states.async_set("sensor.fixture_a", "23", {"unit_of_measurement": "°C"})
+            await settle(house)
     assert house.states.get("switch.fixture_a").state == "off"
     for name, unchanged in before.items():
         state = house.states.get(f"switch.fixture_{name}")

@@ -124,9 +124,9 @@ Revisa el nombre y asigna el área desde HA. Repite para cada zona. Varios relé
 
 ### C. Revisar antes de encender
 
-En **Configurar → Dispositivos y regulación** de cada zona revisa contacto de ventana, histéresis, mínimos activo/inactivo y antigüedad máxima del dato interior. Ajusta los tiempos a tus dispositivos: los valores iniciales no son una recomendación universal.
+En **Configurar → Dispositivos y regulación** de cada zona revisa contacto de ventana, histéresis y mínimos activo/inactivo. Ajusta los tiempos a tus dispositivos.
 
-La caducidad usa el último informe registrado por HA, no el último cambio de valor. Una temperatura constante no demuestra que el sensor esté comunicando. [Detalles sobre sensores y caducidad](docs/configuration.md#caducidad-y-sensores-mqtt).
+La regulación utiliza la última temperatura válida mientras el sensor esté disponible. [Disponibilidad del sensor interior](docs/configuration.md#disponibilidad-del-sensor-interior).
 
 **La instalación y las zonas empiezan apagadas.** Tras revisar la configuración, selecciona un modo en la zona y activa **Climatización**. Observa **Motivo de regulación** y los estados comunicados de las salidas.
 
@@ -210,8 +210,7 @@ Después activa únicamente los controles que necesites en el dispositivo de cad
 
 El aprendizaje no se desactiva automáticamente al alcanzar calidad: continúa observando mientras esté habilitado. Puedes desactivarlo conservando el modelo o usar **Restablecer aprendizaje térmico** para borrarlo. No se garantiza un modelo válido tras un número fijo de días.
 
-> **Desde v0.2.8:** el aprendizaje admite lecturas irregulares, sin ampliar la
-> caducidad de seguridad ni inventar muestras. Consulta sus [límites y diagnósticos](docs/intelligence.md#lecturas-irregulares-desde-v028).
+> El aprendizaje admite lecturas irregulares. Consulta sus [límites y diagnósticos](docs/intelligence.md#lecturas-irregulares-desde-v028).
 
 Puedes aplicar módulos a varias zonas con **Copiar ajustes**. No copia relés, sensores, orientación ni modelos aprendidos. [Cómo funcionan los algoritmos](docs/intelligence.md) · [Qué observar para ajustarlos](docs/tuning.md).
 
@@ -278,7 +277,7 @@ Selecciona tus entidades reales desde el editor visual; sus identificadores depe
 |---|---|
 | No calienta o enfría | Climatización y zona encendidas, temporada compatible y Motivo de regulación |
 | Espera para volver a abrir | Tiempo mínimo inactivo y secuencia de la general |
-| Un sensor aparece caducado | Últimos informes y margen configurado; no basta con que el valor parezca razonable |
+| Un sensor aparece indisponible | Comprueba la conexión y disponibilidad en su integración de origen |
 | Falla meteo o exterior | Fuente y módulo; la regulación interior continúa si sus entradas son válidas |
 | Solar no actúa | Observación no actúa; revisa confirmación, geometría, tendencia y requisitos del adelanto |
 | No anticipa el horario | Agenda activa, siguiente perfil más exigente y modelo utilizable |

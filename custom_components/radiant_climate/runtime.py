@@ -269,7 +269,6 @@ class Installation:
                 hysteresis=data.get("hysteresis", 0.2),
                 minimum_on=data.get("minimum_on", 180),
                 minimum_off=data.get("minimum_off", 180),
-                stale_after=data.get("stale_after", 3600),
             )
             intent = Intent(last_mode=modes[0])
             program = Program()
@@ -402,9 +401,7 @@ class Installation:
                 zone.settings = Settings(
                     modes=tuple(Mode(m) for m in data["modes"]),
                     **{
-                        k: data[k]
-                        for k in ("hysteresis", "minimum_on", "minimum_off", "stale_after")
-                        if k in data
+                        k: data[k] for k in ("hysteresis", "minimum_on", "minimum_off") if k in data
                     },
                 )
             self._normalise_solar_confirmations()
@@ -419,6 +416,15 @@ class Installation:
     @property
     def actuator_faults(self) -> tuple[str, ...]:
         return tuple(sorted(self._command_faults))
+
+    @property
+    def reviewable_actuators(self) -> dict[str, str]:
+        assigned = self._assigned_outputs()
+        return {
+            entity: "fault" if entity in assigned else "retired"
+            for entity in sorted(self._command_faults | self._retired.keys())
+            if entity not in assigned or entity not in self._retired
+        }
 
     @property
     def unavailable_actuators(self):
@@ -1152,13 +1158,17 @@ class Installation:
             )
             await asyncio.shield(task)
 
-    async def async_reset_actuator_faults(self, entities: list[str]) -> None:
+    async def async_reset_actuator_faults(
+        self, entities: list[str], *, assigned_only: bool = False
+    ) -> None:
         def update():
             if self.enabled:
                 raise ValueError("Switch off the installation before reviewing actuator faults")
             selected = set(entities) if entities else set(self._command_faults)
             if not selected <= self._command_faults:
                 raise ValueError("Select only actuators with a latched fault")
+            if assigned_only and not selected <= self._assigned_outputs():
+                raise ValueError("The actuator assignment changed during review")
             for entity in selected:
                 state = self.hass.states.get(entity)
                 if entity in self._retired:

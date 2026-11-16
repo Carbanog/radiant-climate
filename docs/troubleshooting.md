@@ -54,7 +54,7 @@ Revisa en este orden:
 
 1. **Climatización** general habilitada y zona en Calor o Frío, no en Apagado.
 2. Temporada declarada compatible con el modo de la zona.
-3. Temperatura interior válida, en °C y dentro de su caducidad.
+3. Sensor interior disponible con una temperatura válida en °C.
 4. Ventana habilitada y estado/retardos del contacto.
 5. Disponibilidad de salidas, tiempos mínimos y esperas estimadas.
 
@@ -64,8 +64,7 @@ Subir o bajar una décima dentro de la histéresis no obliga a conmutar. Si un a
 |---|---|
 | `global_off` / `zone_off` | Existe una parada explícita; el horario no la vence |
 | `supply_mode_mismatch` | El modo no coincide con la temporada declarada |
-| `temperature_invalid` / `temperature_missing` | Revisa valor, unidad y disponibilidad del sensor interior |
-| `temperature_stale` | El informe interior ha caducado o su fecha es incoherente |
+| `temperature_invalid` | Revisa el valor, la unidad y la disponibilidad del sensor interior |
 | `window_open` / `window_unavailable` | Pausa por contacto habilitado; desconocido también pausa |
 | `minimum_cycle` | Espera o conservación del tiempo mínimo de maniobra |
 | `general_opening_estimated` / `zone_closing_estimated` | Espera del tiempo configurado, sin confirmación física |
@@ -75,7 +74,7 @@ Subir o bajar una décima dentro de la histéresis no obliga a conmutar. Si un a
 | `clock_changed` | Incoherencia de tiempo; revisa reloj y sincronización de HA |
 | `satisfied` | La regulación no pide aporte en ese momento |
 
-No reduzcas tiempos de maniobra ni aumentes la caducidad para ocultar un problema de dispositivo. Contrasta esos ajustes con el emisor, la cadencia real y los registros.
+Contrasta los tiempos de maniobra con el emisor y revisa en la integración del sensor si comunica correctamente.
 
 ### Falla una habitación y se detienen otras
 
@@ -186,10 +185,10 @@ cuyo cierre está pendiente cuando otra zona solicita suministro compartido.
 Una pérdida de comunicación se muestra enseguida en el panel. Si dura al menos
 cinco minutos aparece también en Reparaciones, hasta que la salida vuelva a comunicar.
 
-Para mantenimiento, **Reconocer fallos de relés tras revisión** permite elegir
-salidas que ya comunican apagado con **Climatización** desactivada. Usa
-**Confirmar retirada física** para una salida retirada o sin asignar solo
-después de comprobar su desconexión real y apagar Climatización.
+Para una revisión manual, abre **Ajustes → Sistema → Reparaciones → Revisar relés afectados**.
+El asistente permite apagar Climatización, elegir el relé por nombre y confirmar el
+apagado o la retirada física según el caso. Después de revisar las salidas, vuelve a
+encender **Climatización** desde el panel.
 
 ## Climatización se ha detenido tras un error de guardado
 

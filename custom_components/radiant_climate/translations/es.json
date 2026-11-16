@@ -51,7 +51,7 @@
       },
       "hardware": {
         "title": "Configuración",
-        "description": "Los ajustes lógicos se aplican sin retirar relés. Cambiar sensores, relés o modos puede recargar la entrada y cerrar salidas; revisa el resultado antes de encender. La caducidad cuenta desde el último informe que HA registra, no desde el último cambio de temperatura; debe ajustarse a la fuente. El frío requiere protección anticondensación independiente.",
+        "description": "Los ajustes lógicos se aplican sin retirar relés. Cambiar el sensor o los relés puede cerrar salidas durante la recarga. El frío requiere protección anticondensación independiente.",
         "data": {
           "weather": "Fuente meteorológica (opcional)",
           "outdoor": "Sensor exterior (opcional)",
@@ -68,8 +68,7 @@
           "window": "Contacto de ventana (opcional)",
           "hysteresis": "Histéresis de regulación (°C)",
           "minimum_on": "Tiempo mínimo activo (segundos)",
-          "minimum_off": "Tiempo mínimo inactivo (segundos)",
-          "stale_after": "Antigüedad máxima del dato interior (segundos)"
+          "minimum_off": "Tiempo mínimo inactivo (segundos)"
         }
       },
       "schedule_add": {
@@ -299,8 +298,6 @@
           "window_open": "Pausa por ventana",
           "window_unavailable": "Contacto de ventana no disponible",
           "temperature_invalid": "Temperatura interior inválida",
-          "temperature_missing": "Sin dato de temperatura interior",
-          "temperature_stale": "Dato interior caducado",
           "minimum_cycle": "Tiempo mínimo de maniobra",
           "clock_changed": "Cambio de reloj pendiente de reconciliar",
           "demand": "Demanda térmica",
@@ -391,6 +388,48 @@
     "storage_interrupted": {
       "title": "Climatización detenida para revisión",
       "description": "Radiant Climate no pudo guardar su estado o detectó una interrupción con el control activo. Comprueba el almacenamiento de Home Assistant y el estado comunicado de los relés. Después activa Climatización para reanudar."
+    },
+    "actuator_review": {
+      "title": "Revisar relés afectados",
+      "fix_flow": {
+        "step": {
+          "choose": {
+            "title": "Elige el relé que quieres revisar",
+            "description": "Selecciona el relé afectado. Si hay varios, puedes revisarlos uno a uno.",
+            "data": {
+              "actuator": "Relé"
+            }
+          },
+          "stop": {
+            "title": "Apagar Climatización para revisar",
+            "description": "Al continuar se apaga la climatización de todas las zonas. Tras revisar las salidas, podrás volver a encenderla desde el interruptor Climatización."
+          },
+          "fault": {
+            "title": "Revisar el relé",
+            "description": "Revisa la conexión y comprueba que **{actuator}** está apagado. Podrás resolver el aviso cuando Home Assistant comunique que está apagado. Climatización seguirá apagada tras la revisión.",
+            "data": {
+              "confirmed": "He comprobado que el relé está apagado"
+            }
+          },
+          "retired": {
+            "title": "Confirmar retirada del relé",
+            "description": "Confirma solo si **{actuator}** se ha desconectado físicamente de la válvula que controlaba. Climatización seguirá apagada tras la revisión.",
+            "data": {
+              "confirmed": "He comprobado que el relé antiguo está físicamente desconectado"
+            }
+          }
+        },
+        "error": {
+          "actuator_changed": "El relé cambió durante la revisión. Selecciónalo de nuevo.",
+          "relay_not_off": "Home Assistant debe comunicar que el relé está apagado. Revisa su conexión y vuelve a intentarlo.",
+          "confirmation_required": "Marca la confirmación para continuar."
+        },
+        "abort": {
+          "installation_changed": "La instalación cambió. Vuelve a abrir el aviso para revisar las salidas actuales.",
+          "check_remaining": "Otra salida sigue pendiente. Consulta el aviso que queda en Reparaciones.",
+          "storage_error": "Home Assistant no pudo guardar el cambio. Consulta el aviso de almacenamiento en Reparaciones."
+        }
+      }
     }
   },
   "services": {

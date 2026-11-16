@@ -46,7 +46,6 @@ class Settings:
     hysteresis: float = 0.2
     minimum_on: float = 180
     minimum_off: float = 180
-    stale_after: float = 3600
     hold_minutes: float = 240
     hold_policy: HoldPolicy = HoldPolicy.DURATION
 
@@ -57,10 +56,10 @@ class Settings:
             raise ValueError("Operating modes must be unique")
         if not math.isfinite(self.hysteresis) or not 0.05 <= self.hysteresis <= 2:
             raise ValueError("Invalid hysteresis")
-        for value in (self.minimum_on, self.minimum_off, self.stale_after):
+        for value in (self.minimum_on, self.minimum_off):
             if not math.isfinite(value) or value < 0:
                 raise ValueError("Invalid control interval")
-        if self.stale_after <= 0 or not 1 <= self.hold_minutes <= 1440:
+        if not 1 <= self.hold_minutes <= 1440:
             raise ValueError("Invalid expiry interval")
 
 
@@ -196,7 +195,6 @@ def decide(
     now: datetime,
     *,
     measured: object,
-    measured_at: datetime | None,
     actual_on: bool,
     switched_at: datetime,
     enabled: bool,
@@ -225,13 +223,9 @@ def decide(
         current = temperature(measured, -30, 65)
     except ValueError:
         return Decision(False, "temperature_invalid", target)
-    if measured_at is None:
-        return Decision(False, "temperature_missing", target)
-    aware(measured_at)
-    age = (now - measured_at).total_seconds()
-    if age < -60 or age > settings.stale_after:
-        return Decision(False, "temperature_stale", target)
     delta = target - current if intent.mode == Mode.HEAT else current - target
+    # Decimal setpoints can land just below the boundary after subtraction.
+    delta = round(delta, 10)
     wanted = delta > -settings.hysteresis if actual_on else delta >= settings.hysteresis
     elapsed = (now - switched_at).total_seconds()
     if elapsed < 0:

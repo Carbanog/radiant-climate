@@ -83,9 +83,6 @@ def _schema(data: Mapping, *, installation=False, advanced=False) -> vol.Schema:
                 ),
                 vol.Required("minimum_on", default=data.get("minimum_on", 180)): _number(0, 3600),
                 vol.Required("minimum_off", default=data.get("minimum_off", 180)): _number(0, 3600),
-                vol.Required("stale_after", default=data.get("stale_after", 3600)): _number(
-                    60, 86400
-                ),
                 vol.Required(
                     "window_open_delay", default=data.get("window_open_delay", 0)
                 ): _number(0, 600),
@@ -109,13 +106,7 @@ def _normalise(data: Mapping, *, installation=False) -> dict:
     result["target"] = temperature(result["target"])
     if not result["actuators"] or len(result["actuators"]) != len(set(result["actuators"])):
         raise ValueError("invalid_actuators")
-    Settings(
-        **{
-            k: result[k]
-            for k in ["hysteresis", "minimum_on", "minimum_off", "stale_after"]
-            if k in result
-        }
-    )
+    Settings(**{k: result[k] for k in ["hysteresis", "minimum_on", "minimum_off"] if k in result})
     result["window"] = result.get("window") or None
     return result
 

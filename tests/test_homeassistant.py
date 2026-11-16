@@ -120,7 +120,6 @@ async def add_zone(hass, key="a"):
             "hysteresis": 0.2,
             "minimum_on": 0,
             "minimum_off": 0,
-            "stale_after": 3600,
         },
     )
     assert options["type"] == "create_entry", options
@@ -2869,6 +2868,7 @@ async def test_actuator_problem_and_repairs_follow_existing_latches_without_rese
     await house.async_block_till_done()
     assert house.states.get(problem).state == "on"
     issue = ir.async_get(house).async_get_issue(DOMAIN, issue_id)
+    assert issue.is_fixable
     assert issue.translation_placeholders == {"faults": "1", "retired": "1", "unavailable": "0"}
     await manager.async_enable(False)
     await house.async_block_till_done()
@@ -2939,6 +2939,48 @@ async def test_global_actions_remain_registered_without_entries_and_work_after_r
     await house.services.async_call(
         DOMAIN, "reset_actuator_faults", {"confirmed_review": True}, blocking=True
     )
+
+
+async def test_repairs_guides_general_fault_and_removed_relay(house):
+    from homeassistant.components.repairs import repairs_flow_manager
+    from homeassistant.helpers import issue_registry as ir
+
+    assert await async_setup_component(house, "repairs", {})
+    manager = house.data[DOMAIN]
+    await manager.async_enable(True)
+    general = "switch.fixture_general"
+    removed = "switch.fixture_removed"
+    await manager.async_change(lambda: manager._command_faults.update((general, removed)))
+    await house.async_block_till_done()
+    issue_id = f"actuator_attention_{manager.hub}"
+    flow = repairs_flow_manager(house)
+    result = await flow.async_init(DOMAIN, context={"issue_id": issue_id})
+    flow_id = result["flow_id"]
+    assert result["step_id"] == "stop"
+    assert manager.enabled
+    result = await flow.async_configure(flow_id, {})
+    assert result["step_id"] == "choose"
+    assert not manager.enabled
+    result = await flow.async_configure(flow_id, {"actuator": general})
+    assert result["step_id"] == "fault"
+    assert result["description_placeholders"]["actuator"] == "Fixture general"
+    result = await flow.async_configure(flow_id, {"confirmed": False})
+    assert result["errors"] == {"confirmed": "confirmation_required"}
+    house.states.async_set(general, "unavailable")
+    result = await flow.async_configure(flow_id, {"confirmed": True})
+    assert result["errors"] == {"base": "relay_not_off"}
+    house.states.async_set(general, "off", {"friendly_name": "Fixture general"})
+    result = await flow.async_configure(flow_id, {"confirmed": True})
+    assert result["step_id"] == "choose"
+    assert manager.actuator_faults == (removed,)
+    assert ir.async_get(house).async_get_issue(DOMAIN, issue_id) is not None
+    result = await flow.async_configure(flow_id, {"actuator": removed})
+    assert result["step_id"] == "retired"
+    result = await flow.async_configure(flow_id, {"confirmed": True})
+    assert result["type"] == "create_entry"
+    assert not manager.actuator_faults
+    assert not manager.enabled
+    assert ir.async_get(house).async_get_issue(DOMAIN, issue_id) is None
 
 
 async def test_cancelled_off_does_not_override_a_later_explicit_on(house):
@@ -3524,7 +3566,7 @@ async def test_entity_validation_errors_are_presented_as_service_validation(hous
         await HoldMinutes(manager, entry).async_set_native_value(0)
 
 
-async def sparse_learning_zone(hass, monkeypatch, mode="heat", stale_after=10800):
+async def sparse_learning_zone(hass, monkeypatch, mode="heat"):
     """Real Core services with an explicitly advanced clock and synthetic reports."""
     from datetime import timedelta
     from types import SimpleNamespace
@@ -3547,7 +3589,6 @@ async def sparse_learning_zone(hass, monkeypatch, mode="heat", stale_after=10800
             "window": "binary_sensor.fixture_window",
             "minimum_on": 0,
             "minimum_off": 0,
-            "stale_after": stale_after,
         },
     )
     assert result["type"] == "create_entry", result
@@ -3672,10 +3713,10 @@ async def test_intervening_events_break_sparse_learning_even_before_reconciliati
     assert model.statistics["heat_on"].hours == pytest.approx(0.75)
 
 
-async def test_learning_does_not_extend_temperature_safety_expiry(house, monkeypatch):
+async def test_old_indoor_reading_keeps_regulating_until_sensor_unavailable(house, monkeypatch):
     from datetime import timedelta
 
-    entry, climate, clock = await sparse_learning_zone(house, monkeypatch, stale_after=3600)
+    entry, climate, clock = await sparse_learning_zone(house, monkeypatch)
     model = house.data[DOMAIN].zones[entry.entry_id].intelligence.model
     clock.now += timedelta(minutes=45)
     house.states.async_set(
@@ -3683,9 +3724,14 @@ async def test_learning_does_not_extend_temperature_safety_expiry(house, monkeyp
     )
     await settle(house)
     assert model.statistics["heat_on"].count == 1
-    clock.now += timedelta(minutes=61)
+    clock.now += timedelta(hours=2)
     await settle(house)
-    assert house.states.get(climate).attributes["reason"] == "temperature_stale"
+    assert house.states.get(climate).attributes["reason"] == "demand"
+    assert house.states.get("switch.fixture_a").state == "on"
+    assert model.statistics["heat_on"].count == 1
+    house.states.async_set("sensor.fixture_a", "unavailable")
+    await settle(house)
+    assert house.states.get(climate).attributes["reason"] == "temperature_invalid"
     assert house.states.get("switch.fixture_a").state == "off"
     assert house.states.get("switch.fixture_general").state == "off"
     assert model.anchor is None

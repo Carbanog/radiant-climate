@@ -30,7 +30,6 @@ def evaluate(*, mode=Mode.HEAT, measured=19, actual_on=False, settings=None, int
     settings = settings or Settings()
     intent = intent or Intent(mode=mode)
     inputs = {
-        "measured_at": NOW,
         "switched_at": NOW - timedelta(hours=1),
         "enabled": True,
         "supply_mode": mode,
@@ -60,13 +59,26 @@ def test_hysteresis_retains_state_inside_band():
 
 
 @pytest.mark.parametrize(
+    "mode,target,measured,on,wanted",
+    [
+        (Mode.HEAT, 21.8, 21.6, False, True),
+        (Mode.HEAT, 21.6, 21.8, True, False),
+        (Mode.COOL, 21.6, 21.8, False, True),
+        (Mode.COOL, 21.8, 21.6, True, False),
+    ],
+)
+def test_hysteresis_honors_exact_decimal_boundary(mode, target, measured, on, wanted):
+    result = evaluate(mode=mode, measured=measured, actual_on=on, scheduled_target=target)
+    assert result.demand is wanted
+
+
+@pytest.mark.parametrize(
     "override,reason",
     [
         ({"enabled": False}, "global_off"),
         ({"window_open": True}, "window_open"),
         ({"window_open": None}, "window_unavailable"),
         ({"actuator_available": False}, "actuator_unavailable"),
-        ({"measured_at": NOW - timedelta(hours=2)}, "temperature_stale"),
         ({"supply_mode": Mode.COOL}, "supply_mode_mismatch"),
     ],
 )
@@ -153,7 +165,7 @@ def test_cooling_target_is_kept_while_off():
 
 @pytest.mark.parametrize(
     "settings",
-    [{"hysteresis": 0}, {"minimum_on": -1}, {"stale_after": 0}, {"hold_minutes": 0}, {"modes": ()}],
+    [{"hysteresis": 0}, {"minimum_on": -1}, {"hold_minutes": 0}, {"modes": ()}],
 )
 def test_invalid_settings_are_rejected(settings):
     with pytest.raises(ValueError):

@@ -51,7 +51,7 @@
       },
       "hardware": {
         "title": "Settings",
-        "description": "Logical settings apply without retiring relays. Changing sensors, relays or modes may reload the entry and close outputs; review before enabling. Freshness counts from the last report HA records, not the last temperature change; match the limit to the source. Cooling requires independent condensation protection.",
+        "description": "Logical changes apply without retiring relays. Replacing a sensor or relay can close outputs during reload. Cooling requires independent condensation protection.",
         "data": {
           "weather": "Weather source (optional)",
           "outdoor": "Outdoor sensor (optional)",
@@ -68,8 +68,7 @@
           "window": "Window contact (optional)",
           "hysteresis": "Control hysteresis (°C)",
           "minimum_on": "Minimum on period (seconds)",
-          "minimum_off": "Minimum off period (seconds)",
-          "stale_after": "Maximum temperature report age (seconds)"
+          "minimum_off": "Minimum off period (seconds)"
         }
       },
       "schedule_add": {
@@ -299,8 +298,6 @@
           "window_open": "Window pause (open or settling)",
           "window_unavailable": "Window contact unavailable",
           "temperature_invalid": "Indoor temperature invalid",
-          "temperature_missing": "No indoor temperature report",
-          "temperature_stale": "Indoor report expired",
           "minimum_cycle": "Minimum cycle period",
           "clock_changed": "Clock change under review",
           "demand": "Temperature demand",
@@ -391,6 +388,48 @@
     "storage_interrupted": {
       "title": "Climate control paused for review",
       "description": "Radiant Climate could not save its state or detected an interruption while control was active. Check Home Assistant storage and the reported relay states. Then turn Climate on to resume control."
+    },
+    "actuator_review": {
+      "title": "Review affected relays",
+      "fix_flow": {
+        "step": {
+          "choose": {
+            "title": "Choose the relay to review",
+            "description": "Select the affected relay. If several outputs need attention, you can review them one at a time.",
+            "data": {
+              "actuator": "Relay"
+            }
+          },
+          "stop": {
+            "title": "Pause climate control for review",
+            "description": "Continuing switches off climate control for all zones. You can switch it back on from the Climate switch after reviewing the outputs."
+          },
+          "fault": {
+            "title": "Review the relay",
+            "description": "Check the connection and confirm that **{actuator}** is off. The fault can be cleared when Home Assistant reports it off. Climate remains off after this check.",
+            "data": {
+              "confirmed": "I checked that the relay is off"
+            }
+          },
+          "retired": {
+            "title": "Confirm relay removal",
+            "description": "Confirm only if **{actuator}** has been physically disconnected from the valve it controlled. Climate remains off after this check.",
+            "data": {
+              "confirmed": "I checked that the old relay is physically disconnected"
+            }
+          }
+        },
+        "error": {
+          "actuator_changed": "The relay changed during the review. Select it again.",
+          "relay_not_off": "Home Assistant must report the relay off. Check its connection and try again.",
+          "confirmation_required": "Confirm the check before continuing."
+        },
+        "abort": {
+          "installation_changed": "The installation changed. Reopen the repair to review the current outputs.",
+          "check_remaining": "Another output still needs attention. Check the remaining notice in Repairs.",
+          "storage_error": "Home Assistant could not save the change. Check the storage notice in Repairs."
+        }
+      }
     }
   },
   "services": {

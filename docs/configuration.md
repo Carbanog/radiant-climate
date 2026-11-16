@@ -8,7 +8,7 @@ Crea primero la instalación; selecciona la válvula de entrada solo si existe. 
 
 Añade una entrada por zona con cuatro campos: sensor interior, uno o varios relés, calor/frío/ambos y consigna inicial. Empieza apagada. El nombre se propone a partir del sensor y puede renombrarse desde HA. Varios circuitos pueden compartir una zona y consigna; una futura zona independiente se añade con el mismo asistente.
 
-El sensor interior debe informar grados Celsius. Una unidad ausente o incompatible bloquea esa zona. Las fuentes exteriores opcionales admiten Celsius, Fahrenheit o Kelvin convertidos. Revisa la cadencia de cada dispositivo antes de fijar su caducidad; last_reported no demuestra por sí solo comunicación física.
+El sensor interior debe informar grados Celsius. Una unidad ausente o incompatible bloquea esa zona. Las fuentes exteriores opcionales admiten Celsius, Fahrenheit o Kelvin convertidos.
 
 ## Mandos cotidianos
 
@@ -84,7 +84,7 @@ Solar Optimizar requiere confirmar orientación, elevación y sombras observadas
 
 ## Regulación y válvulas
 
-En Dispositivos y regulación se ajustan histéresis, mínimos, caducidad, contacto, retardos y tiempo estimado de cierre. En instalación se configuran por separado los tiempos estimados de apertura y cierre general; no se presupone que sean iguales. Cero indica desconocido, nunca maniobra instantánea demostrada.
+En Dispositivos y regulación se ajustan histéresis, mínimos, contacto, retardos y tiempo estimado de cierre. En instalación se configuran por separado los tiempos estimados de apertura y cierre general; no se presupone que sean iguales. Cero indica desconocido, nunca maniobra instantánea demostrada.
 
 ### Sustituir un relé o dividir una zona
 
@@ -102,7 +102,6 @@ Un fallo de actuador inhibe la apertura afectada. El cierre admite dos intentos 
 |---|---:|---:|
 | Histéresis | 0,2 °C | 0,05–2 °C |
 | Mínimos activo/inactivo | 180 s | 0–3600 s |
-| Caducidad interior | 3600 s | 60–86400 s |
 | Retardos ventana | 0 s | 0–600 s |
 | Maniobra estimada de válvula | 0 s (desconocida) | 0–900 s |
 | Adelanto máximo | 120 min | 0–360 min |
@@ -169,7 +168,7 @@ En la instalación, **Fuente de posición solar (compartida)** permite mantener 
 (predeterminado), elegir una entidad con atributos `azimuth` y `elevation`, o dos sensores
 en grados (`°` o `deg`). No basta con elevación: el azimut solar distingue la dirección.
 Ambos sensores deben estar vigentes y sus informes separados por un máximo de cinco
-minutos. Las fuentes solares caducan a los quince minutos; no cambian la caducidad interior.
+minutos. Las fuentes solares caducan a los quince minutos.
 Si cambias la fuente, las zonas que optimizaban pasan a Observación y requieren guardar
 la confirmación de incidencia de nuevo. La pantalla de zona muestra la fuente compartida y solo conserva la casilla marcada si la confirmación sigue siendo válida. Si la fuente cambia con el formulario abierto, se rechaza el guardado para revisarla de nuevo. No cambian consignas ni se retiran actuadores.
 
@@ -179,10 +178,9 @@ del horario**, que adelanta un perfil más exigente mediante el modelo térmico.
 No actives Optimizar hasta comprobar orientación y sombras reales. El nuevo ajuste
 no se rellena desde un horario antiguo ni deduce obstáculos automáticamente.
 
-## Caducidad y sensores MQTT
+## Disponibilidad del sensor interior
 
-Antigüedad máxima del dato interior cuenta desde `last_reported` de la entidad elegida.
-Una temperatura sin cambios no demuestra desconexión; tampoco garantiza que la entidad
-esté recibiendo informes. Revisa la cadencia real de la fuente y configura un margen
-adecuado. Aumentarlo retrasa la protección si el sensor deja de comunicar. La integración
-no transforma mensajes de batería o un valor almacenado en una medición nueva de temperatura.
+El termostato usa la última temperatura válida mientras el sensor esté disponible.
+Si el sensor queda indisponible o el valor es inválido, esa zona deja de pedir aporte.
+Para sensores Zigbee, activa la disponibilidad en Zigbee2MQTT para que Home Assistant
+reciba la desconexión del dispositivo. El aprendizaje usa los intervalos entre informes.

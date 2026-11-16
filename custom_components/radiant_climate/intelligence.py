@@ -39,7 +39,6 @@ class Intelligence:
                 z.intent,
                 now,
                 measured=measured,
-                measured_at=sensor.last_reported if sensor else None,
                 actual_on=on,
                 switched_at=z.switched_at,
                 enabled=enabled,
@@ -107,7 +106,6 @@ class Intelligence:
                 learning=training_allowed,
                 outside=outdoor,
                 observed_at=now,
-                maximum_gap=z.settings.stale_after,
             )
         elif not allowed:
             self.model.reset_period(now)
@@ -130,7 +128,7 @@ class Intelligence:
             "model_hours": progress["hours"],
             "model_intervals": progress["intervals"],
             "model_rate_c_per_hour": progress["rate_c_per_hour"],
-            "learning_max_gap_minutes": min(MAX_LEARNING_INTERVAL, z.settings.stale_after) / 60,
+            "learning_max_gap_minutes": MAX_LEARNING_INTERVAL / 60,
             "model_episodes": progress["episodes"],
             "model_missing_requirements": progress["missing_requirements"],
             "model_rejected": self.model.rejected,

@@ -48,8 +48,8 @@ Disponible desde v0.2.8. Las versiones anteriores mantienen el límite de veinte
 minutos entre informes para el aprendizaje.
 
 La respuesta térmica lenta admite ventanas de 30 a 90 minutos construidas solo
-con informes reales. Cada separación entre informes debe ser como máximo el menor
-de 90 minutos y la caducidad interior configurada. El límite de 90 minutos es una
+con informes reales. Cada separación entre informes debe ser como máximo de
+90 minutos. Ese límite es una
 cota conservadora de este algoritmo, no una cadencia recomendada para sensores ni
 un parámetro aprendido. No se rellena el hueco con copias del último valor. Más de
 90 minutos, una discontinuidad conocida o una velocidad incompatible descartan la
@@ -68,10 +68,9 @@ quince minutos y separaciones no mayores de veinte minutos. Lecturas cada 45 min
 pueden permitir aprender y anticipar horarios, pero no justifican por sí solas una
 pausa solar o por inercia inmediata. Sin tendencia reciente, esas pausas no actúan.
 
-La caducidad de seguridad y el modelo siguen separados: la mejora no aumenta el
-margen interior ni utiliza batería, disponibilidad o `last_seen` para renovar una
-temperatura. Se usa el `last_reported` registrado por HA, que tampoco garantiza
-por sí solo una medición física nueva si la integración de origen republica datos.
+El modelo usa `last_reported` para medir los intervalos de aprendizaje. Un aviso de
+batería o de disponibilidad puede indicar comunicación del sensor. Una temperatura
+republicada por la integración de origen puede proceder de una medición anterior.
 
 El almacenamiento de estadísticas mantiene su formato; los modelos existentes no
 se borran y los límites de periodo no se conservan a través de reinicios. Los nuevos

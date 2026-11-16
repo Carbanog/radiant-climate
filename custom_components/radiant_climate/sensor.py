@@ -28,8 +28,6 @@ REASONS = [
     "window_open",
     "window_unavailable",
     "temperature_invalid",
-    "temperature_missing",
-    "temperature_stale",
     "minimum_cycle",
     "clock_changed",
     "demand",

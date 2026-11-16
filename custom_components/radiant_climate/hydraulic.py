@@ -50,7 +50,7 @@ def describe_reading(state, now, maximum):
     detail["last_reported"] = state.last_reported.isoformat()
     if state.state in ("unknown", "unavailable"):
         return None, {**detail, "status": state.state}
-    if age < -60 or age > maximum:
+    if age < -60 or (maximum is not None and age > maximum):
         return None, {**detail, "status": "future_timestamp" if age < -60 else "stale"}
     unit = state.attributes.get("unit_of_measurement")
     if unit not in ("°C", "°F", "K"):
@@ -68,6 +68,7 @@ class HydraulicDiagnostic:
         self.observer = HydraulicObserver()
         self.state = "disabled"
         self.attributes = {}
+        self._last_valid = {}
 
     @callback
     def update(self, _event=None):
@@ -75,21 +76,28 @@ class HydraulicDiagnostic:
         cfg = configuration(self.entry)
         now = dt_util.utcnow()
         maximum = cfg["hydraulic_stale"]
-        supply, supply_detail = describe_reading(
-            hass.states.get(cfg["hydraulic_supply"] or ""), now, maximum
-        )
-        returning, return_detail = describe_reading(
-            hass.states.get(cfg["hydraulic_return"] or ""), now, maximum
-        )
-        if _event is not None:
-            # Do not lose an intervening invalid or recovered sample when HA
-            # dispatches several state events after the source has changed again.
-            if _event.data["entity_id"] == cfg["hydraulic_supply"]:
-                supply, supply_detail = describe_reading(_event.data.get("new_state"), now, maximum)
-            elif _event.data["entity_id"] == cfg["hydraulic_return"]:
-                returning, return_detail = describe_reading(
-                    _event.data.get("new_state"), now, maximum
-                )
+        readings = []
+        ages = []
+        values = []
+        for key in ("hydraulic_supply", "hydraulic_return"):
+            entity = cfg[key]
+            state = hass.states.get(entity or "")
+            if _event is not None and _event.data["entity_id"] == entity:
+                # Preserve intervening unavailable events even if already recovered.
+                state = _event.data.get("new_state")
+            value, detail = describe_reading(state, now, None)
+            previous = self._last_valid.get(key)
+            if previous and previous[0] != entity:
+                self._last_valid.pop(key)
+            if value is not None:
+                self._last_valid[key] = (entity, value, detail["last_reported"])
+                ages.append(max(0, (now - state.last_reported).total_seconds()))
+            saved = self._last_valid.get(key)
+            detail["last_valid_report"] = saved[2] if saved else None
+            readings.append(detail)
+            values.append(value)
+        supply, returning = values
+        supply_detail, return_detail = readings
         active = tuple(
             sorted(
                 key
@@ -108,8 +116,9 @@ class HydraulicDiagnostic:
             manager.retired_actuators or manager.actuator_faults or manager.stop_requested
         )
         mode = manager.supply_mode.value
+        observed = monotonic()
         self.state = self.observer.evaluate(
-            now=monotonic(),
+            now=observed,
             enabled=cfg["hydraulic_enabled"],
             supply=supply,
             returning=returning,
@@ -124,10 +133,13 @@ class HydraulicDiagnostic:
             ),
             duration=cfg["hydraulic_duration"] * 60,
             reference=cfg["hydraulic_heat_min" if mode == "heat" else "hydraulic_cool_max"],
+            report_at=observed - max(ages) if len(ages) == 2 and max(ages) <= maximum else None,
         )
+        shown_supply = self._last_valid.get("hydraulic_supply", (None, None, None))[1]
+        shown_return = self._last_valid.get("hydraulic_return", (None, None, None))[1]
         self.attributes = {
-            "supply_celsius": supply,
-            "return_celsius": returning,
+            "supply_celsius": shown_supply,
+            "return_celsius": shown_return,
             "supply_reading": supply_detail,
             "return_reading": return_detail,
             "maximum_reading_age_seconds": maximum,

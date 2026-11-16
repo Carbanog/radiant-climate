@@ -323,6 +323,46 @@ async def test_legacy_store_envelope_loads_and_invalid_envelope_is_preserved(hou
         restored.async_stop()
 
 
+async def test_upgrade_from_v0212_keeps_hardware_schedule_and_thermal_statistics(house):
+    from homeassistant.helpers.storage import Store
+
+    from custom_components.radiant_climate.core.control import Mode
+    from custom_components.radiant_climate.core.intelligence import Statistics
+    from custom_components.radiant_climate.runtime import Installation
+
+    entry, climate = await add_zone(house)
+    manager = house.data[DOMAIN]
+    hub = house.config_entries.async_get_entry(manager.hub)
+    await add_schedule(house, entry)
+    await manager.async_schedule(entry.entry_id, True)
+    await service(house, "climate", "set_temperature", climate, temperature=22.5)
+    zone = manager.zones[entry.entry_id]
+    zone.intelligence.model.statistics["heat_on"] = Statistics(
+        count=13, hours=7, delta=3.5, rate_square=1.75, episodes=4
+    )
+    await manager._save()
+    previous = await manager._store.async_load()
+    old = previous["zones"][entry.entry_id]
+    old["intelligence"].pop("circuit_seconds")
+    old["intelligence"]["model"].pop("sparse")
+    await Store(house, 1, f"{DOMAIN}.state").async_save(previous)
+
+    restored = Installation(house)
+    try:
+        await restored.async_load()
+        restored._register(hub)
+        restored._register(entry)
+        rebuilt = restored.zones[entry.entry_id]
+        assert rebuilt.config == zone.config
+        assert rebuilt.program.dump() == zone.program.dump()
+        assert rebuilt.intent.dump() == zone.intent.dump()
+        assert rebuilt.intelligence.model.response(Mode.HEAT).hours == 7
+        assert rebuilt.intelligence.model.response(Mode.HEAT).ready
+        assert not rebuilt.intelligence.circuit_seconds
+    finally:
+        restored.async_stop()
+
+
 async def test_cooling_without_weather_and_mismatched_season(house):
     _, climate = await add_zone(house)
     house.states.async_set("sensor.fixture_a", "28", {"unit_of_measurement": "°C"})
@@ -2568,6 +2608,31 @@ def water_fixtures(hass):
         hass.states.async_set(f"sensor.fixture_{key}", str(value), {"unit_of_measurement": "°C"})
 
 
+def simulate_hydraulic_reports(hass, diagnostic, clock):
+    from datetime import timedelta
+    from unittest.mock import patch
+
+    from homeassistant.util import dt as dt_util
+
+    base = dt_util.utcnow() - timedelta(seconds=600)
+    sources = {
+        entity: (hass.states.get(entity).state, hass.states.get(entity).attributes)
+        for entity in ("sensor.fixture_supply", "sensor.fixture_return")
+    }
+    diagnostic.observer.last = diagnostic.observer.signature = None
+    with patch.object(
+        dt_util, "utcnow", side_effect=lambda: base + timedelta(seconds=clock.return_value)
+    ):
+        for now in range(0, 601, 15):
+            clock.return_value = now
+            if now in (0, 300, 600):
+                for entity, (value, attrs) in sources.items():
+                    hass.states.async_set(
+                        entity, value, attrs, timestamp=dt_util.utcnow().timestamp()
+                    )
+            diagnostic.update()
+
+
 @pytest.mark.parametrize(
     "value,unit,expected",
     [
@@ -2629,19 +2694,15 @@ async def test_optional_hydraulic_lifecycle_is_read_only_and_preserves_control(h
     # Retrieve the real platform entity; advance only this observer's monotonic clock.
     component = house.data["sensor"]
     diagnostic = next(e.diagnostic for e in component.entities if isinstance(e, HydraulicStatus))
-    with patch("custom_components.radiant_climate.hydraulic.monotonic", return_value=0):
-        diagnostic.observer.last = None
-        diagnostic.observer.signature = None
-        diagnostic.update()
     with patch("custom_components.radiant_climate.hydraulic.monotonic") as clock:
-        for now in range(15, 601, 15):
-            clock.return_value = now
-            diagnostic.update()
+        simulate_hydraulic_reports(house, diagnostic, clock)
         assert diagnostic.state == "possible_low_supply"
     revision = manager._revision
     house.states.async_set("sensor.fixture_supply", "unavailable")
     await house.async_block_till_done()
     assert house.states.get(entity).state == "sensor_unavailable"
+    assert house.states.get(entity).attributes["supply_celsius"] == 30
+    assert house.states.get(entity).attributes["supply_reading"]["last_valid_report"]
     assert manager._revision == revision
     assert zone.intent.dump() == intent
     assert zone.intelligence.model.dump() == model
@@ -2726,11 +2787,7 @@ async def test_hydraulic_burst_preserves_intervening_loss_or_recovery(house, int
         e.diagnostic for e in house.data["sensor"].entities if isinstance(e, HydraulicStatus)
     )
     with patch("custom_components.radiant_climate.hydraulic.monotonic") as clock:
-        diagnostic.observer.signature = None
-        diagnostic.observer.last = None
-        for now in range(0, 601, 15):
-            clock.return_value = now
-            diagnostic.update()
+        simulate_hydraulic_reports(house, diagnostic, clock)
         assert diagnostic.state == "possible_low_supply"
         clock.return_value = 615
         if intermediate == "relay_off":
@@ -2772,11 +2829,7 @@ async def test_hydraulic_cooling_observation_does_not_block_real_cooling_control
         e.diagnostic for e in house.data["sensor"].entities if isinstance(e, HydraulicStatus)
     )
     with patch("custom_components.radiant_climate.hydraulic.monotonic") as clock:
-        diagnostic.observer.signature = None
-        diagnostic.observer.last = None
-        for now in range(0, 601, 15):
-            clock.return_value = now
-            diagnostic.update()
+        simulate_hydraulic_reports(house, diagnostic, clock)
         assert diagnostic.state == "possible_high_supply"
         assert diagnostic.attributes["delta_celsius"] == -2
     house.states.async_set("sensor.fixture_return", "unavailable")

@@ -318,16 +318,59 @@
           "reference_pending": "Deviation under observation",
           "possible_low_supply": "Supply below configured heating reference",
           "possible_high_supply": "Supply above configured cooling reference",
-          "unexpected_delta": "Unexpected temperature difference; check measurements"
+          "unexpected_delta": "Unexpected temperature difference; check measurements",
+          "insufficient_data": "Insufficient data during demand"
+        },
+        "state_attributes": {
+          "supply_celsius": {
+            "name": "Last supply temperature (°C)"
+          },
+          "return_celsius": {
+            "name": "Last return temperature (°C)"
+          },
+          "supply_reading": {
+            "name": "Supply reading details"
+          },
+          "return_reading": {
+            "name": "Return reading details"
+          }
         }
       },
       "learning_status": {
         "name": "Thermal learning status",
         "state": {
           "disabled": "Disabled",
-          "collecting": "Collecting",
           "paused": "Paused",
-          "ready": "Model ready"
+          "ready": "Model ready",
+          "waiting_circuit": "Waiting for circuit to open",
+          "waiting_reading": "Waiting for another temperature report",
+          "solar_excluded": "Paused for possible solar gain",
+          "provisional": "Provisional estimate"
+        },
+        "state_attributes": {
+          "circuit_active_hours": {
+            "name": "Hours with circuit reported open"
+          },
+          "valid_learning_hours": {
+            "name": "Valid learning hours"
+          },
+          "provisional_hours": {
+            "name": "Hours in sparse observations"
+          },
+          "provisional_comparisons": {
+            "name": "Comparisons with sparse reports"
+          },
+          "provisional_rate_c_per_hour": {
+            "name": "Provisional response (°C/h)"
+          },
+          "learning_confidence": {
+            "name": "Learning confidence",
+            "state": {
+              "ready": "Ready to anticipate",
+              "provisional": "Provisional",
+              "insufficient": "Insufficient data"
+            }
+          }
         }
       }
     },

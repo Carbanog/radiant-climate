@@ -19,6 +19,38 @@ from core.program import Program
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
 
+@pytest.mark.parametrize("cadence", (15, 45, 90, 120, 180))
+def test_multiday_sparse_learning_keeps_provisional_evidence_separate(cadence):
+    model = ThermalModel()
+    for day in range(4):
+        since = NOW + timedelta(days=day)
+        for minutes in range(0, 361, cadence):
+            when = since + timedelta(minutes=minutes)
+            value = 19 + minutes / 120
+            model.observe_sparse(Mode.HEAT, when, value, since=since)
+            model.observe(when, value, Mode.HEAT, True, eligible=True, learning=True)
+        restored = ThermalModel.restore(model.dump())
+        assert restored.sparse_anchor is None
+        assert restored.response(Mode.HEAT).summary() == model.response(Mode.HEAT).summary()
+        model = restored
+    if cadence > 90:
+        assert model.sparse["heat"].count > 0
+        assert model.sparse["heat"].rate == pytest.approx(0.5)
+        assert not model.response(Mode.HEAT).ready
+    else:
+        assert model.response(Mode.HEAT).ready
+        assert not model.sparse
+
+
+def test_sparse_interval_cannot_bridge_a_manoeuvre_or_exceed_three_hours():
+    model = ThermalModel()
+    model.observe_sparse(Mode.COOL, NOW, 25, since=NOW)
+    model.observe_sparse(Mode.COOL, NOW + timedelta(hours=2), 24, since=NOW + timedelta(hours=1))
+    assert not model.sparse
+    model.observe_sparse(Mode.COOL, NOW + timedelta(hours=5, seconds=1), 23, since=NOW)
+    assert not model.sparse
+
+
 @pytest.mark.parametrize(
     "az,el,orientation,height,expected",
     [

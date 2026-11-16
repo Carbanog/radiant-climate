@@ -9,6 +9,7 @@ STATES = [
     "idle",
     "waiting_relays",
     "stabilizing",
+    "insufficient_data",
     "observing",
     "reference_pending",
     "possible_low_supply",
@@ -41,6 +42,7 @@ class HydraulicObserver:
         settle: float,
         duration: float,
         reference: float | None,
+        report_at: float | None,
     ) -> str:
         # Monotonic time avoids clock adjustments extending/shortening a warning.
         signature = (active, mode, config, settle, duration, reference)
@@ -69,6 +71,9 @@ class HydraulicObserver:
             self.since = now
         if now - self.since < settle:
             return "stabilizing"
+        if report_at is None or report_at < self.since + settle:
+            self.concern_since = self.concern = None
+            return "insufficient_data"
         delta = supply - returning
         concern = (
             "unexpected_delta"
@@ -80,7 +85,7 @@ class HydraulicObserver:
             else None
         )
         if concern != self.concern:
-            self.concern, self.concern_since = concern, now if concern else None
+            self.concern, self.concern_since = concern, report_at if concern else None
         if concern is None:
             return "observing"
-        return concern if now - self.concern_since >= duration else "reference_pending"
+        return concern if report_at - self.concern_since >= duration else "reference_pending"

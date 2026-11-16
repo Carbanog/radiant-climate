@@ -1,5 +1,13 @@
 # Cambios y actualización
 
+## v0.2.14 — aprendizaje y diagnóstico con informes espaciados
+
+- El sensor **Estado del aprendizaje térmico** muestra las horas con circuito abierto según Home Assistant, las horas válidas del modelo y su confianza. Las comparaciones de hasta tres horas de un tramo continuo se guardan como estimaciones provisionales. La anticipación conserva sus criterios.
+- **Diagnóstico hidráulico** muestra la última temperatura válida de cada sonda y su fecha. Los avisos se basan en informes recibidos durante la demanda estable. Si faltan informes, el estado indica que hay datos insuficientes.
+- Los perfiles, horarios, equipos asignados y el aprendizaje acumulado se conservan al actualizar desde v0.2.12. La actualización incluye las correcciones de v0.2.13.
+
+**Actualizar.** Conserva una copia recuperable, apaga Climatización, actualiza y reinicia si Home Assistant lo solicita. Verifica las salidas antes de volver a encender Climatización. Para revertir, conserva la versión y la copia previas.
+
 ## v0.2.13 — regulación y revisión de relés más sencillas
 
 - Todas las zonas regulan con la última temperatura válida mientras el sensor

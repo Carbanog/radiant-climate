@@ -11,6 +11,7 @@ from datetime import datetime
 from .control import Mode, aware
 
 MAX_LEARNING_INTERVAL = 90 * 60
+MAX_PROVISIONAL_INTERVAL = 3 * 3600
 MAX_TREND_GAP = 20 * 60
 
 
@@ -101,6 +102,26 @@ class ThermalModel:
     rejected: int = 0
     training_not_before: datetime | None = None
     trend_not_before: datetime | None = None
+    sparse: dict[str, Statistics] = field(default_factory=dict)
+    sparse_anchor: tuple[Mode, datetime, float] | None = None
+
+    def observe_sparse(self, mode, when, value, *, since):
+        """Keep long, uninterrupted comparisons outside the predictive model."""
+        if since is None or when < since:
+            self.sparse_anchor = None
+            return
+        anchor = self.sparse_anchor
+        if anchor and anchor[0] == mode and anchor[1] >= since:
+            hours = (when - anchor[1]).total_seconds() / 3600
+            if hours < 0.5:
+                return
+            delta = (value - anchor[2]) * (1 if mode == Mode.HEAT else -1)
+            if MAX_LEARNING_INTERVAL < hours * 3600 <= MAX_PROVISIONAL_INTERVAL:
+                if abs(delta / hours) <= 3:
+                    self.sparse.setdefault(mode.value, Statistics()).add(
+                        hours, delta, False, None, value
+                    )
+        self.sparse_anchor = mode, when, value
 
     def interrupt_training(self, when: datetime):
         """Do not attribute a cached reading to a newly observed control state."""
@@ -212,6 +233,7 @@ class ThermalModel:
         # No raw temperatures/timestamps/household schedule in exported diagnostics.
         return {
             "statistics": {k: asdict(v) for k, v in self.statistics.items()},
+            "sparse": {k: asdict(v) for k, v in self.sparse.items()},
             "rejected": self.rejected,
         }
 
@@ -237,6 +259,17 @@ class ThermalModel:
             ):
                 raise ValueError("Invalid response statistics")
             result.statistics[key] = value
+        sparse = raw.get("sparse", {})
+        if isinstance(sparse, dict):
+            for mode in (Mode.HEAT, Mode.COOL):
+                if mode.value in sparse:
+                    key = f"{mode.value}_on"
+                    try:
+                        result.sparse[mode.value] = cls.restore(
+                            {"statistics": {key: sparse[mode.value]}}
+                        ).statistics[key]
+                    except (TypeError, ValueError):
+                        pass
         return result
 
 

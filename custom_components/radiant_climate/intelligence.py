@@ -1,7 +1,8 @@
 """Optional zone policy, isolated from hardware writes and weather requests."""
 
 from dataclasses import asdict, dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
+from math import isfinite
 
 from .core.control import Decision, Mode, decide
 from .core.intelligence import (
@@ -22,15 +23,51 @@ class Intelligence:
     features: Features = field(default_factory=Features)
     model: ThermalModel = field(default_factory=ThermalModel)
     diagnostics: dict = field(default_factory=dict)
+    circuit_seconds: dict[str, float] = field(default_factory=dict)
+    _active_mode: Mode | None = None
+    _observed_at: datetime | None = None
+    _sparse_since: datetime | None = None
 
     def dump(self):
-        return {"features": asdict(self.features), "model": self.model.dump()}
+        return {
+            "features": asdict(self.features),
+            "model": self.model.dump(),
+            "circuit_seconds": dict(self.circuit_seconds),
+        }
 
     @classmethod
     def restore(cls, raw):
-        return cls(
+        result = cls(
             Features.restore(raw.get("features", {})), ThermalModel.restore(raw.get("model", {}))
         )
+        totals = raw.get("circuit_seconds", {})
+        if isinstance(totals, dict):
+            result.circuit_seconds = {
+                key: value
+                for key, value in totals.items()
+                if key in ("heat", "cool")
+                and type(value) in (int, float)
+                and isfinite(value)
+                and value >= 0
+            }
+        return result
+
+    def observe_circuit(self, now, mode):
+        # Drop the gap on restart or when reconciliation was suspended.
+        if self._active_mode is not None and self._observed_at is not None:
+            elapsed = (now - self._observed_at).total_seconds()
+            if 0 <= elapsed <= 60:
+                key = self._active_mode.value
+                self.circuit_seconds[key] = self.circuit_seconds.get(key, 0) + elapsed
+            else:
+                self._sparse_since = None
+        if mode != self._active_mode:
+            self._sparse_since = None
+        self._active_mode, self._observed_at = mode, now
+
+    def interrupt_sparse(self):
+        self._sparse_since = None
+        self.model.sparse_anchor = None
 
     def evaluate(self, z, manager, now, sensor, measured, on, opened, enabled, available):
         def regulation(target):
@@ -96,6 +133,19 @@ class Intelligence:
             )
         )
         training_allowed = f.learning and not learning_exposure and uniform_outputs and inlet_ready
+        active = (
+            on
+            and uniform_outputs
+            and (not manager.general or (inlet is not None and inlet.state == "on"))
+        )
+        self.observe_circuit(now, manager.supply_mode if active else None)
+        if active and training_allowed and allowed and measured is not None and sensor is not None:
+            self._sparse_since = self._sparse_since or now
+            self.model.observe_sparse(
+                mode, sensor.last_reported, measured, since=self._sparse_since
+            )
+        else:
+            self.interrupt_sparse()
         if measured is not None and sensor is not None:
             self.model.observe(
                 sensor.last_reported,
@@ -123,6 +173,7 @@ class Intelligence:
             "learning_solar_exclusion": bool(learning_exposure),
             "trend_c_per_hour": round(trend, 3) if trend is not None else None,
             "learning_collecting": bool(training_allowed and allowed and measured is not None),
+            "learning_circuit_active": active,
             "model_mode": display_mode.value,
             "model_ready": progress["ready"],
             "model_hours": progress["hours"],

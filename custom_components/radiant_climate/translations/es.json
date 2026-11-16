@@ -318,16 +318,59 @@
           "reference_pending": "Desviación en observación",
           "possible_low_supply": "Impulsión inferior a la referencia de calor",
           "possible_high_supply": "Impulsión superior a la referencia de frío",
-          "unexpected_delta": "Diferencia de temperatura inesperada; revisar mediciones"
+          "unexpected_delta": "Diferencia de temperatura inesperada; revisar mediciones",
+          "insufficient_data": "Sin datos suficientes durante la demanda"
+        },
+        "state_attributes": {
+          "supply_celsius": {
+            "name": "Última temperatura de impulsión (°C)"
+          },
+          "return_celsius": {
+            "name": "Última temperatura de retorno (°C)"
+          },
+          "supply_reading": {
+            "name": "Detalle de la lectura de impulsión"
+          },
+          "return_reading": {
+            "name": "Detalle de la lectura de retorno"
+          }
         }
       },
       "learning_status": {
         "name": "Estado del aprendizaje térmico",
         "state": {
           "disabled": "Desactivado",
-          "collecting": "Recopilando",
           "paused": "En pausa",
-          "ready": "Modelo listo"
+          "ready": "Modelo listo",
+          "waiting_circuit": "Esperando que se active el circuito",
+          "waiting_reading": "Esperando otra lectura de temperatura",
+          "solar_excluded": "Pausado por posible aporte solar",
+          "provisional": "Estimación provisional"
+        },
+        "state_attributes": {
+          "circuit_active_hours": {
+            "name": "Horas con circuito abierto según Home Assistant"
+          },
+          "valid_learning_hours": {
+            "name": "Horas válidas de aprendizaje"
+          },
+          "provisional_hours": {
+            "name": "Horas con lecturas muy espaciadas"
+          },
+          "provisional_comparisons": {
+            "name": "Comparaciones con lecturas espaciadas"
+          },
+          "provisional_rate_c_per_hour": {
+            "name": "Respuesta provisional (°C/h)"
+          },
+          "learning_confidence": {
+            "name": "Confianza del aprendizaje",
+            "state": {
+              "ready": "Listo para anticipar",
+              "provisional": "Provisional",
+              "insufficient": "Sin datos suficientes"
+            }
+          }
         }
       }
     },

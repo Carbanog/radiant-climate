@@ -17,6 +17,7 @@ def observe(observer, now=0, **changes):
         settle=300,
         duration=300,
         reference=35,
+        report_at=now,
     )
     return observer.evaluate(**(data | changes))
 
@@ -37,6 +38,16 @@ def test_stabilisation_then_continuous_violation_and_immediate_recovery():
     assert observe(observer, 600) == "possible_low_supply"
     assert observe(observer, 615, supply=35) == "observing"
     assert observe(observer, 630) == "reference_pending"
+
+
+def test_cached_values_cannot_advance_warning():
+    observer = HydraulicObserver()
+    assert advance(observer, 300, report_at=-3600) == "insufficient_data"
+    for now in range(315, 600, 15):
+        assert observe(observer, now, report_at=315) == "reference_pending"
+    assert observe(observer, 600, report_at=315) == "reference_pending"
+    assert observe(observer, 615, report_at=615) == "possible_low_supply"
+    assert observe(observer, 630, report_at=None) == "insufficient_data"
 
 
 @pytest.mark.parametrize(

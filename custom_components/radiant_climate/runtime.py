@@ -616,10 +616,13 @@ class Installation:
             # events received before the asynchronous reconciliation runs.
             if entity == z.config["sensor"] and indoor_temperature(state) is None:
                 model.reset_period(now)
+                z.intelligence.interrupt_sparse()
             elif changed and entity == z.config.get("window") and z.window_enabled:
                 model.reset_period(now)
+                z.intelligence.interrupt_sparse()
             elif changed and (entity == self.general or entity in z.config["actuators"]):
                 model.interrupt_training(now)
+                z.intelligence.observe_circuit(now, None)
         unsafe = any(
             z.decision is not None
             and z.decision.demand

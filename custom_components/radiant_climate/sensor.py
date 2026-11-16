@@ -97,7 +97,15 @@ class LearningStatus(RadiantEntity, SensorEntity):
     _attr_translation_key = "learning_status"
     _attr_device_class = SensorDeviceClass.ENUM
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_options = ["disabled", "collecting", "paused", "ready"]
+    _attr_options = [
+        "disabled",
+        "waiting_circuit",
+        "waiting_reading",
+        "paused",
+        "solar_excluded",
+        "provisional",
+        "ready",
+    ]
 
     def __init__(self, manager, entry):
         super().__init__(manager, entry, "learning_status")
@@ -110,12 +118,23 @@ class LearningStatus(RadiantEntity, SensorEntity):
             return "ready"
         if not learning.features.learning:
             return "disabled"
-        return "collecting" if learning.diagnostics.get("learning_collecting") else "paused"
+        if learning.diagnostics.get("learning_solar_exclusion"):
+            return "solar_excluded"
+        if not learning.diagnostics.get("learning_collecting"):
+            return "paused"
+        if not learning.diagnostics.get("learning_circuit_active"):
+            return "waiting_circuit"
+        if learning.model.sparse.get(zone.intent.last_mode.value):
+            return "provisional"
+        return "waiting_reading"
 
     @property
     def extra_state_attributes(self):
         zone = self.manager.zones[self.entry.entry_id]
         learning = zone.intelligence
+        mode = zone.intent.last_mode
+        response = learning.model.response(mode)
+        sparse = learning.model.sparse.get(mode.value)
         return {
             "model_mode": zone.intent.last_mode.value,
             "learning_enabled": learning.features.learning,
@@ -123,6 +142,16 @@ class LearningStatus(RadiantEntity, SensorEntity):
             "regulation_reason": zone.decision.reason if zone.decision else "not_ready",
             "solar_exclusion": learning.diagnostics.get("learning_solar_exclusion", False),
             "rejected_intervals": learning.model.rejected,
+            "circuit_active_hours": round(learning.circuit_seconds.get(mode.value, 0) / 3600, 2),
+            "valid_learning_hours": round(response.hours, 2),
+            "learning_confidence": "ready"
+            if response.ready
+            else "provisional"
+            if sparse or response.count
+            else "insufficient",
+            "provisional_hours": round(sparse.hours, 2) if sparse else 0,
+            "provisional_comparisons": sparse.count if sparse else 0,
+            "provisional_rate_c_per_hour": round(sparse.rate, 3) if sparse else None,
             "heating": learning.model.response(Mode.HEAT).summary(),
             "cooling": learning.model.response(Mode.COOL).summary(),
         }

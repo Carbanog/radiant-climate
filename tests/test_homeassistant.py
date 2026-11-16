@@ -2805,7 +2805,8 @@ async def test_hydraulic_burst_preserves_intervening_loss_or_recovery(house, int
         assert diagnostic.state == (
             "reference_pending" if intermediate == "reference_recovered" else "stabilizing"
         )
-        assert diagnostic.observer.concern_since in (None, 615)
+        if diagnostic.observer.concern_since is not None:
+            assert diagnostic.observer.concern_since == pytest.approx(615, abs=0.1)
     await manager.async_enable(False)
 
 

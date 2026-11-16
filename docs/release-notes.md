@@ -1,5 +1,26 @@
 # Cambios y actualización
 
+## v0.2.13 — regulación y revisión de relés más sencillas
+
+- Todas las zonas regulan con la última temperatura válida mientras el sensor
+  esté disponible. La antigüedad de la lectura deja de bloquear la regulación.
+  Una lectura inválida o un sensor indisponible detiene su zona. Zigbee2MQTT
+  debe comunicar la indisponibilidad para que Home Assistant detecte la pérdida
+  de conexión. El aprendizaje mantiene su propio límite entre informes.
+- La regulación de calor y frío respeta los límites exactos de histéresis con
+  temperaturas decimales.
+- **Ajustes → Sistema → Reparaciones → Revisar relés afectados** permite elegir
+  el relé, comprobar que está apagado o confirmar su retirada física. El
+  asistente guía el apagado general cuando hace falta. Tras revisar las salidas
+  puedes volver a encender Climatización desde el panel.
+
+**Validación.** 160 pruebas del núcleo y 248 en cada Core 2026.10.4 y 2026.11.0.
+Las pruebas de relés y sensores utilizan dispositivos simulados.
+
+**Actualizar.** Conserva una copia recuperable y la v0.2.12 para revertir. Apaga
+Climatización, actualiza y reinicia si Home Assistant lo solicita. Comprueba las
+salidas y reactiva. Se conservan las asignaciones, los perfiles y los horarios.
+
 ## v0.2.12 — parada segura ante fallos de almacenamiento
 
 - Si falla una escritura de configuración o de incidencias, Radiant Climate

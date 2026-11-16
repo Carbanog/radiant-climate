@@ -1,5 +1,19 @@
 # Cambios y actualización
 
+## v0.2.15 — continuidad del suministro entre zonas
+
+- Al apagar un termostato, alcanzar su consigna o volver al horario, los
+  circuitos activos que mantienen su demanda pueden continuar cuando el
+  relé de la zona que termina comunica apagado.
+- Un cierre normal con otras zonas activas admite hasta un segundo compartido
+  para los informes de apagado. Si falta confirmación, se interrumpe el
+  suministro compartido. La última demanda que termina da paso al cierre de
+  la general. Las nuevas aperturas respetan la espera de cierre estimado.
+
+**Actualizar.** Conserva una copia recuperable y la v0.2.14 para revertir.
+Apaga Climatización, actualiza y reinicia si Home Assistant lo solicita.
+Comprueba las salidas antes de reactivar. El cambio se aplica automáticamente.
+
 ## v0.2.14 — aprendizaje y diagnóstico con informes espaciados
 
 - El sensor **Estado del aprendizaje térmico** muestra las horas con circuito abierto según Home Assistant, las horas válidas del modelo y su confianza. Las comparaciones de hasta tres horas de un tramo continuo se guardan como estimaciones provisionales. La anticipación conserva sus criterios.

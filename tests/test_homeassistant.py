@@ -32,7 +32,7 @@ async def house(tmp_path, caplog):
     async_setup_loader(hass)
     try:
         switches = []
-        for key in ["a", "b", "general"]:
+        for key in ["a", "b", "d", "general"]:
             switches.append(
                 {
                     "name": f"Fixture {key}",
@@ -54,7 +54,7 @@ async def house(tmp_path, caplog):
             )
         config = {
             "homeassistant": {},
-            "input_boolean": {f"fixture_{x}": {} for x in ["a", "b", "general"]},
+            "input_boolean": {f"fixture_{x}": {} for x in ["a", "b", "d", "general"]},
             "template": [{"switch": switches}],
         }
         hass.data["radiant_fixture_boot_config"] = config
@@ -65,7 +65,7 @@ async def house(tmp_path, caplog):
         await async_process_ha_core_config(hass, {})
         for domain in ("homeassistant", "persistent_notification", "input_boolean", "template"):
             assert await async_setup_component(hass, domain, config)
-        for key in ["a", "b"]:
+        for key in ["a", "b", "d"]:
             hass.states.async_set(
                 f"sensor.fixture_{key}",
                 "19",
@@ -74,7 +74,7 @@ async def house(tmp_path, caplog):
         assert await async_setup_component(hass, DOMAIN, {})
         await hass.async_start()
         await hass.async_block_till_done()
-        for key in ["a", "b", "general"]:
+        for key in ["a", "b", "d", "general"]:
             assert hass.states.get(f"input_boolean.fixture_{key}") is not None
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
         assert result["step_id"] == "installation"
@@ -1273,6 +1273,61 @@ async def test_zone_confirmed_off_does_not_interrupt_other_active_zone(house, st
         assert state.last_changed == unchanged
     await service(house, "climate", "turn_off", climate_b)
     assert house.states.get("switch.fixture_general").state == "off"
+
+
+@pytest.mark.parametrize("confirmed_in_time", [True, False])
+async def test_shared_close_budget_with_two_zones_ending_and_one_active(house, confirmed_in_time):
+    import asyncio
+    from unittest.mock import patch
+
+    from custom_components.radiant_climate.core.control import Mode
+
+    closing = [await add_zone(house, key) for key in ("a", "b")]
+    _, remaining = await add_zone(house, "d")
+    for climate in [*(climate for _, climate in closing), remaining]:
+        await service(house, "climate", "set_hvac_mode", climate, hvac_mode="heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    for key in ("a", "b", "d", "general"):
+        assert house.states.get(f"switch.fixture_{key}").state == "on"
+    manager = house.data[DOMAIN]
+    for entry, _ in closing:
+        manager.zones[entry.entry_id].config["valve_travel"] = 120
+
+    call = house.services.async_call
+    delays = {"switch.fixture_a": 0.32, "switch.fixture_b": 0.48 if confirmed_in_time else 1.05}
+    general_closes = []
+    reports = []
+
+    async def delayed_switch(domain, service, service_data=None, **kwargs):
+        entity = (service_data or {}).get("entity_id")
+        if domain == "switch" and service == "turn_off":
+            if entity in delays:
+
+                async def report():
+                    await asyncio.sleep(delays[entity])
+                    await call(domain, service, service_data, **kwargs)
+
+                reports.append(house.async_create_task(report()))
+                return
+            if entity == "switch.fixture_general":
+                general_closes.append(entity)
+        return await call(domain, service, service_data, **kwargs)
+
+    def stop_both():
+        for entry, _ in closing:
+            zone = manager.zones[entry.entry_id]
+            zone.intent.set_mode(Mode.OFF, zone.settings)
+
+    with patch.object(type(house.services), "async_call", side_effect=delayed_switch):
+        await manager.async_change(stop_both)
+        await settle(house)
+    assert len(reports) == 2 and all(task.done() for task in reports)
+    assert house.states.get("switch.fixture_a").state == "off"
+    assert house.states.get("switch.fixture_b").state == "off"
+    assert bool(general_closes) == (not confirmed_in_time)
+    expected = "on" if confirmed_in_time else "off"
+    assert house.states.get("switch.fixture_general").state == expected
+    assert house.states.get("switch.fixture_d").state == expected
 
 
 async def test_forecast_failure_has_bounded_retry_without_blocking_control(house):

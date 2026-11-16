@@ -14,10 +14,9 @@ en la instalación general y selecciona **Diagnóstico hidráulico**.
    Se admiten °C, °F y K; se muestran valores convertidos a °C. El intervalo
    admisible de agua es 0–90 °C. Comprueba ubicación, montaje y unidades.
 2. Activa el diagnóstico. No activa la climatización ni ninguna zona.
-3. Ajusta la antigüedad máxima al ritmo real de informes de las sondas: por defecto
-   900 segundos, configurable entre 60 y 3600. Una lectura caducada no sirve como
-   evidencia. `last_reported` indica recepción de datos, no garantiza que el
-   dispositivo haya realizado una medición nueva.
+3. Ajusta la antigüedad máxima de la evidencia al ritmo de las sondas. El valor
+   inicial es 900 segundos. Los últimos valores válidos siguen visibles con la
+   hora de recepción. El aviso requiere informes dentro de la demanda observada.
 4. Conserva inicialmente 30 minutos de estabilización y otros 30 minutos de
    desviación continua. Son ventanas de observación, no tiempos de calentamiento
    de la vivienda ni parámetros del control. Se respeta también el mayor tiempo
@@ -51,10 +50,11 @@ históricos numéricos sin duplicarlos. El diagnóstico enumera estas situacione
 | Estado | Interpretación |
 |---|---|
 | Desactivado | No se evalúan avisos. |
-| Lecturas ausentes, caducadas o inválidas | No hay evidencia suficiente; se descarta el tiempo acumulado. |
+| Sonda indisponible o lectura inválida | Se muestra el último valor válido disponible en la sesión y se reinicia la observación. |
 | Sin demanda activa | No se interpreta agua posiblemente estancada como falta de suministro. |
 | Esperando estados comunicados de relés | Falta algún On comunicado o hay averías/retiradas pendientes. No confirma posiciones ni caudal. |
 | Esperando estabilización | Han empezado o cambiado las condiciones observadas. |
+| Sin datos suficientes durante la demanda | Faltan informes de ambas sondas dentro de la demanda estable. |
 | Observación | No se detecta una desviación sostenida de las comprobaciones configuradas; no certifica suficiencia. |
 | Desviación en observación | Todavía no ha transcurrido el tiempo continuo requerido. |
 | Impulsión inferior/superior a referencia | Se mantiene demanda con los relés comunicados On y un umbral configurado incumplido durante el periodo requerido. |

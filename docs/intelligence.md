@@ -49,11 +49,20 @@ minutos entre informes para el aprendizaje.
 
 La respuesta térmica lenta admite ventanas de 30 a 90 minutos construidas solo
 con informes reales. Cada separación entre informes debe ser como máximo de
-90 minutos. Ese límite es una
+90 minutos para el modelo que puede anticipar. Ese límite es una
 cota conservadora de este algoritmo, no una cadencia recomendada para sensores ni
 un parámetro aprendido. No se rellena el hueco con copias del último valor. Más de
 90 minutos, una discontinuidad conocida o una velocidad incompatible descartan la
 continuidad; una temperatura nueva permite iniciar otro periodo.
+
+Desde v0.2.14, dos informes separados por más de 90 minutos y hasta tres horas
+pueden aportar una estimación provisional cuando todo el tramo observado
+mantiene abiertos los relés de la zona y la general, si está configurada. Los
+tramos provisionales tienen su propio recuento y quedan fuera de la anticipación.
+La entidad **Estado del aprendizaje térmico** distingue las horas de circuito
+comunicado como abierto, las horas válidas del modelo y su confianza. Los estados
+comunicados permiten observar las maniobras. La medición del caudal requeriría
+instrumentación independiente.
 
 Se interrumpe el entrenamiento al cambiar los relés de zona/general y ante ventanas
 habilitadas o datos interiores inválidos, incluso si varios eventos llegan antes

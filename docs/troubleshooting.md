@@ -204,8 +204,9 @@ copia recuperable y recarga la integración antes de reactivar.
 
 ### Otras causas de diagnóstico
 
-- Agua. Revisa `supply_reading` y `return_reading` para distinguir ausente, indisponible,
-  caducado, unidad inválida o valor inválido. Se muestra el último informe y el umbral.
+- Agua. **Diagnóstico hidráulico** muestra el último valor válido y su hora. Si
+  indica **Sin datos suficientes durante la demanda**, aún faltan informes para
+  evaluar la impulsión o el retorno en ese periodo.
 - Sol. **Condiciones solares generales** conserva la entidad anterior e indica cuántas
   zonas observan, optimizan o han pausado por sol. El indicador compartido describe el
   entorno de la vivienda.

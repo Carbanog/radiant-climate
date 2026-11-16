@@ -35,6 +35,15 @@ jobs:
           python-version: '3.14'
       - run: python -m pip install homeassistant==${{ matrix.ha }} pytest==8.4.2 pytest-asyncio==1.2.0
       - run: python -m pytest tests/test_homeassistant.py -q
+      - name: Compare valve commands with v0.2.13
+        run: |
+          git fetch --depth=1 origin tag v0.2.13
+          baseline="$(mktemp -d)"
+          git archive v0.2.13 | tar -x -C "$baseline"
+          cp tests/test_relay_trace.py "$baseline/tests/"
+          RADIANT_RELAY_TRACE="$baseline/candidate.json" python -m pytest tests/test_relay_trace.py -q
+          (cd "$baseline" && RADIANT_RELAY_TRACE="$baseline/released.json" python -m pytest tests/test_relay_trace.py -q)
+          diff -u "$baseline/released.json" "$baseline/candidate.json"
       - name: Package exact development commit
         run: python scripts/package.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

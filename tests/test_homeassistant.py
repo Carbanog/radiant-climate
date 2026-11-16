@@ -1214,6 +1214,44 @@ async def test_pending_zone_close_is_visible_before_fault_is_latched(house):
     assert house.states.get("switch.fixture_b").state == "on"
 
 
+@pytest.mark.parametrize("stop", ["off", "resume", "satisfied"])
+async def test_zone_confirmed_off_does_not_interrupt_other_active_zone(house, stop):
+    entry, climate_a = await add_zone(house, "a")
+    _, climate_b = await add_zone(house, "b")
+    manager = house.data[DOMAIN]
+    if stop == "resume":
+        await manager.async_edit_schedule(
+            entry.entry_id, lambda p: p.set_blocks(list(range(7)), 0, "eco")
+        )
+        manager.zones[entry.entry_id].program.profiles["heat"]["eco"] = 18
+        await manager.async_schedule(entry.entry_id, True)
+    await service(house, "climate", "set_temperature", climate_a, temperature=22, hvac_mode="heat")
+    await service(house, "climate", "set_hvac_mode", climate_b, hvac_mode="heat")
+    await service(house, "switch", "turn_on", global_entity(house))
+    assert all(
+        house.states.get(f"switch.fixture_{name}").state == "on" for name in ("a", "b", "general")
+    )
+    manager.zones[entry.entry_id].config["valve_travel"] = 120
+    before = {
+        name: house.states.get(f"switch.fixture_{name}").last_changed for name in ("b", "general")
+    }
+    if stop == "off":
+        await service(house, "climate", "turn_off", climate_a)
+    elif stop == "resume":
+        await service(house, "button", "press", zone_entity(house, entry, "button", "resume"))
+        assert house.states.get(climate_a).attributes["control_state"] == "scheduled"
+    else:
+        house.states.async_set("sensor.fixture_a", "23", {"unit_of_measurement": "°C"})
+        await settle(house)
+    assert house.states.get("switch.fixture_a").state == "off"
+    for name, unchanged in before.items():
+        state = house.states.get(f"switch.fixture_{name}")
+        assert state.state == "on"
+        assert state.last_changed == unchanged
+    await service(house, "climate", "turn_off", climate_b)
+    assert house.states.get("switch.fixture_general").state == "off"
+
+
 async def test_forecast_failure_has_bounded_retry_without_blocking_control(house):
     from homeassistant.core import SupportsResponse
     from homeassistant.exceptions import HomeAssistantError

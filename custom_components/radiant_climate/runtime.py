@@ -913,11 +913,12 @@ class Installation:
                     if not await self._command(e, False):
                         pending_isolation.append(e)
                     state = self.hass.states.get(e)
+                    travel = z.config.get("valve_travel", 0)
                     if (
-                        state is not None
+                        travel > 0
+                        and state is not None
                         and state.state == "off"
-                        and (now - state.last_changed).total_seconds()
-                        < z.config.get("valve_travel", 0)
+                        and (dt_util.utcnow() - state.last_changed).total_seconds() < travel
                     ):
                         closing_wait = True
         if any(plan.values()) and revision != self._revision:
@@ -925,24 +926,44 @@ class Installation:
             return
         demand = any(plan.values()) and enabled
         self.pending_isolation = tuple(sorted(pending_isolation)) if self.general and demand else ()
-        isolated = not pending_isolation and not closing_wait
+        continuing = set()
         if self.general:
             inlet_healthy = self.general not in self._command_faults
-            supply = await self._command(self.general, demand and isolated and inlet_healthy)
-            if demand and isolated and inlet_healthy and self.general in self._command_faults:
+            general_state = self.hass.states.get(self.general)
+            if closing_wait and general_state is not None and general_state.state == "on":
+                # With the closing relay reported off, keep circuits already
+                # receiving water running. New circuits wait for estimated travel.
+                continuing = {
+                    key
+                    for key, zone in self.zones.items()
+                    if plan[key]
+                    and all(
+                        (state := self.hass.states.get(entity)) is not None and state.state == "on"
+                        for entity in zone.config["actuators"]
+                    )
+                }
+            wanted_supply = (
+                demand
+                and not pending_isolation
+                and inlet_healthy
+                and (not closing_wait or bool(continuing))
+            )
+            supply = await self._command(self.general, wanted_supply)
+            if wanted_supply and self.general in self._command_faults:
                 await self._abort_open()
                 return
             general_state = self.hass.states.get(self.general)
             elapsed = (now - general_state.last_changed).total_seconds() if general_state else 0
             opening = elapsed >= self.entries.get(self.hub, {}).get("general_travel", 0)
-            allowed = demand and isolated and inlet_healthy and supply and opening
+            allowed = wanted_supply and supply and opening
         else:
             allowed = enabled
         for key, z in self.zones.items():
-            if plan[key] and allowed and revision != self._revision:
+            zone_allowed = allowed and (not self.general or not closing_wait or key in continuing)
+            if plan[key] and zone_allowed and revision != self._revision:
                 self._request_update()
                 return
-            if plan[key] and not allowed:
+            if plan[key] and not zone_allowed:
                 reason = (
                     "zone_closing_estimated"
                     if closing_wait
@@ -955,11 +976,11 @@ class Installation:
                 z.decision = Decision(False, reason, z.decision.target)
             for e in z.config["actuators"]:
                 if plan[key]:
-                    if allowed and revision != self._revision:
+                    if zone_allowed and revision != self._revision:
                         self._request_update()
                         return
-                    confirmed = await self._command(e, bool(allowed))
-                    if allowed and not confirmed:
+                    confirmed = await self._command(e, zone_allowed)
+                    if zone_allowed and not confirmed:
                         await self._abort_open(z)
                         return
 

@@ -109,6 +109,11 @@ Un fallo de actuador inhibe la apertura afectada. El cierre admite dos intentos 
 
 Son puntos de partida, no parámetros calibrados para una vivienda. Un fallo o Apagado no espera el mínimo activo. Un contacto desconocido pausa inmediatamente si la función está habilitada. Una zona no aislable puede impedir suministro compartido.
 
+Si una zona termina y su relé comunica apagado, las demás zonas con demanda y
+relés activos pueden continuar. Durante el cierre estimado se aplazan nuevas
+aperturas. Si falta la confirmación de cierre, se interrumpe el suministro
+compartido. La general recibe la orden de cerrar cuando termina la última demanda.
+
 Limpiar un contacto o una fuente elimina su referencia; una fuente vacía vuelve a heredar si existe una compartida. Cambiar dispositivos recarga la zona y cierra sus salidas durante la operación. Editar la instalación deshabilita conservadoramente la general y requiere reactivación explícita tras revisar.
 
 ## Vacaciones y aplicar a todas
